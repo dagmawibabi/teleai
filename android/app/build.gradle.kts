@@ -1,3 +1,14 @@
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import javax.inject.Inject
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -52,4 +63,61 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+}
+
+/**
+ * Flutter 3.47.0 still copies flutter_assets into mergeAssets.outputDir after the
+ * merge. AGP 9.1 packages declared asset sources instead, so the MaterialIcons
+ * font never reaches the APK and icon glyphs fall back to CJK characters.
+ *
+ * Register the compiled flutter_assets folder as a generated assets source so
+ * AGP actually packs it. Later Flutter SDKs do this in the plugin itself.
+ */
+abstract class StageFlutterAssetsTask : DefaultTask() {
+    @get:Optional
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val intermediateDir: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val destinationDir: DirectoryProperty
+
+    @get:Inject
+    abstract val fileSystemOperations: FileSystemOperations
+
+    @TaskAction
+    fun copy() {
+        fileSystemOperations.sync {
+            into(destinationDir)
+            if (intermediateDir.isPresent) {
+                from(intermediateDir.dir("flutter_assets")) {
+                    into("flutter_assets")
+                }
+            }
+        }
+    }
+}
+
+fun String.asGradleSuffix(): String = replaceFirstChar { it.uppercase() }
+
+extensions.configure<ApplicationAndroidComponentsExtension> {
+    onVariants { variant ->
+        val compileTaskName = "compileFlutterBuild${variant.name.asGradleSuffix()}"
+        val stageTask =
+            tasks.register<StageFlutterAssetsTask>(
+                "stageFlutterAssets${variant.name.asGradleSuffix()}",
+            ) {
+                dependsOn(tasks.matching { it.name == compileTaskName })
+                intermediateDir.set(
+                    layout.buildDirectory.dir("intermediates/flutter/${variant.name}"),
+                )
+            }
+        val assets =
+            variant.sources.assets
+                ?: error("AGP did not expose an assets source set for ${variant.name}")
+        assets.addGeneratedSourceDirectory(
+            stageTask,
+            StageFlutterAssetsTask::destinationDir,
+        )
+    }
 }
