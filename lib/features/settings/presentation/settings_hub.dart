@@ -1,6 +1,7 @@
 import '../../assistant/presentation/watches_screen.dart';
 import '../../brief/brief_screen.dart';
 import '../../telegram/presentation/scheduled_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -11,6 +12,7 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../ai/data/model_catalog.dart';
 import '../../assistant/watches.dart';
+import '../../auth/data/auth_controller.dart';
 import '../../auth/presentation/welcome_screen.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/data/telegram_tools.dart';
@@ -30,6 +32,33 @@ class SettingsHub extends ConsumerWidget {
   void _open(BuildContext context, Widget page) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
 
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'This ends TeleAI\'s Telegram session and removes your conversations from this device. '
+          'Nothing in your Telegram account is deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    await ref.read(authControllerProvider.notifier).signOut();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
@@ -46,9 +75,7 @@ class SettingsHub extends ConsumerWidget {
           (e) => e.at.isAfter(DateTime(today.year, today.month, today.day)),
         )
         .fold<double>(0, (n, e) => n + e.cost);
-    final toolsOn = telegramTools
-        .where((t) => t.isOn(s))
-        .length;
+    final toolsOn = telegramTools.where((t) => t.isOn(s)).length;
     final me = store.me;
     final username = me == null ? null : store.username(me.usernames);
 
@@ -230,7 +257,11 @@ class SettingsHub extends ConsumerWidget {
                       color: AppColors.activeAccent.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(Radii.m),
                     ),
-                    child: Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.activeAccent),
+                    child: Icon(
+                      Icons.lock_outline_rounded,
+                      size: 20,
+                      color: AppColors.activeAccent,
+                    ),
                   ),
                   title: const Text('Read-only mode'),
                   subtitle: Text(
@@ -238,7 +269,9 @@ class SettingsHub extends ConsumerWidget {
                     style: context.text.bodySmall,
                   ),
                   value: s.readOnlyMode,
-                  onChanged: ref.read(settingsProvider.notifier).setReadOnlyMode,
+                  onChanged: ref
+                      .read(settingsProvider.notifier)
+                      .setReadOnlyMode,
                 ),
                 tile(
                   Icons.insights_outlined,
@@ -265,7 +298,9 @@ class SettingsHub extends ConsumerWidget {
                 tile(
                   Icons.wb_twilight_rounded,
                   'Briefs',
-                  s.briefsScheduled ? 'Morning ${s.briefMorning} · night ${s.briefNight}' : 'On demand only',
+                  s.briefsScheduled
+                      ? 'Morning ${s.briefMorning} · night ${s.briefNight}'
+                      : 'On demand only',
                   () => _open(context, const BriefScreen()),
                 ),
                 tile(
@@ -343,6 +378,19 @@ class SettingsHub extends ConsumerWidget {
                       style: context.text.labelSmall,
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: Space.l),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _signOut(context, ref),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Sign out'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.danger),
+                  ),
                 ),
               ),
             ],
