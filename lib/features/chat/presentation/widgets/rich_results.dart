@@ -1806,6 +1806,37 @@ MarkdownStyleSheet _md(BuildContext context) =>
       ),
     );
 
+/// Resolves README assets against GitHub's raw-content host. Markdown parsers
+/// pass a relative image URI straight to [imageBuilder], which has no page URL
+/// to resolve it against on its own.
+String _githubReadmeUrl(Map<String, dynamic> repo, Uri uri) {
+  if (uri.hasScheme) {
+    if (uri.host == 'github.com' &&
+        uri.pathSegments.length >= 5 &&
+        (uri.pathSegments[2] == 'blob' || uri.pathSegments[2] == 'raw')) {
+      final path = uri.pathSegments;
+      return Uri.https(
+        'raw.githubusercontent.com',
+        [...path.take(2), ...path.skip(3)].join('/'),
+        uri.queryParameters.isEmpty ? null : uri.queryParameters,
+      ).toString();
+    }
+    return uri.toString();
+  }
+
+  final name = '${repo['repo'] ?? ''}';
+  final branch = '${repo['default_branch'] ?? 'main'}';
+  final readmePath = '${repo['readme_path'] ?? 'README.md'}';
+  final base = Uri.parse(
+    'https://raw.githubusercontent.com/$name/$branch/$readmePath',
+  );
+  // A leading slash is repo-root-relative, not host-root-relative.
+  final relative = uri.path.startsWith('/')
+      ? uri.replace(path: uri.path.substring(1))
+      : uri;
+  return base.resolveUri(relative).toString();
+}
+
 class _RepoSheet extends ConsumerStatefulWidget {
   const _RepoSheet({
     required this.repo,
@@ -1847,6 +1878,7 @@ class _RepoSheetState extends ConsumerState<_RepoSheet> {
     final r = widget.repo;
     final langs = (r['languages'] as Map?)?.cast<String, dynamic>() ?? const {};
     final url = '${r['url'] ?? 'https://github.com/${r['repo']}'}';
+    String readmeUri(Uri uri) => _githubReadmeUrl(r, uri);
     return ListView(
       controller: widget.scroll,
       padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.x4),
@@ -1951,14 +1983,14 @@ class _RepoSheetState extends ConsumerState<_RepoSheet> {
                       : _open(
                           href.startsWith('http')
                               ? href
-                              : '$url/blob/HEAD/$href',
+                              : '$url/blob/${r['default_branch'] ?? 'main'}/$href',
                         ),
-                  // Badges and pictures in READMEs are often SVG; show only the rest.
+                  // Flutter's standard image provider cannot rasterize SVGs.
                   imageBuilder: (uri, _, _) => uri.path.endsWith('.svg')
                       ? const SizedBox.shrink()
                       : Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: _Net(uri.toString(), radius: Radii.s),
+                          child: _Net(readmeUri(uri), radius: Radii.s),
                         ),
                 ),
               ],
