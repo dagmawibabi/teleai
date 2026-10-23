@@ -32,12 +32,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     const _Page(
       title: 'Ask your Telegram anything.',
       body: 'How many channels you\'re in, what\'s new today, who\'s waiting on a reply. It reads your chats and shows its sources as chips you can open.',
-      art: _Bubbles(lines: ['What did my channels post today?', 'Do I have unread DMs?', 'Catch me up on Hobbies']),
-    ),
-    const _Page(
-      title: 'Briefed, morning and night.',
-      body: 'A detailed rundown of everything that happened across your DMs, groups and channels, sorted by what needs you first. On a schedule or whenever you ask.',
-      art: _Glyph(icon: Icons.wb_twilight_rounded),
+      art: _Bubbles(
+        lines: [
+          'What did my channels post today?',
+          'Do I have unread DMs?',
+          'Catch me up on my work groups',
+        ],
+      ),
     ),
     const _Page(
       title: 'Does what you can do.',
@@ -57,19 +58,19 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
-      title: 'A canvas for what matters.',
-      body: 'Save posts, DMs and comments into folders, or say "organise the last 10 posts from this channel by topic" and the assistant files them for you.',
-      art: _Glyph(icon: Icons.dashboard_customize_outlined),
-    ),
-    const _Page(
       title: 'Just talk.',
       body: 'Send it voice messages: it understands them and can pass the recording on to a chat. Dictate, hear answers read aloud, record and send voice notes and videos.',
       art: _Glyph(icon: Icons.graphic_eq_rounded),
     ),
     const _Page(
-      title: 'Careful by design.',
-      body: 'Reading never marks messages as read. Sending, replying and reacting wait for your OK. Deleting and leaving are off until you turn them on, and read-only mode locks everything else.',
-      art: _Glyph(icon: Icons.verified_user_outlined),
+      title: 'A canvas for what matters.',
+      body: 'Save posts, DMs and comments into folders, or say "organise the last 10 posts from this channel by topic" and the assistant files them for you.',
+      art: _Glyph(icon: Icons.dashboard_customize_outlined),
+    ),
+    const _Page(
+      title: 'Briefed, morning and night.',
+      body: 'A detailed rundown of everything that happened across your DMs, groups and channels, sorted by what needs you first. On a schedule or whenever you ask.',
+      art: _Glyph(icon: Icons.wb_twilight_rounded),
     ),
     const _Page(
       title: 'Watches while you\'re away.',
@@ -77,28 +78,47 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       art: _Glyph(icon: Icons.visibility_outlined),
     ),
     const _Page(
-      title: 'It browses the web for you.',
-      body: 'Reads blogs and docs, fills in forms on real sites, calls APIs, downloads files, and shows you screenshots of what it sees. Watch it live, or take over whenever you like.',
-      art: _Bubbles(lines: ['What\'s new on dagmawibabi.com/blog?', 'Send "hi" through this sma.et link', 'Screenshot the page for me']),
+      title: 'Reminders and routines.',
+      body: '"Remind me to walk in 5 minutes." "Every weekday at 9, catch me up on my channels." One-off or repeating, as plain alarms or as jobs the assistant carries out.',
+      art: _Glyph(icon: Icons.alarm_rounded),
     ),
     const _Page(
-      title: 'Runs code. Reads GitHub.',
-      body: 'A private sandbox on your phone runs Python and JavaScript to crunch numbers, make charts and files. It browses public GitHub repos too: READMEs, code, issues and releases.',
+      title: 'It browses the web for you.',
+      body: 'Reads blogs and docs, fills in forms on real sites, calls APIs, downloads files, and shows you screenshots of what it sees. Watch it live, or take over whenever you like.',
+      art: _Bubbles(
+        showMark: false,
+        lines: [
+          'What\'s on Wikipedia about the Moon?',
+          'Open the article and summarise it',
+          'Screenshot the page for me',
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Find what interests you.',
+      body: 'Search YouTube, catch up on X, explore public GitHub projects, and discover books with covers, details and legal free copies.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.ondemand_video_rounded, 'YouTube'),
+          (Icons.alternate_email_rounded, 'X'),
+          (Icons.code_rounded, 'GitHub'),
+          (Icons.menu_book_rounded, 'Books'),
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Runs code, privately.',
+      body: 'A private sandbox on your phone runs Python and JavaScript to crunch numbers, make charts and files.',
       art: _FeatureGrid(
         items: [
           (Icons.terminal_rounded, 'Python'),
           (Icons.javascript_rounded, 'JavaScript'),
           (Icons.bar_chart_rounded, 'Charts'),
-          (Icons.code_rounded, 'GitHub'),
+          (Icons.functions_rounded, 'Scripts'),
           (Icons.folder_zip_outlined, 'Zip files'),
           (Icons.download_rounded, 'Downloads'),
         ],
       ),
-    ),
-    const _Page(
-      title: 'Reminders and routines.',
-      body: '"Remind me to walk in 5 minutes." "Every weekday at 9, catch me up on my channels." One-off or repeating, as plain alarms or as jobs the assistant carries out.',
-      art: _Glyph(icon: Icons.alarm_rounded),
     ),
     const _Page(
       title: 'All of Telegram, by asking.',
@@ -118,6 +138,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
+      title: 'Careful by design.',
+      body: 'Reading never marks messages as read. Sending, replying and reacting wait for your OK. Deleting and leaving are off until you turn them on, and read-only mode locks everything else.',
+      art: _Glyph(icon: Icons.verified_user_outlined),
+    ),
+    const _Page(
       title: 'Your keys. Your phone.',
       body: 'No TeleAI servers. Conversations stay on this phone; AI runs through your own Vercel AI Gateway or OpenRouter key, with tokens and cost shown under every answer.',
       art: _Glyph(icon: Icons.key_rounded),
@@ -134,9 +159,14 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
   void _next() {
     if (_last) {
-      widget.replay ? Navigator.of(context).pop() : ref.read(authControllerProvider.notifier).startSignIn();
+      widget.replay
+          ? Navigator.of(context).pop()
+          : ref.read(authControllerProvider.notifier).startSignIn();
     } else {
-      _pager.nextPage(duration: const Duration(milliseconds: 380), curve: Curves.easeOutCubic);
+      _pager.nextPage(
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+      );
     }
   }
 
@@ -151,7 +181,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.xxl, Space.l, Space.m, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.xxl,
+                    Space.l,
+                    Space.m,
+                    0,
+                  ),
                   child: Row(
                     children: [
                       const BrandLockup(markSize: 28),
@@ -167,7 +202,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                   duration: const Duration(milliseconds: 420),
                                   curve: Curves.easeOutCubic,
                                 ),
-                          style: TextButton.styleFrom(foregroundColor: AppColors.text2),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.text2,
+                          ),
                           child: const Text('Skip'),
                         ),
                       ),
@@ -182,16 +219,28 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     itemBuilder: (context, i) {
                       final p = _pages[i];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Space.xxl,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Spacer(flex: 2),
                             Center(child: p.art),
                             const Spacer(flex: 2),
-                            Text(p.title, style: context.text.headlineMedium?.copyWith(height: 1.15)),
+                            Text(
+                              p.title,
+                              style: context.text.headlineMedium?.copyWith(
+                                height: 1.15,
+                              ),
+                            ),
                             const SizedBox(height: Space.l),
-                            Text(p.body, style: context.text.bodyLarge?.copyWith(color: AppColors.text2)),
+                            Text(
+                              p.body,
+                              style: context.text.bodyLarge?.copyWith(
+                                color: AppColors.text2,
+                              ),
+                            ),
                             const Spacer(),
                           ],
                         ),
@@ -200,7 +249,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.xxl, 0, Space.xxl, Space.l),
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.xxl,
+                    0,
+                    Space.xxl,
+                    Space.l,
+                  ),
                   child: Column(
                     children: [
                       Row(
@@ -212,7 +266,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                               width: i == _page ? 22 : 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: i == _page ? AppColors.text : AppColors.text3.withValues(alpha: 0.5),
+                                color: i == _page
+                                    ? AppColors.text
+                                    : AppColors.text3.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
@@ -226,7 +282,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
                             child: Text(
-                              _last ? (widget.replay ? 'Done' : 'Sign in with Telegram') : 'Next',
+                              _last
+                                  ? (widget.replay
+                                        ? 'Done'
+                                        : 'Sign in with Telegram')
+                                  : 'Next',
                               key: ValueKey(_last),
                             ),
                           ),
@@ -235,7 +295,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                       const SizedBox(height: Space.m),
                       Text(
                         'Independent app, not affiliated with Telegram.',
-                        style: context.text.bodySmall?.copyWith(color: AppColors.text3),
+                        style: context.text.bodySmall?.copyWith(
+                          color: AppColors.text3,
+                        ),
                       ),
                     ],
                   ),
@@ -262,7 +324,9 @@ class _Glyph extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        gradient: RadialGradient(colors: [Colors.white.withValues(alpha: 0.06), Colors.transparent]),
+        gradient: RadialGradient(
+          colors: [Colors.white.withValues(alpha: 0.06), Colors.transparent],
+        ),
       ),
       child: Center(
         child: Container(
@@ -282,28 +346,39 @@ class _Glyph extends StatelessWidget {
 
 /// A few questions in bubbles, as the chat shows them.
 class _Bubbles extends StatelessWidget {
-  const _Bubbles({required this.lines});
+  const _Bubbles({required this.lines, this.showMark = true});
   final List<String> lines;
+  final bool showMark;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const BrandMark(size: 64),
-        const SizedBox(height: Space.xxl),
+        if (showMark) ...[
+          const BrandMark(size: 64),
+          const SizedBox(height: Space.xxl),
+        ],
         for (final (i, line) in lines.indexed)
           Align(
             alignment: i.isOdd ? Alignment.centerLeft : Alignment.centerRight,
             child: Container(
               margin: const EdgeInsets.only(bottom: Space.s),
-              padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: Space.m),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.l,
+                vertical: Space.m,
+              ),
               decoration: BoxDecoration(
                 color: i.isOdd ? AppColors.surface2 : AppColors.surface3,
                 borderRadius: BorderRadius.circular(Radii.xl),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               ),
-              child: Text(line, style: context.text.bodyMedium?.copyWith(color: AppColors.text2)),
+              child: Text(
+                line,
+                style: context.text.bodyMedium?.copyWith(
+                  color: AppColors.text2,
+                ),
+              ),
             ),
           ),
       ],
@@ -338,7 +413,12 @@ class _FeatureGrid extends StatelessWidget {
                 children: [
                   Icon(icon, color: AppColors.text, size: 24),
                   const SizedBox(height: 6),
-                  Text(label, style: context.text.labelSmall?.copyWith(color: AppColors.text2)),
+                  Text(
+                    label,
+                    style: context.text.labelSmall?.copyWith(
+                      color: AppColors.text2,
+                    ),
+                  ),
                 ],
               ),
             ),

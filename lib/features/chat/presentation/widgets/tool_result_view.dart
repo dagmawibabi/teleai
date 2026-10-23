@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme.dart';
@@ -42,11 +44,22 @@ class ToolResultView extends StatelessWidget {
     }
 
     final children = <Widget>[];
-    if (j['image_path'] is String) {
-      children.add(GeneratedImage(path: j['image_path'] as String));
+    final outputFiles = name == 'run_code' && j['created_files'] is List
+        ? (j['created_files'] as List).whereType<String>().toList()
+        : const <String>[];
+    if (j['image_path'] is String || outputFiles.isNotEmpty) {
+      final imagePath = j['image_path'] as String?;
+      if (imagePath != null) {
+        children.add(GeneratedImage(path: imagePath));
+      }
       if (j['prompt'] != null) {
         children.add(const SizedBox(height: Space.m));
         children.add(Text('${j['prompt']}', style: context.text.bodySmall));
+      }
+      for (final path in outputFiles) {
+        if (path == imagePath) continue;
+        if (children.isNotEmpty) children.add(const SizedBox(height: Space.s));
+        children.add(GeneratedFile(path: path));
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -349,7 +362,12 @@ class ToolResultView extends StatelessWidget {
           .map(Map<String, dynamic>.from)
           .toList();
       final grouped = list.any((c) => c['messages'] is List);
-      children.add(_Section(title: j['folder'] is String ? 'Folder · ${j['folder']}' : 'Chats', count: list.length));
+      children.add(
+        _Section(
+          title: j['folder'] is String ? 'Folder · ${j['folder']}' : 'Chats',
+          count: list.length,
+        ),
+      );
       if (list.isEmpty) children.add(const _Empty('No chats'));
       for (final c in list) {
         children.add(_ChatRow(c: c));
@@ -1175,6 +1193,15 @@ class GeneratedImage extends StatelessWidget {
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ),
+                  Positioned(
+                    top: Space.s,
+                    right: Space.s,
+                    child: IconButton.filledTonal(
+                      tooltip: 'Save to device',
+                      onPressed: () => _saveGeneratedImage(context, path),
+                      icon: const Icon(Icons.download_rounded),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1189,6 +1216,82 @@ class GeneratedImage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _saveGeneratedImage(BuildContext context, String path) async {
+  try {
+    await Gal.putImage(path, album: 'TeleAI');
+    if (context.mounted) showSnack(context, 'Saved to your device');
+  } catch (_) {
+    if (context.mounted) {
+      showSnack(
+        context,
+        'Couldn\'t save this image',
+        icon: Icons.error_outline_rounded,
+      );
+    }
+  }
+}
+
+/// A file written by the private code sandbox. Its original location is app
+/// storage, so saving explicitly lets the person choose a device location.
+class GeneratedFile extends StatelessWidget {
+  const GeneratedFile({super.key, required this.path});
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    final file = File(path);
+    final name = path.split(RegExp(r'[\\/]')).last;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Space.m,
+        vertical: Space.s,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(Radii.m),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.insert_drive_file_outlined, color: AppColors.text2),
+          const SizedBox(width: Space.m),
+          Expanded(
+            child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          IconButton(
+            tooltip: 'Save to device',
+            onPressed: !file.existsSync()
+                ? null
+                : () => _saveFile(context, file, name),
+            icon: const Icon(Icons.download_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _saveFile(BuildContext context, File file, String name) async {
+  try {
+    final saved = await FilePicker.saveFile(
+      dialogTitle: 'Save to device',
+      fileName: name,
+      bytes: await file.readAsBytes(),
+    );
+    if (context.mounted && saved != null) {
+      showSnack(context, 'Saved to your device');
+    }
+  } catch (_) {
+    if (context.mounted) {
+      showSnack(
+        context,
+        'Couldn\'t save this file',
+        icon: Icons.error_outline_rounded,
+      );
+    }
   }
 }
 
