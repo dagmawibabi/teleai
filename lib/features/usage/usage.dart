@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -101,20 +102,38 @@ class UsageStore extends Notifier<List<UsageEvent>> {
 
   Future<File> _path() async => _file ??= File('${(await getApplicationSupportDirectory()).path}/usage.json');
 
+  bool _loaded = false;
+
   Future<void> _load() async {
     try {
       final f = await _path();
-      if (!await f.exists()) return;
-      final list = jsonDecode(await f.readAsString()) as List;
-      state = [for (final e in list) UsageEvent.fromJson(Map<String, dynamic>.from(e)), ...state];
+      // A save cut short used to leave the file empty; the copy written
+      // before the swap is the last good one.
+      for (final file in [f, File('${f.path}.tmp')]) {
+        if (!await file.exists()) continue;
+        final raw = (await file.readAsString()).trim();
+        if (raw.isEmpty) continue;
+        try {
+          final list = jsonDecode(raw) as List;
+          state = [for (final e in list) UsageEvent.fromJson(Map<String, dynamic>.from(e)), ...state];
+          break;
+        } on FormatException {
+          continue;
+        }
+      }
     } catch (e) {
       debugPrint('[Usage] $e');
+    } finally {
+      _loaded = true;
+      if (_again) unawaited(_save());
     }
   }
 
-  /// Writes are coalesced: a burst of events is one write.
+  /// Writes are coalesced: a burst of events is one write. Each write goes
+  /// to a temporary file that then replaces the old one, so the app being
+  /// killed mid-write never leaves an empty or half file.
   Future<void> _save() async {
-    if (_saving) {
+    if (_saving || !_loaded) {
       _again = true;
       return;
     }
@@ -122,7 +141,10 @@ class UsageStore extends Notifier<List<UsageEvent>> {
     try {
       do {
         _again = false;
-        await (await _path()).writeAsString(jsonEncode([for (final e in state) e.toJson()]));
+        final f = await _path();
+        final tmp = File('${f.path}.tmp');
+        await tmp.writeAsString(jsonEncode([for (final e in state) e.toJson()]), flush: true);
+        await tmp.rename(f.path);
       } while (_again);
     } catch (e) {
       debugPrint('[Usage] save: $e');

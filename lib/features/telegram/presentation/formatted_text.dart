@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:handy_tdlib/api.dart' as td;
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
+import 'link_opener.dart';
 
 /// Telegram's entities as text styles; links, mentions and hashtags are
 /// tinted, and links open in the browser.
@@ -59,7 +59,7 @@ TextSpan formattedSpan(td.FormattedText f, {Color? link}) {
           text: piece,
           style: TextStyle(color: tint, decoration: TextDecoration.underline, decorationColor: tint.withValues(alpha: 0.4)),
           recognizer: TapGestureRecognizer()
-            ..onTap = () => launchUrl(Uri.parse(target), mode: LaunchMode.externalApplication),
+            ..onTap = () => openUrl(target),
         ),
       );
     } else {

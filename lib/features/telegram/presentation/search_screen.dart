@@ -1,0 +1,261 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
+import 'package:intl/intl.dart';
+
+import '../../../app/theme.dart';
+import '../../chat/presentation/widgets/post_viewer.dart';
+import '../data/message_content.dart';
+import '../data/telegram_store.dart';
+import '../data/telegram_tools.dart';
+import 'media_viewer.dart';
+import 'message_tile.dart' show snapshotOf;
+import 'td_image.dart';
+import 'tg_avatar.dart';
+
+/// Every chat at once, by kind of content: all the photos, files, links or
+/// voice messages people sent, optionally matching words, newest first.
+class SearchScreen extends ConsumerStatefulWidget {
+  const SearchScreen({super.key, this.chatId, this.initialType = 'any'});
+
+  /// Search only this chat.
+  final int? chatId;
+  final String initialType;
+
+  @override
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  final _query = TextEditingController();
+  final _scroll = ScrollController();
+  late String _type = widget.initialType;
+  String _scope = 'all';
+  final List<td.Message> _results = [];
+  String _next = '';
+  bool _loading = false;
+  bool _searched = false;
+  String? _error;
+  Timer? _debounce;
+  int _run = 0;
+
+  bool get _visual => const {'photos', 'videos', 'photos_and_videos', 'gifs'}.contains(_type);
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 500) _more();
+    });
+    if (_type != 'any') _search();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _query.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _queue() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), _search);
+  }
+
+  Future<void> _search() async {
+    final run = ++_run;
+    setState(() {
+      _results.clear();
+      _next = '';
+      _error = null;
+    });
+    if (_query.text.trim().isEmpty && _type == 'any' && widget.chatId == null) {
+      setState(() => _searched = false);
+      return;
+    }
+    await _page(run);
+  }
+
+  Future<void> _more() async {
+    if (_loading || _next.isEmpty) return;
+    await _page(_run);
+  }
+
+  Future<void> _page(int run) async {
+    setState(() => _loading = true);
+    try {
+      final r = await ref.read(toolRunnerProvider).searchByType(
+        type: _type,
+        query: _query.text.trim(),
+        chatId: widget.chatId,
+        archived: _scope == 'archived',
+        channelsOnly: _scope == 'channels',
+        limit: 50,
+        offset: _next,
+      );
+      if (!mounted || run != _run) return;
+      setState(() {
+        _results.addAll(r.messages);
+        _next = r.next;
+        _searched = true;
+      });
+    } catch (e) {
+      if (mounted && run == _run) setState(() => _error = '$e');
+    } finally {
+      if (mounted && run == _run) setState(() => _loading = false);
+    }
+  }
+
+  void _open(td.Message m) {
+    final store = ref.read(telegramStoreProvider);
+    final chat = store.chat(m.chatId);
+    if (m.content is td.MessagePhoto || m.content is td.MessageVideo || m.content is td.MessageAnimation) {
+      showMediaViewer(context, m.content, title: chat?.title ?? 'Media');
+      return;
+    }
+    final kind = chat == null ? null : store.kindOf(chat);
+    showPost(context, snapshotOf(m, chat?.title ?? 'Chat', kind == ChatKind.channel ? null : store.senderName(m.senderId)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = ref.watch(telegramStoreProvider);
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: TextField(
+          controller: _query,
+          autofocus: widget.initialType == 'any',
+          textInputAction: TextInputAction.search,
+          onChanged: (_) => _queue(),
+          onSubmitted: (_) => _search(),
+          decoration: InputDecoration(
+            hintText: widget.chatId == null ? 'Search all chats' : 'Search ${store.chat(widget.chatId!)?.title ?? 'this chat'}',
+            border: InputBorder.none,
+            filled: false,
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          SizedBox(
+            height: 46,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 6),
+              children: [
+                for (final e in searchFilters.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(e.value.$1),
+                      selected: _type == e.key,
+                      onSelected: (_) {
+                        setState(() => _type = e.key);
+                        _search();
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (widget.chatId == null)
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: Space.m),
+                children: [
+                  for (final (k, label) in const [('all', 'All chats'), ('channels', 'Channels only'), ('archived', 'Archived')])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: FilterChip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(label, style: const TextStyle(fontSize: 12)),
+                        selected: _scope == k,
+                        onSelected: (_) {
+                          setState(() => _scope = k);
+                          _search();
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (_loading && _results.isEmpty) const LinearProgressIndicator(minHeight: 2),
+          Expanded(
+            child: _error != null
+                ? Center(child: Padding(padding: const EdgeInsets.all(Space.xl), child: Text(_error!, textAlign: TextAlign.center)))
+                : !_searched
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(Space.xl),
+                      child: Text(
+                        'Type to search, or pick a kind: every photo, file, link or voice message across your chats.',
+                        textAlign: TextAlign.center,
+                        style: context.text.bodySmall,
+                      ),
+                    ),
+                  )
+                : _results.isEmpty && !_loading
+                ? Center(child: Text('Nothing found', style: context.text.bodySmall))
+                : _visual
+                ? GridView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(3),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 3, crossAxisSpacing: 3),
+                    itemCount: _results.length,
+                    itemBuilder: (_, i) {
+                      final m = _results[i];
+                      return GestureDetector(
+                        onTap: () => _open(m),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(Radii.s),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              TdFileImage(file: previewFileOf(m.content), priority: 6),
+                              if (m.content is td.MessageVideo)
+                                const Positioned(right: 4, bottom: 4, child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 20)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : ListView.builder(
+                    controller: _scroll,
+                    itemCount: _results.length + (_next.isEmpty ? 0 : 1),
+                    itemBuilder: (_, i) {
+                      if (i == _results.length) {
+                        return const Padding(padding: EdgeInsets.all(Space.l), child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+                      }
+                      final m = _results[i];
+                      final chat = store.chat(m.chatId);
+                      final g = gistOf(m.content);
+                      return ListTile(
+                        leading: TgAvatar(chatId: m.chatId, title: chat?.title ?? '?', size: 40),
+                        title: Text(chat?.title ?? 'Chat ${m.chatId}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          '${g.kind == 'text' ? '' : '${g.detail ?? g.kind} · '}${g.text}'.replaceAll('\n', ' '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.bodySmall,
+                        ),
+                        trailing: Text(
+                          DateFormat('d MMM').format(DateTime.fromMillisecondsSinceEpoch(m.date * 1000)),
+                          style: context.text.labelSmall,
+                        ),
+                        onTap: () => _open(m),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}

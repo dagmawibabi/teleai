@@ -7,6 +7,7 @@ import '../../chat/data/chat_controller.dart';
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/presentation/tg_avatar.dart';
+import '../reminders.dart';
 import '../watch_engine.dart';
 import '../watches.dart';
 
@@ -158,8 +159,92 @@ class WatchesScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          const _Reminders(),
         ],
       ),
+    );
+  }
+}
+
+/// Reminders and scheduled jobs the assistant set up ("remind me to walk in
+/// 5 minutes", "every Sunday at 20:00 summarise my channels").
+class _Reminders extends ConsumerWidget {
+  const _Reminders();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final all = ref.watch(reminderStoreProvider);
+    final store = ref.read(reminderStoreProvider.notifier);
+    final shown = all.where((r) => r.enabled || r.repeats).toList()
+      ..sort((a, b) => (a.next ?? DateTime(9999)).compareTo(b.next ?? DateTime(9999)));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Space.xs, Space.l, Space.xs, Space.s),
+          child: Text('REMINDERS & SCHEDULED JOBS', style: context.text.labelSmall),
+        ),
+        if (shown.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(Space.l),
+            child: Text(
+              'None. Ask in chat: "remind me to walk in 5 minutes", "every weekday at 9 remind me to stand up", '
+              '"every Sunday at 20:00 summarise my channels".',
+              textAlign: TextAlign.center,
+              style: context.text.bodySmall,
+            ),
+          ),
+        for (final r in shown)
+          Padding(
+            padding: const EdgeInsets.only(bottom: Space.s),
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(Radii.l),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.xs, Space.m),
+                child: Row(
+                  children: [
+                    Icon(r.isJob ? Icons.smart_toy_outlined : Icons.alarm_rounded, color: r.enabled ? AppColors.accent : AppColors.text3),
+                    const SizedBox(width: Space.m),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(r.text, style: context.text.titleSmall),
+                          Text(
+                            [
+                              if (r.cron != null) Cron.describe(r.cron!),
+                              if (r.next != null) 'next ${DateFormat('EEE d MMM HH:mm').format(r.next!)}',
+                              if (r.isJob) 'does: ${r.prompt}',
+                            ].join(' · '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.text.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (v) => switch (v) {
+                        'test' => store.runNow(r),
+                        'delete' => store.remove(r.id),
+                        _ => null,
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'test', child: Text('Run now')),
+                        PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      ],
+                    ),
+                    Switch(
+                      value: r.enabled,
+                      onChanged: r.next == null && !r.repeats ? null : (v) => store.update(r.id, (x) => x.copyWith(enabled: v)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

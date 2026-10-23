@@ -1,30 +1,47 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:geolocator/geolocator.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart' show NumberFormat;
+import 'package:video_player/video_player.dart';
 
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../../infrastructure/telegram/telegram_exception.dart';
 import '../../chat/domain/chat_models.dart';
 import '../../settings/data/settings.dart';
+import '../../web/browser_session.dart';
+import '../../web/inapp_engine.dart';
+import '../../web/sandbox.dart';
+import '../../web/web_fetch.dart';
+import 'file_loader.dart' show formatDuration;
 import 'message_content.dart';
 import 'telegram_store.dart';
 
+part 'telegram_account_tools.dart';
 part 'telegram_activity_tools.dart';
 part 'telegram_admin_tools.dart';
 part 'telegram_background_tools.dart';
 part 'telegram_canvas_tools.dart';
 part 'telegram_chat_tools.dart';
 part 'telegram_destructive_tools.dart';
+part 'telegram_dev_tools.dart';
+part 'telegram_discover_tools.dart';
 part 'telegram_extra_tools.dart';
 part 'telegram_bot_tools.dart';
 part 'telegram_botfather_tools.dart';
 part 'telegram_media_tools.dart';
+part 'telegram_more_tools.dart';
 part 'telegram_tools_more.dart';
+part 'telegram_local_tools.dart';
+part 'telegram_manage_tools.dart';
+part 'telegram_star_tools.dart';
+part 'telegram_web_tools.dart';
 
 /// What a tool hands back: JSON for the model, and the posts it showed so
 /// the chat can turn citations into chips.
@@ -50,6 +67,12 @@ enum ToolCategory {
   actions('Actions'),
   memory('Memory'),
   automation('Watches & routines'),
+  stories('Stories'),
+  folders('Folders'),
+  web('Web & browsing'),
+  developer('Code & GitHub'),
+  discover('Books, YouTube & X'),
+  stars('Stars'),
   creative('Creative');
 
   const ToolCategory(this.label);
@@ -70,7 +93,8 @@ enum ToolCost {
     'AI model',
     'Calls an AI model through your gateway key, which costs credits.',
   ),
-  device('This phone', 'Kept on this phone only; nothing goes to Telegram.');
+  device('This phone', 'Kept on this phone only; nothing goes to Telegram.'),
+  web('The web', 'Reaches websites and APIs on the internet straight from this phone.');
 
   const ToolCost(this.label, this.explanation);
   final String label;
@@ -87,7 +111,12 @@ class TelegramTool {
     this.category = ToolCategory.messages,
     this.cost = ToolCost.telegram,
     this.destructive = false,
+    this.alwaysAsk = false,
   });
+
+  /// Spends the user's money (Stars): asks every time, whatever the
+  /// approval setting.
+  final bool alwaysAsk;
 
   /// Deletes, leaves, blocks or bans: off until turned on in Settings, and
   /// always asks first.
@@ -815,6 +844,11 @@ final _tools = <TelegramTool>[
           'type': 'array',
           'items': {'type': 'string'},
         },
+        'send_as': {
+          'type': 'string',
+          'enum': ['media', 'file'],
+          'description': 'file sends photos/videos uncompressed, as documents.',
+        },
       },
       ['chat_id', 'message_id'],
     ),
@@ -851,15 +885,23 @@ final _tools = <TelegramTool>[
     category: ToolCategory.actions,
     requiresApproval: true,
     description:
-        'Changes the text (or caption) of one of the user\'s own messages or channel posts. The user must approve '
-        'it first. Only call when asked.',
+        'Changes one of the user\'s own messages or channel posts: its text or caption, and/or its media (replace the '
+        'photo, video, file or audio with one from files, or add one; send_as file keeps it uncompressed). Telegram may '
+        'refuse to add media to a message that was sent as plain text; the tool says so. The user must approve it '
+        'first. Only call when asked.',
     parameters: _obj(
       {
         'chat_id': {'type': 'integer'},
         'message_id': {'type': 'integer'},
-        'text': {'type': 'string', 'description': 'The full new text.'},
+        'text': {'type': 'string', 'description': 'The full new text or caption. Leave out to keep the current one.'},
+        'files': {
+          'type': 'array',
+          'items': {'type': 'string'},
+          'description': 'One file to put in place of the message\'s media (a name from this conversation).',
+        },
+        'send_as': {'type': 'string', 'enum': ['media', 'file']},
       },
-      ['chat_id', 'message_id', 'text'],
+      ['chat_id', 'message_id'],
     ),
   ),
   TelegramTool(
@@ -1136,6 +1178,14 @@ final _tools = <TelegramTool>[
   ..._botFatherTools,
   ..._destructiveTools,
   ..._canvasTools,
+  ..._localPhoneTools,
+  ..._webTools,
+  ..._starTools,
+  ..._devTools,
+  ..._manageTools,
+  ..._accountTools,
+  ..._moreTdTools,
+  ..._discoverTools,
 ];
 
 const generateImageTool = TelegramTool(
@@ -1204,7 +1254,18 @@ const sendMessageTool = TelegramTool(
             'Files to attach: names of files the user attached in this conversation, or image_path values from '
             'generate_image. Several photos/videos are sent as one album.',
       },
+      'send_as': {
+        'type': 'string',
+        'enum': ['media', 'file'],
+        'description':
+            'media (default): photos and videos compressed, shown inline. file: sent uncompressed as documents, '
+            'full quality and original file name. To send several files as one archive, zip_files first.',
+      },
       'reply_to_message_id': {'type': 'integer'},
+      'effect_id': {
+        'type': 'string',
+        'description': 'An animated effect (from list_message_effects) for a message in a private chat.',
+      },
     },
     'required': ['chat_id'],
     'additionalProperties': false,
@@ -1253,11 +1314,26 @@ TelegramTool? toolNamed(String name) =>
 /// through the client's rate limiter; list questions are answered from the
 /// local store.
 class TelegramToolRunner {
-  TelegramToolRunner(this._client, this._store, this._settings);
+  TelegramToolRunner(
+    this._client,
+    this._store,
+    this._settings, {
+    WebFetcher? web,
+    BrowserSession? browser,
+    InAppEngine? engine,
+    Sandbox? sandbox,
+  }) : _web = web ?? WebFetcher(),
+       _browser = browser ?? BrowserSession(),
+       _engine = engine ?? InAppEngine(),
+       _sandbox = sandbox ?? Sandbox();
 
   final TelegramClient _client;
   final TelegramStore _store;
   final AppSettings _settings;
+  final WebFetcher _web;
+  final BrowserSession _browser;
+  final InAppEngine _engine;
+  final Sandbox _sandbox;
   final Map<String, StreamSubscription<Position>> _liveLocationStreams = {};
 
   static const _maxText = 1200;
@@ -1364,10 +1440,10 @@ class TelegramToolRunner {
   /// Tools defined in the part files, each answering null for names it
   /// doesn't own.
   Future<ToolOutput>? _runExtra(String name, Map<String, dynamic> args) =>
-      _runMore(name, args) ?? _runMedia(name, args) ?? _runBackgrounds(name, args) ?? _runBots(name, args) ?? _runActivity(name, args) ?? _runChats(name, args) ?? _runDestructive(name, args) ?? _runAdmin(name, args) ?? _runExtra2(name, args) ?? _runBotFather(name, args);
+      _runMore(name, args) ?? _runMedia(name, args) ?? _runBackgrounds(name, args) ?? _runBots(name, args) ?? _runActivity(name, args) ?? _runChats(name, args) ?? _runDestructive(name, args) ?? _runAdmin(name, args) ?? _runExtra2(name, args) ?? _runBotFather(name, args) ?? _runWeb(name, args) ?? _runStars(name, args) ?? _runDev(name, args) ?? _runManage(name, args) ?? _runAccount(name, args) ?? _runMoreTd(name, args) ?? _runDiscover(name, args);
 
   String? _describeExtra(String name, Map<String, dynamic> args, String title) =>
-      _describeMore(name, args, title) ?? _describeBackgrounds(name, args, title) ?? _describeBots(name, args, title) ?? _describeChats(name, args, title) ?? _describeDestructive(name, args, title) ?? _describeAdmin(name, args, title) ?? _describeExtra2(name, args, title) ?? _describeBotFather(name, args);
+      _describeMore(name, args, title) ?? _describeBackgrounds(name, args, title) ?? _describeBots(name, args, title) ?? _describeChats(name, args, title) ?? _describeDestructive(name, args, title) ?? _describeAdmin(name, args, title) ?? _describeExtra2(name, args, title) ?? _describeBotFather(name, args) ?? _describeWeb(name, args) ?? _describeStars(name, args, title) ?? _describeDev(name, args) ?? _describeManage(name, args, title) ?? _describeAccount(name, args) ?? _describeMoreTd(name, args, title);
 
   ChatInfo _requireChat(Map<String, dynamic> args) {
     final id = _intOrNull(args, 'chat_id');
@@ -1882,6 +1958,8 @@ class TelegramToolRunner {
       chatId: c.id,
       text: '${args['text'] ?? ''}',
       files: files,
+      asFiles: args['send_as'] == 'file',
+      effectId: int.tryParse('${args['effect_id'] ?? ''}') ?? 0,
       replyToMessageId: _intOrNull(args, 'reply_to_message_id'),
     );
     final posts = [for (final m in sent) _message(m, c).$2];
@@ -1969,19 +2047,23 @@ class TelegramToolRunner {
     DateTime? sendAt,
     int? replyInChatId,
     td.InputTextQuote? quote,
+    bool asFiles = false,
+    int effectId = 0,
   }) async {
     text = text.trim();
-    final options = sendAt == null
+    final options = sendAt == null && effectId == 0
         ? null
         : td.MessageSendOptions(
             disableNotification: false,
             fromBackground: false,
             protectContent: false,
             updateOrderOfInstalledStickerSets: false,
-            schedulingState: td.MessageSchedulingStateSendAtDate(
-              sendDate: sendAt.millisecondsSinceEpoch ~/ 1000,
-            ),
-            effectId: 0,
+            schedulingState: sendAt == null
+                ? null
+                : td.MessageSchedulingStateSendAtDate(
+                    sendDate: sendAt.millisecondsSinceEpoch ~/ 1000,
+                  ),
+            effectId: effectId,
             sendingId: 0,
             onlyPreview: false,
           );
@@ -2064,12 +2146,10 @@ class TelegramToolRunner {
         return t;
       }
 
-      final visual = files
-          .where((f) => _isPhoto(f) || _isVideo(f) || _isGif(f))
-          .toList();
-      final docs = files
-          .where((f) => !_isPhoto(f) && !_isVideo(f) && !_isGif(f))
-          .toList();
+      // As files, pictures and videos go uncompressed, as documents.
+      bool visualFile(String f) => !asFiles && (_isPhoto(f) || _isVideo(f) || _isGif(f));
+      final visual = files.where(visualFile).toList();
+      final docs = files.where((f) => !visualFile(f)).toList();
       // Telegram groups at most ten items per album, and photos/videos can't
       // share an album with documents.
       for (var i = 0; i < visual.length; i += 10) {
@@ -2115,7 +2195,8 @@ class TelegramToolRunner {
           for (final f in docs.skip(i).take(10))
             td.InputMessageDocument(
               document: td.InputFileLocal(path: f),
-              disableContentTypeDetection: false,
+              // Sent as a file on purpose: keep it a file, not a video.
+              disableContentTypeDetection: asFiles,
               caption: caption(),
             ),
         ]);
@@ -2207,11 +2288,14 @@ class TelegramToolRunner {
     await _store.ensureChatsLoaded();
     final folderId = _intOrNull(args, 'folder_id');
     if (folderId != null) {
+      final title = await _folderTitle(folderId);
       final ids = (await _store.loadFolder(folderId)).toSet();
       final chats = _sortedChats().where((c) => ids.contains(c.id)).toList();
       return ToolOutput({
         'folder_id': folderId,
-        'count': chats.length,
+        'folder': title,
+        'total_matching': chats.length,
+        'unread_chats': chats.where((c) => c.hasUnread).length,
         'chats': [for (final c in chats.take(100)) _chatJson(c)],
       });
     }
@@ -2223,7 +2307,7 @@ class TelegramToolRunner {
           .toList();
       folders.add({
         'folder_id': f.id,
-        'title': f.title,
+        'title': f.title.isNotEmpty ? f.title : await _folderTitle(f.id),
         'chats': chats.length,
         'unread_chats': chats.where((c) => c.hasUnread).length,
       });
@@ -2232,6 +2316,18 @@ class TelegramToolRunner {
       'folders': folders,
       if (folders.isEmpty) 'note': 'The user has no chat folders.',
     });
+  }
+
+  /// A folder's name, from the store or else straight from TDLib.
+  Future<String> _folderTitle(int folderId) async {
+    final known = _store.folders.where((f) => f.id == folderId).firstOrNull?.title ?? '';
+    if (known.isNotEmpty) return known;
+    try {
+      final f = await _client.send<td.ChatFolder>(td.GetChatFolder(chatFolderId: folderId), limited: true);
+      return f.title;
+    } on TelegramException {
+      throw ArgumentError('No folder with id $folderId. Call list_chat_folders without folder_id to see them.');
+    }
   }
 
   Future<ToolOutput> _mentions(Map<String, dynamic> args) async {
@@ -3188,10 +3284,16 @@ class TelegramToolRunner {
     } on TelegramException {
       note = 'Telegram only shows counts here, not who reacted.';
     }
+    final paid = m.interactionInfo?.reactions?.paidReactors ?? const <td.PaidReactor>[];
     return ToolOutput({
       'ref': 'post:$chatId:$id',
       'reactions': counts,
       if (who.isNotEmpty) 'reacted_by': who,
+      if (paid.isNotEmpty)
+        'star_supporters': [
+          for (final p in paid)
+            '${p.isMe ? 'You' : (p.isAnonymous || p.senderId == null ? 'Anonymous' : _store.senderName(p.senderId!))}: ${p.starCount} ⭐',
+        ],
       'note': ?note,
     });
   }
@@ -3242,44 +3344,51 @@ class TelegramToolRunner {
       td.GetMessage(chatId: origin.id, messageId: id),
       limited: true,
     );
-    // Telegram only takes a quote that is really in the message.
+    // Telegram only takes a quote that is really in the message, with its
+    // formatting; buildQuote cuts it from the message itself.
     String? note;
     td.InputTextQuote? quote;
     final wanted = '${args['quote'] ?? ''}'.trim();
     if (wanted.isNotEmpty) {
-      final body = gistOf(original.content).text;
-      final at = body.indexOf(wanted);
-      if (at >= 0) {
-        quote = td.InputTextQuote(
-          text: td.FormattedText(text: wanted, entities: const []),
-          position: at,
-        );
-      } else {
-        note =
-            "The quote isn't in the message word for word, so it was left out.";
+      final g = gistOf(original.content);
+      quote = buildQuote(g.formatted ?? td.FormattedText(text: g.text, entities: const []), wanted);
+      if (quote == null) {
+        note = "The quote isn't in the message, so the reply went without it. Copy the excerpt from the message's text.";
       }
     }
     final files = [
       for (final f in (args['files'] as List? ?? const []))
         if (File('$f').existsSync()) '$f',
     ];
-    final sent = await sendToChat(
+    Future<List<td.Message>> send(td.InputTextQuote? q) => sendToChat(
       chatId: target,
       text: '${args['text'] ?? ''}',
       files: files,
+      asFiles: args['send_as'] == 'file',
       replyToMessageId: id,
       replyInChatId: origin.id,
-      quote: quote,
+      quote: q,
       threadId: original.chatId == target && original.isTopicMessage
           ? original.messageThreadId
           : 0,
     );
+    List<td.Message> sent;
+    try {
+      sent = await send(quote);
+    } on TelegramException catch (e) {
+      // Telegram still refused the quote (it checks things it doesn't
+      // explain): the reply matters more, so it goes without.
+      if (quote == null || !e.message.toUpperCase().contains('QUOTE')) rethrow;
+      note = 'Telegram refused the quote (${e.message}), so the reply went without it.';
+      quote = null;
+      sent = await send(null);
+    }
     return ToolOutput(
       {
         'sent': true,
         'chat': dest.title,
         'reply_to': 'post:${origin.id}:$id',
-        if (quote != null) 'quoted': wanted,
+        if (quote != null) 'quoted': quote.text.text,
         'note': ?note,
         if (sent.isNotEmpty)
           'ref': 'post:${sent.first.chatId}:${sent.first.id}',
@@ -3346,42 +3455,127 @@ class TelegramToolRunner {
   Future<ToolOutput> _edit(Map<String, dynamic> args) async {
     final c = _requireChat(args);
     final id = _intOrNull(args, 'message_id');
-    final text = '${args['text'] ?? ''}'.trim();
-    if (id == null || text.isEmpty)
-      throw ArgumentError('message_id and text are required');
+    final newText = args['text'] == null ? null : '${args['text']}'.trim();
+    final file = [
+      for (final f in (args['files'] as List? ?? const []))
+        if (File('$f').existsSync()) '$f',
+    ].firstOrNull;
+    if (id == null) throw ArgumentError('message_id is required');
+    if (file == null && (newText == null || newText.isEmpty)) {
+      throw ArgumentError(
+        (args['files'] as List? ?? const []).isNotEmpty
+            ? 'That file isn\'t in this conversation. list_attachments shows what there is.'
+            : 'Give the new text, or a file to replace the media with.',
+      );
+    }
     final m = await _client.send<td.Message>(
       td.GetMessage(chatId: c.id, messageId: id),
       limited: true,
     );
-    final formatted = td.FormattedText(text: text, entities: const []);
-    final edited = m.content is td.MessageText
-        ? await _client.send<td.Message>(
-            td.EditMessageText(
-              chatId: c.id,
-              messageId: id,
-              inputMessageContent: td.InputMessageText(
-                text: formatted,
-                linkPreviewOptions: null,
-                clearDraft: false,
-              ),
-            ),
-            limited: true,
-          )
-        : await _client.send<td.Message>(
-            td.EditMessageCaption(
-              chatId: c.id,
-              messageId: id,
-              caption: formatted,
-              showCaptionAboveMedia: false,
-            ),
-            limited: true,
-          );
+    final current = gistOf(m.content);
+    final caption = newText == null
+        ? (current.formatted ?? td.FormattedText(text: current.text, entities: const []))
+        : td.FormattedText(text: newText, entities: const []);
+    final td.Message edited;
+    if (file != null) {
+      try {
+        edited = await _client.send<td.Message>(
+          td.EditMessageMedia(
+            chatId: c.id,
+            messageId: id,
+            inputMessageContent: _mediaContent(file, caption, asFile: args['send_as'] == 'file'),
+          ),
+          limited: true,
+          timeout: const Duration(minutes: 3),
+        );
+      } on TelegramException catch (e) {
+        if (m.content is! td.MessageText || e.isFloodWait) rethrow;
+        throw ArgumentError(
+          'Telegram won\'t add media to this message because it was sent as text (${e.message}). Offer to send a new '
+          'message with the file instead, or to delete this one and send it again with the file.',
+        );
+      }
+    } else if (m.content is td.MessageText) {
+      edited = await _client.send<td.Message>(
+        td.EditMessageText(
+          chatId: c.id,
+          messageId: id,
+          inputMessageContent: td.InputMessageText(
+            text: caption,
+            linkPreviewOptions: null,
+            clearDraft: false,
+          ),
+        ),
+        limited: true,
+      );
+    } else {
+      edited = await _client.send<td.Message>(
+        td.EditMessageCaption(
+          chatId: c.id,
+          messageId: id,
+          caption: caption,
+          showCaptionAboveMedia: false,
+        ),
+        limited: true,
+      );
+    }
     return ToolOutput({
       'done': true,
       'edited': true,
       'chat': c.title,
+      if (file != null) 'media_replaced': file.split(RegExp(r'[\\/]')).last,
       'ref': 'post:${c.id}:${edited.id}',
     });
+  }
+
+  /// A local file as message content of the kind its type calls for, or a
+  /// document when [asFile].
+  td.InputMessageContent _mediaContent(String f, td.FormattedText? caption, {bool asFile = false}) {
+    if (caption != null && caption.text.isEmpty) caption = null;
+    final input = td.InputFileLocal(path: f);
+    if (asFile) {
+      return td.InputMessageDocument(document: input, disableContentTypeDetection: true, caption: caption);
+    }
+    if (_isGif(f)) {
+      return td.InputMessageAnimation(
+        animation: input,
+        addedStickerFileIds: const [],
+        duration: 0,
+        width: 0,
+        height: 0,
+        caption: caption,
+        showCaptionAboveMedia: false,
+        hasSpoiler: false,
+      );
+    }
+    if (_isPhoto(f)) {
+      return td.InputMessagePhoto(
+        photo: input,
+        addedStickerFileIds: const [],
+        width: 0,
+        height: 0,
+        caption: caption,
+        showCaptionAboveMedia: false,
+        hasSpoiler: false,
+      );
+    }
+    if (_isVideo(f)) {
+      return td.InputMessageVideo(
+        video: input,
+        addedStickerFileIds: const [],
+        duration: 0,
+        width: 0,
+        height: 0,
+        supportsStreaming: true,
+        caption: caption,
+        showCaptionAboveMedia: false,
+        hasSpoiler: false,
+      );
+    }
+    if (RegExp(r'\.(mp3|m4a|flac|wav|ogg|opus|aac)$', caseSensitive: false).hasMatch(f)) {
+      return td.InputMessageAudio(audio: input, duration: 0, title: '', performer: '', caption: caption);
+    }
+    return td.InputMessageDocument(document: input, disableContentTypeDetection: false, caption: caption);
   }
 
   /// Runs only after the person approved it in the chat.
@@ -3503,8 +3697,13 @@ class TelegramToolRunner {
         args['archived'] == false
             ? 'Move $title out of the Archive'
             : 'Move $title to the Archive',
-      'edit_message' =>
-        'Change message ${args['message_id']} in $title to:\n“${args['text']}”',
+      'edit_message' => [
+        'Edit message ${args['message_id']} in $title',
+        if ((args['files'] as List? ?? const []).isNotEmpty)
+          'Replace its media with ${'${(args['files'] as List).first}'.split(RegExp(r'[\\/]')).last}'
+              '${args['send_as'] == 'file' ? ' (as a file)' : ''}',
+        if (args['text'] != null) 'New text:\n“${args['text']}”',
+      ].join('\n'),
       'reschedule_message' =>
         args['send_now'] == true
             ? 'Send scheduled message ${args['message_id']} in $title now'
@@ -3581,5 +3780,9 @@ final toolRunnerProvider = Provider<TelegramToolRunner>(
     ref.watch(telegramClientProvider),
     ref.watch(telegramStoreProvider),
     ref.watch(settingsProvider),
+    web: ref.watch(webFetcherProvider),
+    browser: ref.watch(browserSessionProvider),
+    engine: ref.watch(inAppEngineProvider),
+    sandbox: ref.watch(sandboxProvider),
   ),
 );

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme.dart';
 import '../../../voice/player_sheet.dart';
@@ -15,6 +14,7 @@ import '../../../settings/data/settings.dart';
 import 'post_viewer.dart';
 import 'thinking_block.dart';
 import 'tool_card.dart';
+import '../../../telegram/presentation/link_opener.dart';
 
 final _postRef = RegExp(r'post:(-?\d+):(\d+)');
 
@@ -189,7 +189,7 @@ class AssistantMessage extends ConsumerWidget {
       return;
     }
     final uri = Uri.tryParse(href);
-    if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (uri != null) openUrl(href, context: context);
   }
 
   @override

@@ -157,7 +157,7 @@ class SettingsScreen extends ConsumerWidget {
                         router: AiRouter.vercel,
                         key: k,
                       ),
-                      help: Uri.parse('https://vercel.com/docs/ai-gateway'),
+                      help: Uri.parse('https://vercel.com/ai-gateway/models'),
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _KeyTile(
@@ -493,6 +493,16 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                     ],
+                    SwitchListTile(
+                      secondary: const Icon(Icons.alternate_email_rounded),
+                      title: const Text('When I\'m mentioned'),
+                      subtitle: Text(
+                        'A notification when someone @mentions you or replies to you in a group; tap to open the chat',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.mentionAlerts,
+                      onChanged: ctl.setMentionAlerts,
+                    ),
                     SwitchListTile(
                       secondary: const Icon(Icons.nightlight_outlined),
                       title: const Text('Keep running in the background'),

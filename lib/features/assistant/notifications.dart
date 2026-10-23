@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 import '../settings/data/settings.dart';
 
@@ -82,17 +84,84 @@ class AppNotifier {
     }
   }
 
+  // ---- scheduled ------------------------------------------------------------
+
+  static const _reminderChannel = 'teleai_reminders';
+  bool _tzReady = false;
+
+  /// Has Android show a reminder at [at], even if the app isn't running by
+  /// then. Quiet hours and the Notifications setting don't apply: the person
+  /// asked for this one. Exact when Android allows it, else within minutes.
+  Future<void> schedule(int id, DateTime at, String title, String body, {String? conversationId}) async {
+    await init();
+    if (!_ready) return;
+    if (!_tzReady) {
+      tzdata.initializeTimeZones();
+      _tzReady = true;
+    }
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final exact = await android?.canScheduleExactNotifications() ?? true;
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        payload: conversationId,
+        scheduledDate: tz.TZDateTime.from(at.toUtc(), tz.UTC),
+        androidScheduleMode: exact ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _reminderChannel,
+            'Reminders',
+            channelDescription: 'Reminders and scheduled jobs you asked for',
+            importance: Importance.high,
+            priority: Priority.high,
+            category: AndroidNotificationCategory.reminder,
+            styleInformation: BigTextStyleInformation(body),
+          ),
+          iOS: const DarwinNotificationDetails(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Notify] schedule: $e');
+    }
+  }
+
+  Future<void> cancel(int id) async {
+    await init();
+    if (!_ready) return;
+    try {
+      await _plugin.cancel(id: id);
+    } catch (_) {}
+  }
+
+  /// Asks Android 12+ to allow exact alarms, so reminders fire on the minute.
+  Future<void> requestExactAlarms() async {
+    await init();
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null || (await android.canScheduleExactNotifications() ?? true)) return;
+    await android.requestExactAlarmsPermission();
+  }
+
   // ---- keep alive -----------------------------------------------------------
 
   bool _alive = false;
+  bool _asked = false;
+  bool _taskReady = false;
 
   /// Starts or stops the ongoing notification that keeps the process
   /// running while the app is in the background. TDLib, the watches and the
   /// assistant all live in the app's process, so this is all they need.
+  ///
+  /// This doesn't depend on the "Notifications" setting: that one is about
+  /// alerts for what watches find. Android only keeps a background service
+  /// running reliably when its ongoing notification may be shown and the
+  /// app isn't battery-optimised, so both are asked for once here.
   Future<void> keepAlive(bool on, {int watches = 0}) async {
     if (!Platform.isAndroid) return;
     try {
-      if (on && !_alive) {
+      if (!_taskReady) {
+        _taskReady = true;
         FlutterForegroundTask.init(
           androidNotificationOptions: AndroidNotificationOptions(
             channelId: 'teleai_keep_alive',
@@ -109,6 +178,19 @@ class AppNotifier {
             allowWifiLock: true,
           ),
         );
+      }
+      // A service still running from before the app's isolate restarted.
+      _alive = await FlutterForegroundTask.isRunningService;
+      if (on && !_asked) {
+        _asked = true;
+        if (await FlutterForegroundTask.checkNotificationPermission() != NotificationPermission.granted) {
+          await FlutterForegroundTask.requestNotificationPermission();
+        }
+        if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+          await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+        }
+      }
+      if (on && !_alive) {
         final r = await FlutterForegroundTask.startService(
           serviceId: 5107,
           serviceTypes: const [ForegroundServiceTypes.specialUse],

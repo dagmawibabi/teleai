@@ -1,6 +1,6 @@
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -21,10 +21,13 @@ sealed class AttachResult {
 }
 
 class AttachFiles extends AttachResult {
-  const AttachFiles(this.files);
+  const AttachFiles(this.files, {this.asFiles = false});
 
   /// Local path and display name of each.
   final List<(String, String)> files;
+
+  /// Send pictures and videos uncompressed, as documents.
+  final bool asFiles;
 }
 
 class AttachLocation extends AttachResult {
@@ -64,19 +67,32 @@ Future<AttachResult?> showAttachSheet(BuildContext context, {bool telegram = tru
       useSafeArea: true,
       showDragHandle: false,
       backgroundColor: AppColors.surface,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.62,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        builder: (context, scroll) => _AttachSheet(telegram: telegram, scroll: scroll),
-      ),
+      builder: (_) {
+        // Pulled (nearly) to the top, the gallery shows its album bar.
+        final expanded = ValueNotifier(false);
+        return NotificationListener<DraggableScrollableNotification>(
+          onNotification: (n) {
+            expanded.value = n.extent >= n.maxExtent - 0.04;
+            return false;
+          },
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.62,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            snap: true,
+            snapSizes: const [0.62],
+            builder: (context, scroll) => _AttachSheet(telegram: telegram, scroll: scroll, expanded: expanded),
+          ),
+        );
+      },
     );
 
 class _AttachSheet extends ConsumerStatefulWidget {
-  const _AttachSheet({required this.telegram, required this.scroll});
+  const _AttachSheet({required this.telegram, required this.scroll, required this.expanded});
   final bool telegram;
   final ScrollController scroll;
+  final ValueListenable<bool> expanded;
 
   @override
   ConsumerState<_AttachSheet> createState() => _AttachSheetState();
@@ -93,7 +109,8 @@ class _AttachSheetState extends ConsumerState<_AttachSheet> {
       for (final f in files)
         if (f.path != null) (f.path!, f.name),
     ];
-    if (picked.isNotEmpty && mounted) Navigator.pop(context, AttachFiles(picked));
+    // Picked as files, they go as files, pictures included.
+    if (picked.isNotEmpty && mounted) Navigator.pop(context, AttachFiles(picked, asFiles: true));
   }
 
   @override
@@ -102,7 +119,7 @@ class _AttachSheetState extends ConsumerState<_AttachSheet> {
       children: [
         Positioned.fill(
           child: switch (_tab) {
-            _Tab.gallery => _Gallery(scroll: widget.scroll),
+            _Tab.gallery => _Gallery(scroll: widget.scroll, expanded: widget.expanded),
             _Tab.file => _FileTab(scroll: widget.scroll, onPick: _pickFiles),
             _Tab.location => _LocationTab(scroll: widget.scroll),
             _Tab.poll => _PollTab(scroll: widget.scroll),
@@ -166,25 +183,52 @@ class _AttachSheetState extends ConsumerState<_AttachSheet> {
 
 // ---- gallery -------------------------------------------------------------------
 
+/// The phone's photos and videos, newest first, a page at a time. Pulled up
+/// to the top, the sheet shows a bar to switch albums and to choose how the
+/// pick is sent: compressed (photos and videos shown inline) or as files
+/// (uncompressed, original quality and name).
 class _Gallery extends StatefulWidget {
-  const _Gallery({required this.scroll});
+  const _Gallery({required this.scroll, required this.expanded});
   final ScrollController scroll;
+  final ValueListenable<bool> expanded;
 
   @override
   State<_Gallery> createState() => _GalleryState();
 }
 
 class _GalleryState extends State<_Gallery> {
-  List<AssetEntity>? _assets;
+  static const _pageSize = 90;
+
+  List<_Album> _albums = const [];
+  _Album? _album;
+  final List<AssetEntity> _assets = [];
+  int _page = 0;
+  bool _more = true;
+  bool _paging = false;
+  bool _loaded = false;
   bool _denied = false;
   bool _unavailable = false;
   final List<AssetEntity> _picked = [];
   bool _sending = false;
+  bool _asFiles = false;
 
   @override
   void initState() {
     super.initState();
+    widget.scroll.addListener(_onScroll);
     _load();
+  }
+
+  @override
+  void dispose() {
+    widget.scroll.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!widget.scroll.hasClients) return;
+    final p = widget.scroll.position;
+    if (p.pixels > p.maxScrollExtent - 900) _nextPage();
   }
 
   Future<void> _load() async {
@@ -194,9 +238,25 @@ class _GalleryState extends State<_Gallery> {
         if (mounted) setState(() => _denied = true);
         return;
       }
-      final paths = await PhotoManager.getAssetPathList(type: RequestType.common, onlyAll: true);
-      final list = paths.isEmpty ? <AssetEntity>[] : await paths.first.getAssetListPaged(page: 0, size: 120);
-      if (mounted) setState(() => _assets = list);
+      final paths = await PhotoManager.getAssetPathList(type: RequestType.common);
+      // "All videos" is the videos-only view of the whole library.
+      final videos = await PhotoManager.getAssetPathList(type: RequestType.video, onlyAll: true);
+      final albums = <_Album>[
+        for (final p in paths.where((p) => p.isAll)) _Album(p, 'All media'),
+        for (final p in videos) _Album(p, 'All videos'),
+        for (final p in paths.where((p) => !p.isAll)) _Album(p, p.name),
+      ];
+      if (!mounted) return;
+      setState(() {
+        _albums = albums;
+        _album = albums.firstOrNull;
+      });
+      await _nextPage();
+      if (mounted) setState(() => _loaded = true);
+      for (final a in albums) {
+        a.count = await a.path.assetCountAsync;
+      }
+      if (mounted) setState(() {});
     } catch (e) {
       // The gallery plugin isn't in this build (it needs a full rebuild,
       // not a hot reload): fall back to the system picker.
@@ -205,9 +265,71 @@ class _GalleryState extends State<_Gallery> {
     }
   }
 
+  Future<void> _nextPage() async {
+    final album = _album;
+    if (album == null || !_more || _paging) return;
+    _paging = true;
+    try {
+      final list = await album.path.getAssetListPaged(page: _page, size: _pageSize);
+      if (!mounted || album != _album) return;
+      setState(() {
+        _assets.addAll(list);
+        _page++;
+        _more = list.length == _pageSize;
+      });
+    } finally {
+      _paging = false;
+    }
+  }
+
+  Future<void> _switchAlbum(_Album a) async {
+    if (a == _album) return;
+    setState(() {
+      _album = a;
+      _assets.clear();
+      _page = 0;
+      _more = true;
+    });
+    if (widget.scroll.hasClients) widget.scroll.jumpTo(0);
+    await _nextPage();
+  }
+
+  Future<void> _pickAlbum() async {
+    final a = await showModalBottomSheet<_Album>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface2,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: Space.s),
+            children: [
+              for (final a in _albums)
+                ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(Radii.s),
+                    child: SizedBox.square(dimension: 48, child: _AlbumCover(album: a.path)),
+                  ),
+                  title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: a.count == null ? null : Text('${a.count}', style: context.text.bodySmall),
+                  selected: a == _album,
+                  onTap: () => Navigator.pop(ctx, a),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (a != null && mounted) await _switchAlbum(a);
+  }
+
   Future<void> _systemPicker() async {
-    final picked = await ImagePicker().pickMultipleMedia(imageQuality: 90);
-    if (picked.isNotEmpty && mounted) Navigator.pop(context, AttachFiles([for (final x in picked) (x.path, x.name)]));
+    final picked = await ImagePicker().pickMultipleMedia(imageQuality: _asFiles ? null : 90);
+    if (picked.isNotEmpty && mounted) {
+      Navigator.pop(context, AttachFiles([for (final x in picked) (x.path, x.name)], asFiles: _asFiles));
+    }
   }
 
   Future<void> _camera() async {
@@ -235,19 +357,50 @@ class _GalleryState extends State<_Gallery> {
     final picker = ImagePicker();
     final x = video
         ? await picker.pickVideo(source: ImageSource.camera, maxDuration: const Duration(minutes: 10))
-        : await picker.pickImage(source: ImageSource.camera, imageQuality: 90);
-    if (x != null && mounted) Navigator.pop(context, AttachFiles([(x.path, x.name)]));
+        : await picker.pickImage(source: ImageSource.camera, imageQuality: _asFiles ? null : 90);
+    if (x != null && mounted) Navigator.pop(context, AttachFiles([(x.path, x.name)], asFiles: _asFiles));
   }
 
-  Future<void> _send() async {
+  Future<void> _send({bool? asFiles}) async {
     setState(() => _sending = true);
     final out = <(String, String)>[];
     for (final a in _picked) {
       final f = await a.originFile ?? await a.file;
       if (f != null) out.add((f.path, a.title ?? f.path.split(RegExp(r'[\\/]')).last));
     }
-    if (mounted) Navigator.pop(context, AttachFiles(out));
+    if (mounted) Navigator.pop(context, AttachFiles(out, asFiles: asFiles ?? _asFiles));
   }
+
+  Widget _menu() => PopupMenuButton<String>(
+    tooltip: 'More',
+    icon: const Icon(Icons.more_vert_rounded),
+    color: AppColors.surface2,
+    onSelected: (v) {
+      switch (v) {
+        case 'compressed':
+          setState(() => _asFiles = false);
+        case 'files':
+          setState(() => _asFiles = true);
+        case 'send_files':
+          _send(asFiles: true);
+        case 'system':
+          _systemPicker();
+      }
+    },
+    itemBuilder: (_) => [
+      CheckedPopupMenuItem(value: 'compressed', checked: !_asFiles, child: const Text('Send compressed')),
+      CheckedPopupMenuItem(value: 'files', checked: _asFiles, child: const Text('Send as files (uncompressed)')),
+      if (_picked.isNotEmpty) ...[
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'send_files',
+          child: Text('Send ${_picked.length} as file${_picked.length == 1 ? '' : 's'} now'),
+        ),
+      ],
+      const PopupMenuDivider(),
+      const PopupMenuItem(value: 'system', child: Text('Open the system gallery')),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -267,96 +420,203 @@ class _GalleryState extends State<_Gallery> {
         onAction: PhotoManager.openSetting,
       );
     }
-    final assets = _assets;
-    return Stack(
-      children: [
-        GridView.builder(
-          controller: widget.scroll,
-          padding: const EdgeInsets.fromLTRB(4, 12, 4, 110),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-          ),
-          itemCount: (assets?.length ?? 0) + 1,
-          itemBuilder: (_, i) {
-            if (i == 0) {
-              return Material(
-                color: AppColors.surface3,
-                borderRadius: BorderRadius.circular(Radii.m),
-                child: InkWell(
+    return ValueListenableBuilder<bool>(
+      valueListenable: widget.expanded,
+      builder: (context, expanded, _) => Stack(
+        children: [
+          GridView.builder(
+            controller: widget.scroll,
+            padding: EdgeInsets.fromLTRB(4, expanded ? 64 : 22, 4, 110),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+            ),
+            itemCount: _assets.length + 1,
+            itemBuilder: (_, i) {
+              if (i == 0) {
+                return Material(
+                  color: AppColors.surface3,
                   borderRadius: BorderRadius.circular(Radii.m),
-                  onTap: _camera,
-                  child: const Center(child: Icon(Icons.photo_camera_rounded, size: 34, color: Colors.white)),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Radii.m),
+                    onTap: _camera,
+                    child: const Center(child: Icon(Icons.photo_camera_rounded, size: 34, color: Colors.white)),
+                  ),
+                );
+              }
+              final a = _assets[i - 1];
+              final n = _picked.indexOf(a);
+              return GestureDetector(
+                onTap: () => setState(() => n >= 0 ? _picked.remove(a) : _picked.add(a)),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(Radii.m),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _Thumb(key: ValueKey(a.id), asset: a),
+                      if (n >= 0) Container(color: Colors.black26),
+                      if (a.type == AssetType.video)
+                        Positioned(
+                          left: 6,
+                          bottom: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(99)),
+                            child: Text(formatDuration(a.duration), style: const TextStyle(fontSize: 11, color: Colors.white)),
+                          ),
+                        ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: n >= 0 ? AppColors.accent : Colors.black26,
+                            border: Border.all(color: Colors.white, width: 1.6),
+                          ),
+                          child: n >= 0
+                              ? Text('${n + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
-            }
-            final a = assets![i - 1];
-            final n = _picked.indexOf(a);
-            return GestureDetector(
-              onTap: () => setState(() => n >= 0 ? _picked.remove(a) : _picked.add(a)),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(Radii.m),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _Thumb(asset: a),
-                    if (n >= 0) Container(color: Colors.black26),
-                    if (a.type == AssetType.video)
-                      Positioned(
-                        left: 6,
-                        bottom: 6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(99)),
-                          child: Text(formatDuration(a.duration), style: const TextStyle(fontSize: 11, color: Colors.white)),
-                        ),
+            },
+          ),
+          // Half open: a handle. Pulled to the top: albums and send options.
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: expanded
+                  ? Container(
+                      key: const ValueKey('bar'),
+                      color: AppColors.surface,
+                      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Close',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          Flexible(
+                            child: Material(
+                              color: AppColors.surface3,
+                              borderRadius: BorderRadius.circular(999),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(999),
+                                onTap: _albums.isEmpty ? null : _pickAlbum,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          _album?.name ?? 'Gallery',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                      const Icon(Icons.arrow_drop_down_rounded),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_asFiles)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 2),
+                              child: Text('As files', style: TextStyle(fontSize: 12, color: AppColors.accent)),
+                            ),
+                          _menu(),
+                        ],
                       ),
-                    Positioned(
-                      top: 6,
-                      right: 6,
+                    )
+                  : Container(
+                      key: const ValueKey('handle'),
+                      height: 20,
+                      alignment: Alignment.center,
                       child: Container(
-                        width: 24,
-                        height: 24,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: n >= 0 ? AppColors.accent : Colors.black26,
-                          border: Border.all(color: Colors.white, width: 1.6),
-                        ),
-                        child: n >= 0
-                            ? Text('${n + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))
-                            : null,
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(color: AppColors.text3, borderRadius: BorderRadius.circular(2)),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-        if (assets == null) const Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
-        if (_picked.isNotEmpty)
-          Positioned(
-            right: Space.l,
-            bottom: 96,
-            child: FloatingActionButton.extended(
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.bg,
-              onPressed: _sending ? null : _send,
-              icon: _sending
-                  ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.bg))
-                  : const Icon(Icons.send_rounded),
-              label: Text('Send ${_picked.length}'),
             ),
           ),
-      ],
+          if (!_loaded) const Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+          if (_loaded && _assets.isEmpty)
+            const _Message(icon: Icons.photo_outlined, text: 'Nothing in this album.'),
+          if (_picked.isNotEmpty)
+            Positioned(
+              right: Space.l,
+              bottom: 96,
+              child: GestureDetector(
+                // Long-press: the other way of sending, for this pick.
+                onLongPress: _sending ? null : () => _send(asFiles: !_asFiles),
+                child: FloatingActionButton.extended(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.bg,
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.bg))
+                      : Icon(_asFiles ? Icons.insert_drive_file_rounded : Icons.send_rounded),
+                  label: Text('Send ${_picked.length}${_asFiles ? ' as file${_picked.length == 1 ? '' : 's'}' : ''}'),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
 
+/// An album in the picker: its name, and its size once counted.
+class _Album {
+  _Album(this.path, this.name);
+  final AssetPathEntity path;
+  final String name;
+  int? count;
+}
+
+class _AlbumCover extends StatefulWidget {
+  const _AlbumCover({required this.album});
+  final AssetPathEntity album;
+
+  @override
+  State<_AlbumCover> createState() => _AlbumCoverState();
+}
+
+class _AlbumCoverState extends State<_AlbumCover> {
+  AssetEntity? _first;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.album.getAssetListRange(start: 0, end: 1).then((l) {
+      if (mounted && l.isNotEmpty) setState(() => _first = l.first);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _first == null ? Container(color: AppColors.surface3) : _Thumb(asset: _first!);
+}
+
 class _Thumb extends StatefulWidget {
-  const _Thumb({required this.asset});
+  const _Thumb({super.key, required this.asset});
   final AssetEntity asset;
 
   @override

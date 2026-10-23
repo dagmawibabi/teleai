@@ -84,6 +84,103 @@ String _humanize(String type) {
   return words.isEmpty ? 'Message' : words;
 }
 
+/// A quote of [wanted] out of [body], the way Telegram accepts it, or null
+/// when [wanted] isn't in [body].
+///
+/// Telegram takes only a quote that is exactly a piece of the message, at
+/// the right UTF-16 position, carrying the message's bold, italic,
+/// underline, strikethrough, spoiler and custom-emoji formatting over that
+/// piece (and nothing else), at most [maxLength] long. What the model
+/// copies rarely matches byte for byte (non-breaking spaces, line breaks,
+/// curly quotes, dashes, case), so the match ignores those differences and
+/// the quote is then cut from the message itself.
+td.InputTextQuote? buildQuote(td.FormattedText body, String wanted, {int maxLength = 1024}) {
+  final source = body.text;
+  if (wanted.trim().isEmpty || source.isEmpty) return null;
+
+  // Each kept character of [s], folded, with where it came from.
+  (String, List<int>) fold(String s) {
+    final out = StringBuffer();
+    final from = <int>[];
+    var space = false;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (_spaceLike.hasMatch(ch)) {
+        if (space || out.isEmpty) continue;
+        space = true;
+        out.write(' ');
+        from.add(i);
+        continue;
+      }
+      space = false;
+      ch = switch (ch) {
+        '‘' || '’' || '‛' || '`' || '´' => "'",
+        '“' || '”' || '„' || '«' || '»' => '"',
+        '‐' || '‑' || '‒' || '–' || '—' || '−' => '-',
+        _ => ch.toLowerCase(),
+      };
+      out.write(ch);
+      from.add(i);
+    }
+    return (out.toString(), from);
+  }
+
+  final (hay, map) = fold(source);
+  var (needle, _) = fold(wanted.trim());
+  needle = needle.trim();
+  // A model often wraps the excerpt in quotes or an ellipsis.
+  needle = needle.replaceAll(RegExp(r'''^["'.…\s]+|["'.…\s]+$'''), '');
+  if (needle.isEmpty) return null;
+  final at = hay.indexOf(needle);
+  if (at < 0) return null;
+  var start = map[at];
+  var end = map[at + needle.length - 1] + 1;
+  // Never split a surrogate pair (emoji) at either end.
+  if (end < source.length && end > 0 && _isHighSurrogate(source.codeUnitAt(end - 1))) end++;
+  if (end - start > maxLength) {
+    end = start + maxLength;
+    final cut = source.lastIndexOf(' ', end);
+    if (cut > start + maxLength ~/ 2) end = cut;
+    if (_isHighSurrogate(source.codeUnitAt(end - 1))) end--;
+  }
+  while (start < end && source[start].trim().isEmpty) {
+    start++;
+  }
+  while (end > start && source[end - 1].trim().isEmpty) {
+    end--;
+  }
+  if (end <= start) return null;
+
+  final entities = <td.TextEntity>[
+    for (final e in body.entities)
+      if (switch (e.type) {
+        td.TextEntityTypeBold() ||
+        td.TextEntityTypeItalic() ||
+        td.TextEntityTypeUnderline() ||
+        td.TextEntityTypeStrikethrough() ||
+        td.TextEntityTypeSpoiler() ||
+        td.TextEntityTypeCustomEmoji() => true,
+        _ => false,
+      })
+        if (e.offset < end && e.offset + e.length > start)
+          // A custom emoji can't be cut; one sticking out is left out.
+          if (e.type is! td.TextEntityTypeCustomEmoji || (e.offset >= start && e.offset + e.length <= end))
+            td.TextEntity(
+              offset: (e.offset < start ? start : e.offset) - start,
+              length: ((e.offset + e.length > end ? end : e.offset + e.length) - (e.offset < start ? start : e.offset)),
+              type: e.type,
+            ),
+  ];
+  return td.InputTextQuote(
+    text: td.FormattedText(text: source.substring(start, end), entities: entities),
+    position: start,
+  );
+}
+
+final _spaceLike = RegExp(r'[\s  -​  　﻿]');
+
+bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
+
 /// The smallest photo size of at least [minWidth], or the largest there is.
 td.PhotoSize? pickPhotoSize(List<td.PhotoSize> sizes, {int minWidth = 600}) {
   if (sizes.isEmpty) return null;

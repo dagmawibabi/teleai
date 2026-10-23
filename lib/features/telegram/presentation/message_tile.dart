@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
@@ -27,7 +28,10 @@ import 'formatted_text.dart';
 import 'link_preview_card.dart';
 import 'content_canvas_screen.dart' show saveToCanvas;
 import 'forward_sheet.dart';
+import 'poll_view.dart';
+import 'stars_sheet.dart';
 import 'translate_sheet.dart';
+import 'td_image.dart';
 import 'tg_avatar.dart';
 
 const quickReactions = ['👍', '❤️', '🔥', '😂', '😮', '😢', '🙏', '👏'];
@@ -81,7 +85,15 @@ class MessageTile extends ConsumerWidget {
     this.onSelect,
     this.selecting = false,
     this.selected = false,
+    this.album = const [],
   });
+
+  /// When [message] is part of an album: every message of it, oldest
+  /// first, shown together as one post. [message] is the one with the
+  /// caption.
+  final List<td.Message> album;
+
+  static bool _isVisual(td.MessageContent c) => c is td.MessagePhoto || c is td.MessageVideo || c is td.MessageAnimation;
 
   /// Selection mode: taps toggle [selected] through [onSelect].
   final void Function(td.Message)? onSelect;
@@ -273,13 +285,28 @@ class MessageTile extends ConsumerWidget {
         if (m.forwardInfo case final f?) ForwardHeader(origin: f.origin),
         if (m.replyTo case final td.MessageReplyToMessage r?)
           _ReplyPreview(reply: r, findMessage: findMessage),
-        if (visual) MediaPreview(content: m.content, onOpen: open),
+        if (album.length > 1) ...[
+          // An album: one post, its photos and videos in a grid, its files
+          // and songs one under another, and one caption.
+          if (album.any((x) => _isVisual(x.content)))
+            AlbumGrid(
+              messages: [for (final x in album) if (_isVisual(x.content)) x],
+              onOpen: (x) => selecting ? onSelect?.call(m) : showMediaViewer(context, x.content, title: chatTitle),
+            ),
+          for (final x in album)
+            if (x.content case td.MessageDocument(:final document))
+              Padding(padding: const EdgeInsets.only(bottom: Space.xs), child: DocumentRow(document: document))
+            else if (x.content case td.MessageAudio(:final audio))
+              _AudioRow(message: x, audio: audio, playlist: playlist),
+        ] else ...[
+          if (visual) MediaPreview(content: m.content, onOpen: open),
+          if (m.content case td.MessageAudio(:final audio))
+            _AudioRow(message: m, audio: audio, playlist: playlist),
+          if (m.content case td.MessageDocument(:final document))
+            DocumentRow(document: document),
+        ],
         if (m.content case td.MessageVoiceNote(:final voiceNote))
           _VoiceBubble(message: m, note: voiceNote, playlist: playlist),
-        if (m.content case td.MessageAudio(:final audio))
-          _AudioRow(message: m, audio: audio, playlist: playlist),
-        if (m.content case td.MessageDocument(:final document))
-          DocumentRow(document: document),
         if (m.content case td.MessageSticker(:final sticker)) StickerImage(sticker: sticker, size: 160),
         if (!visual &&
             g.isMedia &&
@@ -302,20 +329,11 @@ class MessageTile extends ConsumerWidget {
             ),
           ),
         if (preview != null && !preview.showAboveText) LinkPreviewCard(preview: preview),
-        if (g.kind == 'poll') ...[
-          Text(
-            g.text,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        if (m.content case td.MessagePoll(:final poll))
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 240),
+            child: PollView(key: ValueKey(poll.id), message: m, poll: poll),
           ),
-          if (g.detail != null)
-            Padding(
-              padding: const EdgeInsets.only(top: Space.xs),
-              child: Text(
-                g.detail!,
-                style: const TextStyle(fontSize: 13.5, color: AppColors.text2),
-              ),
-            ),
-        ],
         if (m.replyMarkup is td.ReplyMarkupInlineKeyboard) BotButtons(message: m),
         if (reactions.isNotEmpty) MessageReactions(message: m, reactions: reactions),
         const SizedBox(height: 4),
@@ -589,49 +607,62 @@ class MessageReactions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Stars first, as Telegram shows them.
+    final sorted = [
+      ...reactions.where((r) => r.type is td.ReactionTypePaid),
+      ...reactions.where((r) => r.type is! td.ReactionTypePaid),
+    ];
     return Padding(
       padding: const EdgeInsets.only(top: Space.s),
       child: Wrap(
         spacing: 6,
         runSpacing: 6,
         children: [
-          for (final r in reactions)
-            Material(
-              color: r.isChosen
-                  ? AppColors.accent.withValues(alpha: 0.25)
-                  : AppColors.surface3,
-              borderRadius: BorderRadius.circular(999),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: r.type is td.ReactionTypeEmoji
-                    ? () => toggleReaction(
-                        ref,
-                        message,
-                        (r.type as td.ReactionTypeEmoji).emoji,
-                        chosen: r.isChosen,
-                      )
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
+          for (final r in sorted)
+            Builder(
+              builder: (context) {
+                final paid = r.type is td.ReactionTypePaid;
+                final tint = paid ? starGold : AppColors.accent;
+                return Material(
+                  color: paid
+                      ? starGold.withValues(alpha: r.isChosen ? 0.3 : 0.16)
+                      : r.isChosen
+                      ? AppColors.accent.withValues(alpha: 0.25)
+                      : AppColors.surface3,
+                  borderRadius: BorderRadius.circular(999),
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: r.isChosen ? AppColors.accent : Colors.transparent,
+                    onTap: switch (r.type) {
+                      td.ReactionTypePaid() => () => showStarSheet(context, message),
+                      td.ReactionTypeEmoji(:final emoji) => () => toggleReaction(ref, message, emoji, chosen: r.isChosen),
+                      _ => () => showReactorsSheet(context, message),
+                    },
+                    onLongPress: () => paid ? showStarSheet(context, message) : showReactorsSheet(context, message),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: r.isChosen || paid ? tint.withValues(alpha: paid && !r.isChosen ? 0.5 : 1) : Colors.transparent),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ReactionIcon(type: r.type, size: 15),
+                          const SizedBox(width: 4),
+                          Text(
+                            NumberFormat.compact().format(r.totalCount),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: paid ? starGold : AppColors.text,
+                              fontWeight: paid ? FontWeight.w600 : null,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  child: Text(
-                    '${switch (r.type) {
-                      td.ReactionTypeEmoji(:final emoji) => emoji,
-                      td.ReactionTypePaid() => '⭐',
-                      _ => '✨',
-                    }} ${NumberFormat.compact().format(r.totalCount)}',
-                    style: const TextStyle(fontSize: 13, color: AppColors.text),
-                  ),
-                ),
-              ),
+                );
+              },
             ),
         ],
       ),
@@ -697,6 +728,8 @@ Future<void> showMessageActions(
         (r.type as td.ReactionTypeEmoji).emoji,
   };
   List<String> emojis = quickReactions;
+  // Channels that take Stars offer the paid reaction first.
+  var stars = m.interactionInfo?.reactions?.reactions.any((r) => r.type is td.ReactionTypePaid) ?? false;
   try {
     final available = await ref
         .read(telegramClientProvider)
@@ -716,6 +749,7 @@ Future<void> showMessageActions(
           (r.type as td.ReactionTypeEmoji).emoji,
     ];
     emojis = top.toSet().take(16).toList();
+    stars = stars || [...available.topReactions, ...available.popularReactions].any((r) => r.type is td.ReactionTypePaid);
   } catch (_) {
     // Reactions may be off in this chat; the defaults are offered and
     // Telegram refuses any it doesn't allow.
@@ -742,7 +776,7 @@ Future<void> showMessageActions(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (emojis.isNotEmpty)
+            if (emojis.isNotEmpty || stars)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: Space.s),
                 decoration: BoxDecoration(
@@ -754,6 +788,18 @@ Future<void> showMessageActions(
                   padding: const EdgeInsets.symmetric(horizontal: Space.s),
                   child: Row(
                     children: [
+                      if (stars)
+                        InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            showStarSheet(context, m);
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(Icons.star_rounded, size: 31, color: starGold),
+                          ),
+                        ),
                       for (final e in emojis)
                         InkWell(
                           customBorder: const CircleBorder(),
@@ -976,6 +1022,9 @@ class _MediaPreviewState extends ConsumerState<MediaPreview> {
                   File(_path!),
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
+                  // A bubble is never wider than ~440 pt: decoding the full
+                  // photo for it made long channels stutter.
+                  cacheWidth: (440 * MediaQuery.devicePixelRatioOf(context)).round(),
                 )
               else if (mini != null)
                 Image.memory(
@@ -1247,6 +1296,9 @@ class DocumentRow extends ConsumerWidget {
     final loader = ref.watch(fileLoaderProvider);
     final file = document.document;
     final path = loader.cachedPath(file);
+    final mime = document.mimeType.toLowerCase();
+    final visual = mime.startsWith('image/') || mime.startsWith('video/');
+    final thumb = document.thumbnail;
     return ValueListenableBuilder<double>(
       valueListenable: loader.progress(file),
       builder: (context, progress, _) {
@@ -1256,21 +1308,39 @@ class DocumentRow extends ConsumerWidget {
           children: [
             GestureDetector(
               onTap: path != null
-                  ? () {
-                      Clipboard.setData(ClipboardData(text: path));
-                      showSnack(context, 'Saved on this phone. Path copied');
-                    }
+                  ? () => openDocument(context, document, path)
                   : downloading
                   ? () => loader.cancel(file)
-                  : () => loader.download(file, priority: 24),
+                  // Downloads, then opens: one tap, like Telegram.
+                  : () async {
+                      final p = await loader.download(file, priority: 24);
+                      if (p != null && context.mounted) await openDocument(context, document, p);
+                    },
+              onLongPress: path == null
+                  ? null
+                  : () {
+                      Clipboard.setData(ClipboardData(text: path));
+                      showSnack(context, 'Path copied');
+                    },
               child: Container(
                 width: 46,
                 height: 46,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.activeAccent,
-                  shape: BoxShape.circle,
+                  shape: visual && thumb != null ? BoxShape.rectangle : BoxShape.circle,
+                  borderRadius: visual && thumb != null ? BorderRadius.circular(Radii.s) : null,
                 ),
-                child: downloading
+                child: visual && thumb != null && !downloading
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          TdFileImage(file: thumb.file, minithumbnail: document.minithumbnail),
+                          if (path == null)
+                            const Center(child: Icon(Icons.download_rounded, color: Colors.white, size: 20)),
+                        ],
+                      )
+                    : downloading
                     ? Padding(
                         padding: const EdgeInsets.all(11),
                         child: CircularProgressIndicator(
@@ -1317,6 +1387,83 @@ class DocumentRow extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// An album's photos and videos laid out like Telegram does: two side by
+/// side, or one wide with the rest in rows beneath.
+class AlbumGrid extends StatelessWidget {
+  const AlbumGrid({super.key, required this.messages, required this.onOpen});
+  final List<td.Message> messages;
+  final void Function(td.Message) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(td.Message x) => ClipRRect(
+      borderRadius: BorderRadius.circular(Radii.s),
+      child: MediaPreview(key: ValueKey(x.id), content: x.content, onOpen: () => onOpen(x)),
+    );
+    Widget row(List<td.Message> xs, double height) => SizedBox(
+      height: height,
+      child: Row(
+        children: [
+          for (final (i, x) in xs.indexed) ...[
+            if (i > 0) const SizedBox(width: 3),
+            Expanded(child: cell(x)),
+          ],
+        ],
+      ),
+    );
+    if (messages.length == 1) return cell(messages.single);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth.isFinite ? box.maxWidth : 320.0;
+        final rows = <List<td.Message>>[];
+        if (messages.length == 2) {
+          rows.add(messages);
+        } else {
+          rows.add([messages.first]);
+          final rest = messages.skip(1).toList();
+          // Rows of two or three, never a lone one at the end.
+          for (var i = 0; i < rest.length;) {
+            final left = rest.length - i;
+            final take = left == 4 ? 2 : (left >= 3 ? 3 : left);
+            rows.add(rest.sublist(i, i + take));
+            i += take;
+          }
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (i, r) in rows.indexed) ...[
+              if (i > 0) const SizedBox(height: 3),
+              row(r, r.length == 1 ? w * 0.62 : (r.length == 2 ? w * 0.48 : w * 0.32)),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Opens a downloaded file: pictures and videos in the app's viewer,
+/// anything else in the phone's app for that type.
+Future<void> openDocument(BuildContext context, td.Document document, String path) async {
+  final mime = document.mimeType.toLowerCase();
+  if (mime.startsWith('image/') || mime.startsWith('video/')) {
+    return showMediaViewer(
+      context,
+      td.MessageDocument(document: document, caption: const td.FormattedText(text: '', entities: [])),
+      title: document.fileName,
+    );
+  }
+  final r = await OpenFilex.open(path, type: document.mimeType.isEmpty ? null : document.mimeType);
+  if (r.type != ResultType.done && context.mounted) {
+    showSnack(
+      context,
+      r.type == ResultType.noAppToOpen ? 'No app on this phone opens ${document.fileName}' : 'Couldn\'t open it: ${r.message}',
+      icon: Icons.info_outline_rounded,
     );
   }
 }

@@ -24,6 +24,7 @@ import '../../../telegram/presentation/link_preview_card.dart';
 import '../../../telegram/presentation/media_viewer.dart';
 import '../../../telegram/presentation/message_tile.dart';
 import '../../domain/chat_models.dart';
+import '../../../telegram/presentation/link_opener.dart';
 
 IconData kindIcon(String kind) => switch (kind) {
   'photo' => Icons.image_outlined,
@@ -179,11 +180,18 @@ class _PostViewState extends ConsumerState<PostView> {
   String? _readDate;
   List<td.AddedReaction> _reactors = const [];
   List<td.MessageViewer> _viewers = const [];
+  StreamSubscription<td.TdObject>? _live;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -228,6 +236,26 @@ class _PostViewState extends ConsumerState<PostView> {
   /// one paced request and quietly skipped when not allowed.
   Future<void> _loadExtras(td.Message m) async {
     final client = ref.read(telegramClientProvider);
+    // The cached copy's views and reactions (Stars too) may be stale:
+    // viewing it (from a source TDLib doesn't mark read) fetches them, and
+    // they arrive as an update.
+    _live ??= client.updates.listen((u) {
+      if (u case td.UpdateMessageInteractionInfo(:final chatId, :final messageId, :final interactionInfo)
+          when chatId == m.chatId && messageId == m.id && mounted) {
+        setState(() => _message = _message?.copyWith(interactionInfo: interactionInfo));
+      }
+    });
+    // Groups and channels (negative ids); private chats have nothing to fetch.
+    if (m.chatId < 0) {
+      unawaited(
+        client
+            .send<td.Ok>(
+              td.ViewMessages(chatId: m.chatId, messageIds: [m.id], source: const td.MessageSourceOther(), forceRead: false),
+              limited: true,
+            )
+            .then((_) {}, onError: (_) {}),
+      );
+    }
     try {
       final props = await client.send<td.MessageProperties>(
         td.GetMessageProperties(chatId: m.chatId, messageId: m.id),
@@ -649,10 +677,7 @@ class _PostViewState extends ConsumerState<PostView> {
             text: piece,
             style: TextStyle(color: AppColors.accent),
             recognizer: TapGestureRecognizer()
-              ..onTap = () => launchUrl(
-                Uri.parse(target),
-                mode: LaunchMode.externalApplication,
-              ),
+              ..onTap = () => openUrl(target),
           ),
         );
       } else {

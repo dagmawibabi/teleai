@@ -19,6 +19,8 @@ import '../../brief/brief_screen.dart';
 import '../../brief/brief_store.dart';
 import '../../canvas/canvas_store.dart';
 import '../../telegram/presentation/content_canvas_screen.dart';
+import '../../web/browser_screen.dart';
+import '../../telegram/presentation/search_screen.dart';
 
 /// Past conversations, grouped by when they were last used.
 class HistoryDrawer extends ConsumerStatefulWidget {
@@ -274,6 +276,24 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(builder: (_) => const ContentCanvasScreen()),
                       );
+                    },
+                  ),
+                  _DrawerActionTile(
+                    icon: Icons.manage_search_rounded,
+                    title: 'Search all chats',
+                    subtitle: 'Every photo, file, link or voice message',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SearchScreen()));
+                    },
+                  ),
+                  _DrawerActionTile(
+                    icon: Icons.public_rounded,
+                    title: 'Browser',
+                    subtitle: 'What the assistant has open on the web',
+                    onTap: () {
+                      Navigator.pop(context);
+                      BrowserScreen.open(context);
                     },
                   ),
                   if (state.history.isEmpty)

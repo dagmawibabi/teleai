@@ -22,6 +22,7 @@ import '../../voice/voice_note_recorder.dart';
 import '../../media/audio_player_ui.dart';
 import '../../../app/app.dart' show appRouteObserver;
 import '../../telegram/presentation/attach_sheet.dart';
+import '../../telegram/presentation/chat_view_screen.dart';
 import 'history_drawer.dart';
 import 'widgets/message_view.dart';
 
@@ -94,6 +95,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _taps = ref.read(appNotifierProvider).taps.stream.listen((id) {
       if (!mounted) return;
       Navigator.of(context).popUntil((r) => r.isFirst);
+      // A mention opens the Telegram chat it happened in.
+      final chat = RegExp(r'^chat:(-?\d+)$').firstMatch(id);
+      if (chat != null) {
+        Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChatViewScreen(chatId: int.parse(chat[1]!))));
+        return;
+      }
       ref.read(chatControllerProvider.notifier).open(id);
     });
   }
@@ -438,6 +445,35 @@ class _EmptyState extends StatelessWidget {
     (Icons.event_available_outlined, 'Find every date or deadline people mentioned to me this week.'),
     (Icons.link_rounded, 'Collect the links shared in my groups today, grouped by site.'),
     (Icons.sentiment_satisfied_alt_outlined, 'What\'s the mood in my group chats today?'),
+    // The newer tools: reminders, the web, code, GitHub, account, stories…
+    (Icons.alarm_add_rounded, 'Remind me to stretch in 20 minutes.'),
+    (Icons.alarm_rounded, 'Every weekday at 9:00, catch me up on my unread channels.'),
+    (Icons.language_rounded, 'What are the latest posts on dagmawibabi.com/blog?'),
+    (Icons.screenshot_monitor_rounded, 'Take a screenshot of news.ycombinator.com and tell me what\'s trending.'),
+    (Icons.public_rounded, 'Open wikipedia.org in the browser and look up today\'s featured article.'),
+    (Icons.terminal_rounded, 'Write and run code for the first 20 Fibonacci numbers.'),
+    (Icons.bar_chart_rounded, 'Chart how many messages I got per day this week, and send me the image.'),
+    (Icons.code_rounded, 'What\'s new in the flutter/flutter GitHub repo\'s latest release?'),
+    (Icons.bug_report_outlined, 'Find open GitHub issues about Telegram in tdlib/td.'),
+    (Icons.health_and_safety_outlined, 'Run a security check-up on my Telegram account.'),
+    (Icons.devices_rounded, 'Which devices are logged in to my account? Any I should worry about?'),
+    (Icons.privacy_tip_outlined, 'Who can see my phone number and last seen?'),
+    (Icons.amp_stories_outlined, 'Whose stories are active right now? Summarise them.'),
+    (Icons.folder_copy_outlined, 'Make a "Work" folder with my work-related groups.'),
+    (Icons.manage_search_rounded, 'Find every PDF people sent me last month.'),
+    (Icons.favorite_border_rounded, 'Who reacted to my messages lately?'),
+    (Icons.star_rounded, 'How many Stars do I have, and where did they go?'),
+    (Icons.storage_rounded, 'How much space is Telegram using? What can I clear?'),
+    (Icons.data_usage_rounded, 'How much mobile data has Telegram used?'),
+    (Icons.link_rounded, 'What is t.me/durov, and what did it post last?'),
+    (Icons.gif_rounded, 'Use @gif to find a "thank you" GIF for my latest DM.'),
+    (Icons.query_stats_rounded, 'Show my channel\'s statistics: growth, views and best hours.'),
+    (Icons.folder_zip_outlined, 'Zip the files I attached and send them to my Saved Messages.'),
+    (Icons.menu_book_rounded, 'Find a free copy of Frankenstein and send me the epub.'),
+    (Icons.auto_stories_outlined, 'Recommend classic science fiction I can read for free.'),
+    (Icons.smart_display_outlined, 'What are the latest videos on the Flutter YouTube channel?'),
+    (Icons.ondemand_video_rounded, 'Summarise this YouTube video from its description and chapters.'),
+    (Icons.alternate_email_rounded, 'Show me the X profile of @NASA.'),
   ];
 
   List<(IconData, String)> get _suggestions {

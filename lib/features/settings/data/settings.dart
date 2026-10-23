@@ -115,6 +115,7 @@ class AppSettings {
     this.proactive = true,
     this.notifications = true,
     this.keepAlive = true,
+    this.mentionAlerts = true,
     this.appearOnline = true,
     this.showMessageUsage = true,
     this.briefsScheduled = true,
@@ -152,6 +153,9 @@ class AppSettings {
   /// Keeps the app alive in the background (a quiet ongoing notification)
   /// while watches are on, so they still hear new messages.
   final bool keepAlive;
+
+  /// A notification when someone mentions or replies to the account.
+  final bool mentionAlerts;
 
   /// Shows the account as online while the app is on screen, which is what
   /// lets Telegram send typing indicators and live status.
@@ -311,6 +315,7 @@ class AppSettings {
     bool? proactive,
     bool? notifications,
     bool? keepAlive,
+    bool? mentionAlerts,
     bool? appearOnline,
     bool? showMessageUsage,
     bool? briefsScheduled,
@@ -363,6 +368,7 @@ class AppSettings {
     proactive: proactive ?? this.proactive,
     notifications: notifications ?? this.notifications,
     keepAlive: keepAlive ?? this.keepAlive,
+    mentionAlerts: mentionAlerts ?? this.mentionAlerts,
     appearOnline: appearOnline ?? this.appearOnline,
     showMessageUsage: showMessageUsage ?? this.showMessageUsage,
     briefsScheduled: briefsScheduled ?? this.briefsScheduled,
@@ -454,6 +460,7 @@ class SettingsController extends Notifier<AppSettings> {
       proactive: p.getBool('proactive') ?? d.proactive,
       notifications: p.getBool('notifications') ?? d.notifications,
       keepAlive: p.getBool('keep_alive') ?? d.keepAlive,
+      mentionAlerts: p.getBool('mention_alerts') ?? d.mentionAlerts,
       appearOnline: p.getBool('appear_online') ?? d.appearOnline,
       showMessageUsage: p.getBool('show_message_usage') ?? d.showMessageUsage,
       briefsScheduled: p.getBool('briefs_scheduled') ?? d.briefsScheduled,
@@ -697,6 +704,11 @@ class SettingsController extends Notifier<AppSettings> {
   Future<void> setKeepAlive(bool v) async {
     state = state.copyWith(keepAlive: v);
     await _write('keep_alive', v);
+  }
+
+  Future<void> setMentionAlerts(bool v) async {
+    state = state.copyWith(mentionAlerts: v);
+    await _write('mention_alerts', v);
   }
 
   Future<void> setReadOnlyMode(bool v) async {

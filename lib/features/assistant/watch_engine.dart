@@ -16,6 +16,7 @@ import '../telegram/data/message_content.dart';
 import '../telegram/data/telegram_store.dart';
 import '../voice/speaker.dart';
 import 'notifications.dart';
+import 'reminders.dart';
 import 'watches.dart';
 
 /// What the engine has been doing, for the Watches screen.
@@ -110,9 +111,45 @@ class WatchEngine {
     _sub = client.updates.listen(_onUpdate);
     _clock = Timer.periodic(const Duration(seconds: 30), (_) => _tick());
     _ref.listen(watchStoreProvider, (_, _) => _sync(), fireImmediately: true);
+    _ref.listen(reminderStoreProvider, (_, _) => _sync());
     _ref.listen(settingsProvider, (_, _) => _sync());
     unawaited(_ref.read(appNotifierProvider).init());
+    _ref.read(reminderStoreProvider.notifier).runJob = _runJob;
     status.value = status.value.copyWith(listening: true);
+  }
+
+  /// A scheduled job is due: the assistant does what it says, in the
+  /// conversation it was set up in, and the answer becomes the notification.
+  Future<void> _runJob(Reminder r) async {
+    final job = Watch(
+      id: 'job-${r.id}',
+      name: r.text,
+      scope: WatchScope.schedule,
+      mode: WatchMode.act,
+      instructions: r.prompt,
+      conversationId: r.conversationId,
+      createdAt: r.createdAt,
+    );
+    final result = await _ref.read(chatControllerProvider.notifier).runAutomatic(
+      job,
+      'Scheduled job "${r.text}" is due now${r.cron == null ? '' : ' (${Cron.describe(r.cron!)})'}. Do this: ${r.prompt}',
+    );
+    if (result == null) {
+      await _ref.read(appNotifierProvider).show(r.text, 'Couldn\'t run: add an AI key in Settings.');
+      return;
+    }
+    if (r.conversationId == null) {
+      await _ref
+          .read(reminderStoreProvider.notifier)
+          .update(r.id, (x) => x.copyWith(conversationId: result.conversationId));
+    }
+    if (result.seen) return;
+    final text = Speaker.clean(result.text);
+    await _ref.read(appNotifierProvider).show(
+      r.text,
+      text.isEmpty ? 'Done.' : (text.length > 400 ? '${text.substring(0, 400)}…' : text),
+      conversationId: result.conversationId,
+    );
   }
 
   void dispose() {
@@ -134,12 +171,15 @@ class WatchEngine {
     final s = _ref.read(settingsProvider);
     if (!s.loaded) return;
     final active = _active;
+    // Assistant jobs need the app alive at their time, like watches do.
+    final jobs = _ref.read(reminderStoreProvider).where((r) => r.enabled && r.isJob).length;
     final notifier = _ref.read(appNotifierProvider);
-    if (active.isNotEmpty && s.notifications)
+    if ((active.isNotEmpty && s.notifications) || s.mentionAlerts)
       await notifier.requestPermission();
+    // Mention alerts need the app alive too, to hear the mention.
     await notifier.keepAlive(
-      s.keepAlive && active.isNotEmpty,
-      watches: active.length,
+      s.keepAlive && (active.isNotEmpty || (s.proactive && jobs > 0) || s.mentionAlerts),
+      watches: active.length + (s.proactive ? jobs : 0),
     );
     final store = _ref.read(telegramStoreProvider);
     for (final w in active.where(
@@ -232,11 +272,62 @@ class WatchEngine {
     switch (u) {
       case td.UpdateNewMessage(:final message):
         _consider(message);
+        if (message.containsUnreadMention && !message.isOutgoing) unawaited(_mentioned(message));
       case td.UpdateChatLastMessage(:final lastMessage?):
         _consider(lastMessage);
+      case td.UpdateChatUnreadMentionCount(:final chatId, :final unreadMentionCount):
+        // Groups the app hasn't opened don't send their messages, but the
+        // mention count always arrives: a rise means a new mention.
+        final before = _mentionCounts[chatId] ?? _ref.read(telegramStoreProvider).chat(chatId)?.unreadMentionCount ?? 0;
+        _mentionCounts[chatId] = unreadMentionCount;
+        if (unreadMentionCount > before) unawaited(_latestMention(chatId));
       default:
         break;
     }
+  }
+
+  final Map<int, int> _mentionCounts = {};
+  final LinkedHashSet<String> _mentionSeen = LinkedHashSet();
+
+  Future<void> _latestMention(int chatId) async {
+    try {
+      final r = await _ref.read(telegramClientProvider).send<td.FoundChatMessages>(
+        td.SearchChatMessages(
+          chatId: chatId,
+          query: '',
+          senderId: null,
+          fromMessageId: 0,
+          offset: 0,
+          limit: 1,
+          filter: const td.SearchMessagesFilterUnreadMention(),
+          messageThreadId: 0,
+          savedMessagesTopicId: 0,
+        ),
+        limited: true,
+      );
+      if (r.messages.isNotEmpty) await _mentioned(r.messages.first);
+    } catch (e) {
+      debugPrint('[Mentions] $chatId: $e');
+    }
+  }
+
+  /// Someone mentioned the account (or replied to it): a notification that
+  /// opens the chat, unless the person turned these off.
+  Future<void> _mentioned(td.Message m) async {
+    if (!_ref.read(settingsProvider).mentionAlerts) return;
+    if (m.date < _since) return;
+    if (!_mentionSeen.add('${m.chatId}:${m.id}')) return;
+    if (_mentionSeen.length > 500) _mentionSeen.remove(_mentionSeen.first);
+    final store = _ref.read(telegramStoreProvider);
+    final chat = store.chat(m.chatId)?.title ?? 'a chat';
+    final who = store.senderName(m.senderId);
+    final g = gistOf(m.content);
+    final text = g.text.isNotEmpty ? g.text : (g.detail ?? g.kind);
+    await _ref.read(appNotifierProvider).show(
+      '$who mentioned you in $chat',
+      text.length > 300 ? '${text.substring(0, 300)}…' : text,
+      conversationId: 'chat:${m.chatId}',
+    );
   }
 
   void _consider(td.Message m) {
@@ -277,6 +368,7 @@ class WatchEngine {
   void _tick() {
     unawaited(_syncOpenChats());
     unawaited(_ref.read(briefStoreProvider.notifier).tick());
+    unawaited(_ref.read(reminderStoreProvider.notifier).tick());
     final now = DateTime.now();
     for (final w in _active.where((w) => w.scope == WatchScope.schedule)) {
       final last = w.lastRunAt;

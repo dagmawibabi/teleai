@@ -26,6 +26,8 @@ import 'chat_view_screen.dart';
 import 'formatted_text.dart';
 import 'message_tile.dart' show snapshotOf;
 import 'tg_avatar.dart';
+import 'analytics_screen.dart';
+import 'search_screen.dart';
 
 /// A chat's profile, the way Telegram lays it out: who or what it is,
 /// quick actions, details, and everything shared in it by kind.
@@ -271,6 +273,21 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                           context,
                         ).push(MaterialPageRoute<void>(builder: (_) => MembersScreen(chatId: c.id))),
                       ),
+                    if ((kind == ChatKind.group || kind == ChatKind.channel) && store.isAdmin(c))
+                      _Action(
+                        icon: Icons.query_stats_rounded,
+                        label: 'Statistics',
+                        onTap: () => Navigator.of(
+                          context,
+                        ).push(MaterialPageRoute<void>(builder: (_) => AnalyticsScreen(chatId: c.id))),
+                      ),
+                    _Action(
+                      icon: Icons.manage_search_rounded,
+                      label: 'Search',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(MaterialPageRoute<void>(builder: (_) => SearchScreen(chatId: c.id, initialType: 'photos_and_videos'))),
+                    ),
                   ],
                   if (link != null)
                     _Action(

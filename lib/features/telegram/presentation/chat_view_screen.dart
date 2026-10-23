@@ -34,8 +34,9 @@ import 'message_tile.dart';
 import 'tg_avatar.dart';
 
 /// A chat's messages, live, with a composer for writing yourself. Opening
-/// it doesn't mark anything as read: it reads history and never calls
-/// openChat or viewMessages. With [threadId] it shows one forum topic.
+/// it doesn't mark anything as read (unless that setting is on): it reads
+/// history, and views messages only with a source TDLib doesn't read on.
+/// With [threadId] it shows one forum topic.
 class ChatViewScreen extends ConsumerStatefulWidget {
   const ChatViewScreen({
     super.key,
@@ -79,6 +80,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       _messages.where((m) => _selected.contains(m.id)).toList()..sort((a, b) => a.id.compareTo(b.id));
   final Map<String, _LiveChatActivity> _activities = {};
   Timer? _activityExpiry;
+  Timer? _reactionsClock;
   final Object _openChatOwner = Object();
 
   /// The oldest message fetched, which can be older than the oldest shown
@@ -99,6 +101,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     });
     _updates = ref.read(telegramClientProvider).updates.listen(_onUpdate);
     unawaited(_openForLiveUpdates());
+    // Counts and reactions keep moving on busy channels.
+    _reactionsClock = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (_messages.isNotEmpty) unawaited(_refreshInteractions(_messages.take(30).toList()));
+    });
     if (ref.read(settingsProvider).markReadOnOpen) {
       final chat = ref.read(telegramStoreProvider).chat(widget.chatId);
       if (chat != null && chat.hasUnread) unawaited(ref.read(toolRunnerProvider).markRead(chat).catchError((_) {}));
@@ -110,6 +116,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   void dispose() {
     _updates?.cancel();
     _activityExpiry?.cancel();
+    _reactionsClock?.cancel();
     unawaited(ref.read(openChatsProvider).release(widget.chatId, _openChatOwner));
     _scroll.dispose();
     super.dispose();
@@ -218,11 +225,37 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
             : all;
         _messages.addAll(fresh);
         added += fresh.length;
+        unawaited(_refreshInteractions(fresh));
       }
     } catch (e) {
       _error = '$e';
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// History comes from TDLib's cache, so a channel's or group's views and
+  /// reactions (Stars included) can be stale or missing. Telling TDLib the
+  /// posts are on screen has it fetch them fresh, and the screen hears it
+  /// as updateMessageInteractionInfo. The source "other" (not chat history)
+  /// keeps this from marking anything as read.
+  Future<void> _refreshInteractions(List<td.Message> shown) async {
+    final chat = ref.read(telegramStoreProvider).chat(widget.chatId);
+    if (chat == null || chat.type is td.ChatTypePrivate || chat.type is td.ChatTypeSecret) return;
+    final ids = [for (final m in shown) if (m.sendingState == null && m.schedulingState == null) m.id];
+    if (ids.isEmpty) return;
+    try {
+      await ref.read(telegramClientProvider).send<td.Ok>(
+        td.ViewMessages(
+          chatId: widget.chatId,
+          messageIds: ids.take(100).toList(),
+          source: const td.MessageSourceOther(),
+          forceRead: false,
+        ),
+        limited: true,
+      );
+    } catch (e) {
+      debugPrint('[Chat] refresh reactions: $e');
+    }
   }
 
   /// The keyboard a bot put in place of the phone's, from its latest
@@ -266,16 +299,26 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
             : Text(_error ?? 'No messages', style: context.text.bodySmall),
       );
     } else {
+      // An album arrives as several messages sharing a media album id; they
+      // are shown as one post. Newest first, like _messages.
+      final posts = <List<td.Message>>[];
+      for (final m in _messages) {
+        if (m.mediaAlbumId != 0 && posts.isNotEmpty && posts.last.first.mediaAlbumId == m.mediaAlbumId) {
+          posts.last.add(m);
+        } else {
+          posts.add([m]);
+        }
+      }
       body = ListView.builder(
         controller: _scroll,
         reverse: true,
         padding: EdgeInsets.fromLTRB(Space.m, Space.m, Space.m, headerHeight + Space.xxl + 40),
-        itemCount: _messages.length + 1,
+        itemCount: posts.length + 1,
         itemBuilder: (context, i) {
-          if (i == _messages.length && widget.commentsOn != null && (_end || _messages.isEmpty)) {
+          if (i == posts.length && widget.commentsOn != null && (_end || _messages.isEmpty)) {
             return _CommentedPost(post: widget.commentsOn!, loading: _loading);
           }
-          if (i == _messages.length) {
+          if (i == posts.length) {
             return Padding(
               padding: const EdgeInsets.all(Space.l),
               child: Center(
@@ -285,8 +328,14 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
               ),
             );
           }
-          final m = _messages[i];
-          final older = i + 1 < _messages.length ? _messages[i + 1] : null;
+          final post = posts[i];
+          final album = post.length > 1 ? post.reversed.toList() : const <td.Message>[];
+          // The album's caption lives on one of its messages (usually the
+          // first); that one carries the post.
+          final m = post.length == 1
+              ? post.single
+              : album.firstWhere((x) => gistOf(x.content).text.isNotEmpty, orElse: () => album.first);
+          final older = i + 1 < posts.length ? posts[i + 1].first : null;
           final newDay = older == null || !_sameDay(older.date, m.date);
           final grouped = older != null && !newDay && _sameSender(older, m) && m.date - older.date < 300;
           return Column(
@@ -295,6 +344,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
               MessageTile(
                 key: ValueKey(m.id),
                 message: m,
+                album: album,
                 kind: kind,
                 chatTitle: chat?.title ?? title,
                 grouped: grouped,
@@ -304,7 +354,15 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                     : null,
                 playlist: _playlist,
                 lastReadOutbox: chat?.lastReadOutboxMessageId ?? 0,
-                onSelect: _toggle,
+                // An album is picked (and forwarded) whole.
+                onSelect: album.isEmpty
+                    ? _toggle
+                    : (_) => setState(() {
+                        final on = !_selected.contains(m.id);
+                        for (final x in album) {
+                          on ? _selected.add(x.id) : _selected.remove(x.id);
+                        }
+                      }),
                 selecting: _selecting,
                 selected: _selected.contains(m.id),
               ),
@@ -855,6 +913,74 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
   }
 
   final List<Attachment> _files = [];
+
+  /// Pictures and videos in the draft go uncompressed, as files.
+  bool _asFiles = false;
+
+  /// The animated effect the next message goes with; 0 for none.
+  int _effect = 0;
+  String _effectEmoji = '';
+
+  Future<void> _pickEffect() async {
+    final store = ref.read(telegramStoreProvider);
+    final chat = store.chat(widget.chatId);
+    if (chat == null || chat.type is! td.ChatTypePrivate || store.messageEffectIds.isEmpty) {
+      showSnack(context, 'Message effects work in private chats', icon: Icons.info_outline_rounded);
+      return;
+    }
+    final client = ref.read(telegramClientProvider);
+    final effects = <td.MessageEffect>[];
+    for (final id in store.messageEffectIds.take(48)) {
+      try {
+        effects.add(await client.send<td.MessageEffect>(td.GetMessageEffect(effectId: id)));
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    final premium = store.me?.isPremium ?? false;
+    final picked = await showModalBottomSheet<td.MessageEffect?>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Send with an effect', style: ctx.text.titleMedium),
+              const SizedBox(height: Space.m),
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  for (final e in effects)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(Radii.m),
+                      onTap: e.isPremium && !premium ? null : () => Navigator.pop(ctx, e),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: e.id == _effect ? AppColors.accent.withValues(alpha: 0.2) : null,
+                          borderRadius: BorderRadius.circular(Radii.m),
+                        ),
+                        child: Opacity(opacity: e.isPremium && !premium ? 0.35 : 1, child: Text(e.emoji, style: const TextStyle(fontSize: 28))),
+                      ),
+                    ),
+                ],
+              ),
+              if (_effect != 0) TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('No effect')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _effect = picked?.id ?? 0;
+      _effectEmoji = picked?.emoji ?? '';
+    });
+  }
   bool _sending = false;
   bool _adding = false;
   String _typed = '';
@@ -882,11 +1008,15 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
             chatId: widget.chatId,
             text: text,
             files: [for (final f in _files) f.path],
+            asFiles: _asFiles,
+            effectId: _effect,
             replyToMessageId: widget.replyTo?.id,
             threadId: widget.threadId,
           );
       _text.clear();
       _files.clear();
+      _asFiles = false;
+      _effect = 0;
       widget.onSent();
     } catch (e) {
       if (mounted) showSnack(context, 'Couldn\'t send: $e', icon: Icons.error_outline_rounded);
@@ -903,8 +1033,11 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
     final runner = ref.read(toolRunnerProvider);
     try {
       switch (result) {
-        case AttachFiles(:final files):
-          setState(() => _adding = true);
+        case AttachFiles(:final files, :final asFiles):
+          setState(() {
+            _adding = true;
+            if (_files.isEmpty || asFiles) _asFiles = asFiles;
+          });
           for (final (path, name) in files) {
             final a = await ChatController.attach(path, name: name);
             if (mounted) setState(() => _files.add(a));
@@ -1078,6 +1211,19 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                               padding: EdgeInsets.all(Space.m),
                               child: SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                             ),
+                          if (_files.any((a) => a.isImage || a.isVideo))
+                            Center(
+                              child: Tooltip(
+                                message: _asFiles ? 'Sent uncompressed, as files' : 'Sent compressed, shown in the chat',
+                                child: FilterChip(
+                                  visualDensity: VisualDensity.compact,
+                                  avatar: Icon(_asFiles ? Icons.insert_drive_file_outlined : Icons.photo_outlined, size: 16),
+                                  label: Text(_asFiles ? 'As files' : 'Compressed', style: const TextStyle(fontSize: 12)),
+                                  selected: _asFiles,
+                                  onSelected: (v) => setState(() => _asFiles = v),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1137,7 +1283,8 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                           // Like Telegram: the mic records a voice message;
                           // hold it to dictate into the box instead.
                           onTap: _sending ? null : (canSend ? _send : (dictation.listening ? _dictate : _recordVoice)),
-                          onLongPress: _sending || canSend ? null : _dictate,
+                          // Hold send to pick an animated effect (private chats).
+                          onLongPress: _sending ? null : (canSend ? _pickEffect : _dictate),
                           child: SizedBox.square(
                             dimension: 42,
                             child: _sending || dictation.transcribing
@@ -1145,6 +1292,8 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                                     padding: EdgeInsets.all(12),
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
+                                : canSend && _effect != 0
+                                ? Center(child: Text(_effectEmoji, style: const TextStyle(fontSize: 19)))
                                 : Icon(
                                     canSend
                                         ? Icons.send_rounded

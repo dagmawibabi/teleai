@@ -65,7 +65,15 @@ class _TgAvatarState extends ConsumerState<TgAvatar> {
 
     Widget child;
     if (_path != null && file != null) {
-      child = Image.file(File(_path!), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true);
+      child = Image.file(
+        File(_path!),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        // Decoded at the size shown, not the photo's full size.
+        cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+      );
     } else {
       final mini = widget.chatId == null ? null : store.chatMinithumbnail(widget.chatId!);
       if (mini != null) {

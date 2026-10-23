@@ -19,6 +19,12 @@ class ChatInfo {
   td.ChatType type;
   int unreadCount = 0;
   int unreadMentionCount = 0;
+
+  /// Messages of the account's with reactions it hasn't seen yet.
+  int unreadReactionCount = 0;
+
+  /// The group call of a running (or scheduled) video chat; 0 when none.
+  int videoChatId = 0;
   bool markedUnread = false;
   int lastReadInboxMessageId = 0;
   td.Message? lastMessage;
@@ -58,6 +64,9 @@ class TelegramStore extends ChangeNotifier {
   late final StreamSubscription<td.TdObject> _sub;
 
   final Map<int, ChatInfo> chats = {};
+
+  /// Animated effects messages can be sent with, as TDLib announces them.
+  List<int> messageEffectIds = const [];
   final Map<int, td.User> users = {};
   final Map<int, td.Supergroup> supergroups = {};
   final Map<int, td.BasicGroup> basicGroups = {};
@@ -211,8 +220,10 @@ class TelegramStore extends ChangeNotifier {
   /// A blurry inline preview TDLib sends with the photo, for while it loads.
   td.Minithumbnail? chatMinithumbnail(int chatId) => chats[chatId]?.photo?.minithumbnail;
 
-  /// The local path of [file], downloading it once if needed. At most three
-  /// photos download at a time, so a long list doesn't fire dozens at once.
+  /// The local path of [file], downloading it once if needed. A few photos
+  /// download at a time, so a long list doesn't fire dozens at once, and
+  /// the newest request goes first: the avatars on screen now, not the ones
+  /// scrolled past.
   Future<String?> photoPath(td.File file) {
     final cached = _photoPaths[file.id];
     if (cached != null) return Future.value(cached);
@@ -229,7 +240,7 @@ class TelegramStore extends ChangeNotifier {
   }
 
   Future<String?> _download(int fileId) async {
-    if (_activeDownloads >= 3) {
+    if (_activeDownloads >= 6) {
       final turn = Completer<void>();
       _downloadQueue.add(turn);
       await turn.future;
@@ -237,7 +248,7 @@ class TelegramStore extends ChangeNotifier {
     _activeDownloads++;
     try {
       final f = await _client.send<td.File>(
-        td.DownloadFile(fileId: fileId, priority: 1, offset: 0, limit: 0, synchronous: true),
+        td.DownloadFile(fileId: fileId, priority: 12, offset: 0, limit: 0, synchronous: true),
         timeout: const Duration(seconds: 60),
       );
       if (f.local.isDownloadingCompleted && f.local.path.isNotEmpty) return _photoPaths[fileId] = f.local.path;
@@ -247,7 +258,7 @@ class TelegramStore extends ChangeNotifier {
       return null;
     } finally {
       _activeDownloads--;
-      if (_downloadQueue.isNotEmpty) _downloadQueue.removeAt(0).complete();
+      if (_downloadQueue.isNotEmpty) _downloadQueue.removeLast().complete();
     }
   }
 
@@ -373,6 +384,8 @@ class TelegramStore extends ChangeNotifier {
           ..type = chat.type
           ..unreadCount = chat.unreadCount
           ..unreadMentionCount = chat.unreadMentionCount
+          ..unreadReactionCount = chat.unreadReactionCount
+          ..videoChatId = chat.videoChat.groupCallId
           ..markedUnread = chat.isMarkedAsUnread
           ..lastReadInboxMessageId = chat.lastReadInboxMessageId
           ..lastMessage = chat.lastMessage
@@ -406,6 +419,12 @@ class TelegramStore extends ChangeNotifier {
           ..unreadCount = unreadCount;
       case td.UpdateChatUnreadMentionCount(:final chatId, :final unreadMentionCount):
         _chatFor(chatId).unreadMentionCount = unreadMentionCount;
+      case td.UpdateChatUnreadReactionCount(:final chatId, :final unreadReactionCount):
+        _chatFor(chatId).unreadReactionCount = unreadReactionCount;
+      case td.UpdateChatVideoChat(:final chatId, :final videoChat):
+        _chatFor(chatId).videoChatId = videoChat.groupCallId;
+      case td.UpdateAvailableMessageEffects(:final reactionEffectIds, :final stickerEffectIds):
+        messageEffectIds = [...reactionEffectIds, ...stickerEffectIds];
       case td.UpdateChatIsMarkedAsUnread(:final chatId, :final isMarkedAsUnread):
         _chatFor(chatId).markedUnread = isMarkedAsUnread;
       case td.UpdateChatNotificationSettings(:final chatId, :final notificationSettings):

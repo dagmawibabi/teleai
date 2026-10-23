@@ -16,6 +16,7 @@ import '../features/telegram/data/telegram_store.dart';
 import '../features/settings/data/settings.dart';
 import '../infrastructure/telegram/telegram_client.dart';
 import 'theme.dart';
+import '../features/telegram/presentation/link_opener.dart';
 
 /// Lets screens know when another route covers them.
 final appRouteObserver = RouteObserver<ModalRoute<void>>();
@@ -40,6 +41,7 @@ class TeleAiApp extends ConsumerWidget {
         chatFontSize: settings.chatFontSize,
       ),
       themeMode: ThemeMode.dark,
+      navigatorKey: appNavigatorKey,
       navigatorObservers: [appRouteObserver],
       home: const AppGate(),
     );

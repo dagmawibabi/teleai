@@ -23,6 +23,9 @@ import '../../usage/usage_screen.dart';
 import '../data/settings.dart';
 import 'settings_screen.dart';
 import 'tools_screen.dart';
+import '../../account/security_screen.dart';
+import '../../account/storage_screen.dart';
+import '../../telegram/presentation/folders_screen.dart';
 
 /// Settings at a glance: who's signed in, then a few groups that each open
 /// a page of their own.
@@ -351,6 +354,24 @@ class SettingsHub extends ConsumerWidget {
                 ),
               ]),
               group('Account & app', [
+                tile(
+                  Icons.shield_outlined,
+                  'Privacy & security',
+                  'Check-up, logged-in devices, who sees what',
+                  () => _open(context, const SecurityScreen()),
+                ),
+                tile(
+                  Icons.folder_copy_outlined,
+                  'Chat folders',
+                  'Create, reorder, edit and delete folders',
+                  () => _open(context, const FoldersScreen()),
+                ),
+                tile(
+                  Icons.storage_rounded,
+                  'Storage & data',
+                  'What Telegram takes on this phone; clear the cache; data use',
+                  () => _open(context, const StorageScreen()),
+                ),
                 tile(
                   SettingsSection.account.icon,
                   SettingsSection.account.title,

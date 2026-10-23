@@ -40,11 +40,15 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       photo.sizes,
       minWidth: 1200,
     )?.photo,
+    // A picture or video sent as a file: the file itself, full quality.
+    td.MessageDocument(:final document) => document.document,
     _ => previewFileOf(widget.content),
   };
   bool get _isVideo =>
       widget.content is td.MessageVideo ||
-      widget.content is td.MessageAnimation;
+      widget.content is td.MessageAnimation ||
+      (widget.content is td.MessageDocument &&
+          (widget.content as td.MessageDocument).document.mimeType.startsWith('video/'));
 
   @override
   void initState() {

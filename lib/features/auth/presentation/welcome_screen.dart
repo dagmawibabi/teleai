@@ -77,6 +77,47 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       art: _Glyph(icon: Icons.visibility_outlined),
     ),
     const _Page(
+      title: 'It browses the web for you.',
+      body: 'Reads blogs and docs, fills in forms on real sites, calls APIs, downloads files, and shows you screenshots of what it sees. Watch it live, or take over whenever you like.',
+      art: _Bubbles(lines: ['What\'s new on dagmawibabi.com/blog?', 'Send "hi" through this sma.et link', 'Screenshot the page for me']),
+    ),
+    const _Page(
+      title: 'Runs code. Reads GitHub.',
+      body: 'A private sandbox on your phone runs Python and JavaScript to crunch numbers, make charts and files. It browses public GitHub repos too: READMEs, code, issues and releases.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.terminal_rounded, 'Python'),
+          (Icons.javascript_rounded, 'JavaScript'),
+          (Icons.bar_chart_rounded, 'Charts'),
+          (Icons.code_rounded, 'GitHub'),
+          (Icons.folder_zip_outlined, 'Zip files'),
+          (Icons.download_rounded, 'Downloads'),
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Reminders and routines.',
+      body: '"Remind me to walk in 5 minutes." "Every weekday at 9, catch me up on my channels." One-off or repeating, as plain alarms or as jobs the assistant carries out.',
+      art: _Glyph(icon: Icons.alarm_rounded),
+    ),
+    const _Page(
+      title: 'All of Telegram, by asking.',
+      body: 'Post and edit stories, organise folders, run your channels with full statistics, give Stars, open t.me links in place, find every file anyone sent you, and keep your account safe with a security check-up.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.amp_stories_outlined, 'Stories'),
+          (Icons.folder_copy_outlined, 'Folders'),
+          (Icons.query_stats_rounded, 'Statistics'),
+          (Icons.star_rounded, 'Stars'),
+          (Icons.manage_search_rounded, 'Search all'),
+          (Icons.health_and_safety_outlined, 'Security'),
+          (Icons.devices_rounded, 'Devices'),
+          (Icons.storage_rounded, 'Storage'),
+          (Icons.celebration_outlined, 'Effects'),
+        ],
+      ),
+    ),
+    const _Page(
       title: 'Your keys. Your phone.',
       body: 'No TeleAI servers. Conversations stay on this phone; AI runs through your own Vercel AI Gateway or OpenRouter key, with tokens and cost shown under every answer.',
       art: _Glyph(icon: Icons.key_rounded),

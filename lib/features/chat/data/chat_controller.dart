@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mime/mime.dart';
@@ -16,10 +17,14 @@ import '../../canvas/canvas_tools.dart';
 import '../../usage/usage.dart';
 import '../../assistant/memory.dart';
 import '../../assistant/notifications.dart';
+import '../../assistant/reminders.dart';
 import '../../assistant/watches.dart';
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/data/telegram_tools.dart';
+import '../../web/browser_session.dart';
+import '../../web/inapp_engine.dart';
+import '../../web/sandbox.dart';
 import '../domain/chat_models.dart';
 import 'chat_repository.dart';
 
@@ -66,6 +71,11 @@ const _localTools = {
   'list_briefs',
   'read_brief',
   'view_image',
+  'create_reminder',
+  'list_reminders',
+  'update_reminder',
+  'delete_reminder',
+  'zip_files',
 };
 
 /// Runs conversations: sends them to the model, carries out the tools it
@@ -239,13 +249,13 @@ class ChatController extends Notifier<ChatState> {
 
   /// Approves a pending call. For a message, [text] and [files] are what
   /// the person settled on in the card, and replace the model's draft.
-  void approve(String callId, {String? text, List<Attachment>? files}) {
-    if (text != null || files != null)
-      _approvalEdits[callId] = (text: text, files: files);
+  void approve(String callId, {String? text, List<Attachment>? files, bool? asFiles}) {
+    if (text != null || files != null || asFiles != null)
+      _approvalEdits[callId] = (text: text, files: files, asFiles: asFiles);
     _approvals.remove(callId)?.complete(true);
   }
 
-  final Map<String, ({String? text, List<Attachment>? files})> _approvalEdits =
+  final Map<String, ({String? text, List<Attachment>? files, bool? asFiles})> _approvalEdits =
       {};
 
   /// Files the assistant may attach to a message: what the person attached
@@ -259,13 +269,24 @@ class ChatController extends Notifier<ChatState> {
         case AssistantEntry(:final steps):
           for (final s in steps) {
             for (final t in s.tools) {
-              if ((t.name != generateImageTool.name &&
-                      t.name != generateAudioTool.name) ||
-                  t.result == null)
-                continue;
+              // Images and audio made here, and files zipped or downloaded.
+              if (t.result == null || !(t.result!.contains('_path"') || t.result!.contains('created_files'))) continue;
               try {
                 final result = jsonDecode(t.result!) as Map;
-                final path = result['image_path'] ?? result['audio_path'];
+                // Code runs can make several files.
+                for (final p in (result['created_files'] as List? ?? const [])) {
+                  if (p is String && p != result['image_path']) {
+                    out.add(
+                      Attachment(
+                        path: p,
+                        name: p.split(RegExp(r'[\\/]')).last,
+                        mime: lookupMimeType(p) ?? 'application/octet-stream',
+                        size: 0,
+                      ),
+                    );
+                  }
+                }
+                final path = result['image_path'] ?? result['audio_path'] ?? result['file_path'];
                 if (path is String) {
                   out.add(
                     Attachment(
@@ -293,6 +314,47 @@ class ChatController extends Notifier<ChatState> {
     _gateways[id]?.cancel();
     for (final part in _pendingParts(state.conversation)) {
       _approvals.remove(part.callId)?.complete(false);
+    }
+    for (final part in _runningParts(state.conversation)) {
+      cancelTool(part);
+    }
+  }
+
+  final Map<String, Completer<ToolOutput>> _toolCancels = {};
+
+  bool canCancel(ToolPart part) => _toolCancels.containsKey(part.callId);
+
+  /// Stops one running tool: its result becomes "stopped", and what it was
+  /// doing is told to quit where that's possible (code, browsing, pages).
+  /// A message already handed to Telegram may still go out.
+  void cancelTool(ToolPart part) {
+    final waiter = _toolCancels.remove(part.callId);
+    if (waiter == null || waiter.isCompleted) return;
+    switch (part.name) {
+      case 'run_code':
+        unawaited(ref.read(sandboxProvider).cancel());
+      case final n when n.startsWith('browser_'):
+        unawaited(ref.read(browserSessionProvider).stop());
+      case 'web_screenshot' || 'web_inspect' || 'web_run_async_js':
+        unawaited(ref.read(inAppEngineProvider).stop());
+    }
+    final sends = toolNamed(part.name)?.requiresApproval ?? false;
+    waiter.complete(
+      ToolOutput({
+        'error': 'Stopped by the user before it finished.'
+            '${sends ? ' It may already have reached Telegram or the site; check before trying again.' : ''}',
+        'stopped': true,
+      }),
+    );
+  }
+
+  Iterable<ToolPart> _runningParts(Conversation c) sync* {
+    for (final e in c.entries) {
+      if (e is AssistantEntry) {
+        for (final s in e.steps) {
+          yield* s.tools.where((t) => t.status == ToolStatus.running);
+        }
+      }
     }
   }
 
@@ -528,8 +590,9 @@ class ChatController extends Notifier<ChatState> {
   /// and whether a watch is running it.
   bool _mustAsk(TelegramTool tool, Watch? watch) {
     if (!tool.requiresApproval) return false;
-    // Destructive tools always ask, whatever the approval setting.
-    if (tool.destructive) return true;
+    // Destructive and money-spending tools always ask, whatever the
+    // approval setting.
+    if (tool.destructive || tool.alwaysAsk) return true;
     return switch (ref.read(settingsProvider).approvalMode) {
       ApprovalMode.ask => true,
       ApprovalMode.watches => watch == null,
@@ -598,6 +661,7 @@ class ChatController extends Notifier<ChatState> {
           'text': ?edit.text,
           if (edit.files != null)
             'files': [for (final f in edit.files!) f.path],
+          if (edit.asFiles != null) 'send_as': edit.asFiles! ? 'file' : 'media',
         });
       }
       part.status = ToolStatus.running;
@@ -605,21 +669,32 @@ class ChatController extends Notifier<ChatState> {
       _touch(c);
     }
     _resolveFiles(part, c);
-    ToolOutput out;
-    if (part.name == generateImageTool.name) {
-      out = await _generateImage(part.args);
-    } else if (part.name == generateAudioTool.name) {
-      out = await _generateAudio(part.args);
-    } else if (_localTools.contains(part.name)) {
-      out = await _runLocalTool(part.name, part.args, c);
-    } else if (canvasToolNames.contains(part.name)) {
-      try {
-        out = await runCanvasTool(ref, part.name, part.args);
-      } on ArgumentError catch (e) {
-        out = ToolOutput({'error': '${e.message}'});
+    Future<ToolOutput> work() async {
+      if (part.name == generateImageTool.name) return _generateImage(part.args);
+      if (part.name == generateAudioTool.name) return _generateAudio(part.args);
+      if (_localTools.contains(part.name)) return _runLocalTool(part.name, part.args, c);
+      if (canvasToolNames.contains(part.name)) {
+        try {
+          return await runCanvasTool(ref, part.name, part.args);
+        } on ArgumentError catch (e) {
+          return ToolOutput({'error': '${e.message}'});
+        }
       }
-    } else {
-      out = await runner.run(part.name, part.args);
+      return runner.run(part.name, part.args);
+    }
+
+    // A tool can be stopped while it runs (Stop on its card or sheet, or
+    // stopping the whole answer); whatever it was doing is told to quit,
+    // and the model hears that it was stopped.
+    final cancel = _toolCancels[part.callId] = Completer<ToolOutput>();
+    ToolOutput out;
+    try {
+      out = await Future.any([work(), cancel.future]);
+    } catch (e) {
+      // A tool that fails unexpectedly fails alone, not the whole answer.
+      out = ToolOutput({'error': 'The tool failed: ${e is UnsupportedError ? e.message : e}'});
+    } finally {
+      _toolCancels.remove(part.callId);
     }
     for (final p in out.posts) {
       c.posts[p.key] = p;
@@ -875,6 +950,22 @@ class ChatController extends Notifier<ChatState> {
           'written': b.at.toIso8601String().substring(0, 16),
           'text': b.text,
         }, posts: b.conversation.posts.values.toList());
+      case 'create_reminder' || 'update_reminder':
+        return _reminder(name, a, c);
+      case 'list_reminders':
+        final all = ref.read(reminderStoreProvider);
+        final shown = a['include_done'] == true ? all : all.where((r) => r.enabled || r.next != null).toList();
+        return ToolOutput({
+          'now': DateTime.now().toIso8601String().substring(0, 16),
+          'reminders': [for (final r in shown) r.describe()],
+          if (shown.isEmpty) 'note': 'No reminders.',
+        });
+      case 'delete_reminder':
+        return await ref.read(reminderStoreProvider.notifier).remove(str('reminder_id'))
+            ? const ToolOutput({'deleted': true})
+            : const ToolOutput({'error': 'No reminder with that id.'});
+      case 'zip_files':
+        return _zip(a, c);
       case 'notify_me':
         await ref
             .read(appNotifierProvider)
@@ -882,6 +973,89 @@ class ChatController extends Notifier<ChatState> {
         return const ToolOutput({'notified': true});
     }
     return ToolOutput({'error': 'Unknown tool $name'});
+  }
+
+  /// Sets up or changes a reminder from the assistant's arguments.
+  Future<ToolOutput> _reminder(String name, Map<String, dynamic> a, Conversation c) async {
+    final store = ref.read(reminderStoreProvider.notifier);
+    final minutes = a['in_minutes'] is num ? (a['in_minutes'] as num).toDouble() : double.tryParse('${a['in_minutes'] ?? ''}');
+    final at = minutes != null
+        ? DateTime.now().add(Duration(seconds: (minutes * 60).round()))
+        : DateTime.tryParse('${a['at'] ?? ''}');
+    final cron = '${a['cron'] ?? ''}'.trim();
+    try {
+      if (name == 'create_reminder') {
+        final text = '${a['text'] ?? ''}'.trim();
+        if (text.isEmpty) return const ToolOutput({'error': 'text is empty'});
+        final r = await store.add(
+          text: text,
+          at: at,
+          cron: cron.isEmpty ? null : cron,
+          prompt: '${a['prompt'] ?? ''}'.trim(),
+          conversationId: c.id,
+        );
+        final s = ref.read(settingsProvider);
+        return ToolOutput({
+          'created': true,
+          ...r.describe(),
+          if (r.isJob && (!s.proactive || !s.keepAlive))
+            'note': 'Jobs run only while the app is alive: tell the user to keep Proactivity and "Keep running in the background" on in Settings.',
+        });
+      }
+      final id = '${a['reminder_id'] ?? ''}'.trim();
+      final r = await store.update(
+        id,
+        (r) => r.copyWith(
+          text: a['text'] == null ? null : '${a['text']}'.trim(),
+          prompt: a['prompt'] == null ? null : '${a['prompt']}'.trim(),
+          enabled: a['enabled'] is bool ? a['enabled'] as bool : (at != null || cron.isNotEmpty ? true : null),
+          next: at,
+          cron: cron.isEmpty ? null : cron,
+          clearCron: a['cron'] != null && cron.isEmpty,
+        ),
+      );
+      return r == null ? const ToolOutput({'error': 'No reminder with that id.'}) : ToolOutput({'updated': true, ...r.describe()});
+    } on FormatException catch (e) {
+      return ToolOutput({'error': e.message});
+    }
+  }
+
+  /// Packs files of [c] into a zip kept with the app's files.
+  Future<ToolOutput> _zip(Map<String, dynamic> a, Conversation c) async {
+    final files = [for (final f in (a['files'] as List? ?? const [])) '$f'].where((f) => File(f).existsSync()).toList();
+    if (files.isEmpty) return const ToolOutput({'error': 'None of those files are here. list_attachments shows what there is.'});
+    var name = '${a['name'] ?? ''}'.trim();
+    if (name.isEmpty) name = files.length == 1 ? '${files.single.split(RegExp(r'[\\/]')).last}.zip' : 'files.zip';
+    if (!name.toLowerCase().endsWith('.zip')) name = '$name.zip';
+    name = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final dir = Directory('${(await getApplicationSupportDirectory()).path}/generated');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final out = '${dir.path}/${_uuid.v4().substring(0, 8)}_$name';
+    final known = sendableFiles(c);
+    final encoder = ZipFileEncoder()..create(out);
+    final used = <String>{};
+    try {
+      for (final f in files) {
+        // Inside the zip, files keep the names the user knows them by.
+        var inner = known.where((k) => k.path == f).firstOrNull?.name ?? f.split(RegExp(r'[\\/]')).last;
+        for (var i = 2; !used.add(inner); i++) {
+          final dot = inner.lastIndexOf('.');
+          inner = dot > 0 ? '${inner.substring(0, dot)} ($i)${inner.substring(dot)}' : '$inner ($i)';
+        }
+        await encoder.addFile(File(f), inner);
+      }
+    } finally {
+      await encoder.close();
+    }
+    final size = await File(out).length();
+    return ToolOutput({
+      'created': true,
+      'file_path': out,
+      'name': out.split(RegExp(r'[\\/]')).last,
+      'files': files.length,
+      'size_kb': (size / 1024).ceil(),
+      'note': 'Send it with send_message by passing its name in files.',
+    });
   }
 
   /// The assistant names files the way it was told about them; the tools
@@ -1175,6 +1349,24 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - forward_message can send to several chats at once with to_chat_ids.
 - The user may send voice messages: you get a transcript or the audio itself. Act on what they say; the recording can also be sent on to a chat with send_voice_message.
 - The user may attach pictures, voice notes and files; read them directly. To look (again) at an attached picture from earlier, or at a photo, video thumbnail, sticker or link-preview image in a Telegram post, use view_image. To send one of them (or an image you generated) to a chat, pass its name in files. Use send_voice_message for a recorded voice-note attachment; use generate_image when they ask you to create a picture.
+- Reminders and scheduled jobs: "remind me to walk in 5 minutes" → create_reminder(text, in_minutes). Use at for a clock time and cron for repeats; add prompt when something should be done at that time (a job). list_reminders, update_reminder, delete_reminder manage them. Reminders are separate from watches, which react to new messages.
+- The web: fetch_url reads a page or API without scripts (blogs, articles, docs: e.g. list the posts on a blog, then fetch the ones needed). Sites that are apps (forms sent by JavaScript, anonymous-message pages like sma.et, logins) need the browser: browser_open, then browser_type into the numbered fields and browser_click the button; browser_read to see the result. To follow a link, browser_open or fetch_url its URL. http_request calls APIs; submit_form posts plain HTML forms; download_file saves a file that can then be sent. Tell the user what you saw or did on the page, briefly.
+- Files: send_message and reply_to_message send photos and videos compressed by default; send_as "file" sends them uncompressed as documents. zip_files packs several files into one .zip to send. edit_message can replace a message's media as well as its text.
+- Stars: get_star_balance, list_star_transactions, list_star_subscriptions / set_star_subscription, get_star_revenue (the user's channels and bots), get_star_reactors (who gave Stars to a post), send_star_reaction (gives Stars to a post or message: it spends the user's Stars, so only when they asked, and it always asks them first).
+- Reactions in read_messages include ⭐ for Stars; get_message_reactions lists who reacted and the Star supporters. reactions_to_me shows new reactions to the user's messages (mark_reactions_seen clears them); set_chat_reactions sets which reactions a chat allows.
+- Telegram gifts (sending, viewing or managing Star gifts) aren't available in this app's Telegram library yet: say so if asked; Star reactions are the way to give Stars.
+- Two browser engines: the main one (browser_*) to use pages; the second for web_screenshot (show the user a page, or look at it yourself with view_image), web_inspect (console, network requests, HTML after scripts) and web_run_async_js. Both share cookies.
+- run_code runs Python or JavaScript in a sandbox for calculations, data, charts and making files (Python: save into out/). Prefer it over doing arithmetic or data wrangling in your head.
+- GitHub (public repos, no sign-in): github_repo, github_list, github_read, github_search, github_issues, github_commits, github_releases, github_download. Accepts github.com links.
+- Stories: list_stories, view_story, story_viewers, post_story, edit_story, delete_story, react_to_story.
+- Folders: list_chat_folders, get_folder, create_folder, edit_folder, delete_folder, reorder_folders, suggested_folders, share_folder.
+- Running chats: set_chat_settings (auto-delete, slow mode, protected content, join rules, signatures, username, discussion group…), manage_topic / delete_topic, get_boosts, invite_link_joins, video_chat / manage_video_chat.
+- Account: list_sessions / end_session (log out unknown devices), set_session_options, get_privacy / set_privacy, get_profile / edit_profile, account_health (a security check-up: run it when asked if the account is safe).
+- t.me links: open_telegram_link resolves any Telegram link (chat, message, invite, story, bot) to ids the other tools use. search_all_chats finds photos, files, links, music, voice… across every chat. inline_bot_query + send_inline_result use inline bots (@gif, @wiki…). list_message_effects + send_message(effect_id) send with an animated effect.
+- This phone: storage_report / clean_storage (Telegram's cache), data_usage.
+- Books: search_books, book_details (shows the cover), find_free_copy, download_book. Only legal sources: Open Library, Project Gutenberg, Standard Ebooks, Internet Archive public-domain scans, Google Books free ebooks. Never look for or link pirated copies (Z-Library, Library Genesis, Anna's Archive and the like); for books under copyright, point to libraries, borrowing on Open Library, or shops.
+- YouTube: youtube_search, youtube_video (details, description, chapters, thumbnail), youtube_transcript (often refused by YouTube; then work from the description), youtube_channel, youtube_playlist. Videos aren't downloaded.
+- X (Twitter): x_post and x_profile read public posts and profiles without an account. Timelines, search and posting need the user signed in to x.com in the app's browser (browser_open).
 - Some tools may be turned off by the user. Work with the ones you have.
 ${watch == null ? '' : '''
 This turn was started automatically by the watch "${watch.name}" (watch_id ${watch.id}, mode ${watch.mode.name}). The user isn't looking right now.

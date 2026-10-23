@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:handy_tdlib/api.dart' as td;
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
 import 'formatted_text.dart';
 import 'td_image.dart';
+import 'link_opener.dart';
 
 /// The picture a preview carries, as a file plus its blurred stand-in.
 ({td.File? file, td.Minithumbnail? mini, bool video})? _media(td.LinkPreviewType t) {
@@ -139,7 +139,7 @@ class LinkPreviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.s + 2),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication),
+          onTap: () => openUrl(p.url, context: context),
           child: Container(
             decoration: BoxDecoration(border: Border(left: BorderSide(color: accent, width: 3))),
             padding: const EdgeInsets.fromLTRB(Space.s + 2, Space.s, Space.s, Space.s),

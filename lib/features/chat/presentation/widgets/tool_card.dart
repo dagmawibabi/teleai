@@ -15,9 +15,11 @@ import '../../../telegram/data/telegram_store.dart';
 import '../../../../infrastructure/telegram/telegram_client.dart';
 import '../../../telegram/presentation/message_tile.dart';
 import '../../../telegram/data/telegram_tools.dart';
+import '../../../web/browser_screen.dart';
 import '../../data/chat_controller.dart';
 import '../../domain/chat_models.dart';
 import 'json_tree.dart';
+import 'rich_results.dart';
 import 'tool_result_view.dart';
 
 IconData toolIcon(String name) => switch (name) {
@@ -124,6 +126,49 @@ IconData toolIcon(String name) => switch (name) {
   'get_sticker_set' => Icons.emoji_emotions_outlined,
   'list_favorite_stickers' => Icons.star_outline_rounded,
   'favorite_sticker' => Icons.star_rounded,
+  'create_reminder' || 'update_reminder' => Icons.alarm_add_rounded,
+  'list_reminders' => Icons.alarm_rounded,
+  'delete_reminder' => Icons.alarm_off_rounded,
+  'zip_files' => Icons.folder_zip_outlined,
+  'fetch_url' => Icons.language_rounded,
+  'http_request' => Icons.http_rounded,
+  'submit_form' => Icons.dynamic_form_outlined,
+  'download_file' => Icons.download_rounded,
+  'browser_open' || 'browser_read' || 'browser_back' => Icons.public_rounded,
+  'browser_type' => Icons.keyboard_alt_outlined,
+  'browser_click' || 'browser_submit' => Icons.ads_click_rounded,
+  'browser_run_js' => Icons.code_rounded,
+  'get_star_balance' || 'list_star_transactions' || 'get_star_revenue' => Icons.account_balance_wallet_outlined,
+  'send_star_reaction' || 'get_star_reactors' => Icons.star_rounded,
+  'list_star_subscriptions' || 'set_star_subscription' => Icons.card_membership_rounded,
+  'web_screenshot' => Icons.screenshot_monitor_rounded,
+  'web_inspect' || 'web_run_async_js' => Icons.developer_mode_rounded,
+  'run_code' => Icons.terminal_rounded,
+  'github_repo' || 'github_list' || 'github_read' || 'github_search' || 'github_issues' || 'github_commits' || 'github_releases' || 'github_download' =>
+    Icons.code_rounded,
+  'list_stories' || 'view_story' || 'story_viewers' || 'post_story' || 'edit_story' || 'delete_story' || 'react_to_story' =>
+    Icons.amp_stories_outlined,
+  'get_folder' || 'create_folder' || 'edit_folder' || 'delete_folder' || 'reorder_folders' || 'suggested_folders' || 'share_folder' =>
+    Icons.folder_copy_outlined,
+  'set_chat_settings' || 'set_chat_reactions' || 'manage_topic' || 'delete_topic' => Icons.settings_suggest_outlined,
+  'get_boosts' => Icons.rocket_launch_outlined,
+  'invite_link_joins' => Icons.link_rounded,
+  'list_sessions' || 'end_session' || 'set_session_options' => Icons.devices_rounded,
+  'get_privacy' || 'set_privacy' => Icons.privacy_tip_outlined,
+  'get_profile' || 'edit_profile' => Icons.account_circle_outlined,
+  'account_health' => Icons.health_and_safety_outlined,
+  'open_telegram_link' => Icons.link_rounded,
+  'search_all_chats' => Icons.manage_search_rounded,
+  'inline_bot_query' || 'send_inline_result' => Icons.alternate_email_rounded,
+  'list_message_effects' => Icons.celebration_outlined,
+  'reactions_to_me' || 'mark_reactions_seen' => Icons.favorite_border_rounded,
+  'video_chat' || 'manage_video_chat' => Icons.video_call_outlined,
+  'storage_report' || 'clean_storage' => Icons.storage_rounded,
+  'data_usage' => Icons.data_usage_rounded,
+  'search_books' || 'book_details' || 'find_free_copy' => Icons.menu_book_rounded,
+  'download_book' => Icons.download_for_offline_outlined,
+  'youtube_search' || 'youtube_video' || 'youtube_transcript' || 'youtube_channel' || 'youtube_playlist' => Icons.smart_display_outlined,
+  'x_post' || 'x_profile' => Icons.alternate_email_rounded,
   _ => Icons.build_outlined,
 };
 
@@ -138,7 +183,12 @@ String toolSubject(ToolPart part, TelegramStore store) {
   if (a['to_chat_ids'] case final List ids when ids.isNotEmpty) {
     bits.add(ids.length == 1 ? (store.chat((ids.first as num).toInt())?.title ?? 'a chat') : '${ids.length} chats');
   }
+  if (a['folder_id'] case final num f) {
+    final name = store.folders.where((x) => x.id == f.toInt()).firstOrNull?.title ?? '';
+    bits.add(name.isEmpty ? 'folder $f' : name);
+  }
   if (a['query'] case final String q when q.isNotEmpty) bits.add('"$q"');
+  if (a['url'] case final String u when u.isNotEmpty) bits.add(Uri.tryParse(u)?.host.isNotEmpty == true ? Uri.parse(u).host : u);
   if (a['prompt'] case final String p when p.isNotEmpty) bits.add(p);
   if (a['type'] case final String t when t != 'all') bits.add(t);
   if (a['since_hours'] case final num h)
@@ -160,11 +210,16 @@ Map<String, dynamic>? _decode(String? raw) {
 String _summary(ToolPart part) {
   final j = _decode(part.result);
   if (j == null) return '';
+  if (j['stopped'] == true) return 'Stopped';
   if (j['error'] != null) return 'Failed';
   if (j['sent'] == true) return j['forwarded'] != null ? 'Forwarded' : 'Sent';
   if (j['created'] == true) return 'Created';
   if (j['done'] == true) return 'Done';
   if (j['scheduled'] == true) return 'Scheduled';
+  if (j['reminders'] is List) return '${(j['reminders'] as List).length} reminders';
+  if (j['stars'] is num && j['transactions'] == null) return '${j['stars']} ⭐';
+  if (j['status'] is num && j['url'] is String) return 'HTTP ${j['status']}';
+  if (j['title'] is String && j['url'] is String) return '${j['title']}'.isEmpty ? 'Read' : '${j['title']}';
   if (j['scheduled'] is List)
     return '${(j['scheduled'] as List).length} scheduled';
   if (j['topics'] is List) return '${(j['topics'] as List).length} topics';
@@ -217,9 +272,8 @@ class ToolCallCard extends ConsumerWidget {
       ),
       ToolStatus.awaitingApproval => (const SizedBox.shrink(), AppColors.text2),
     };
-    final decoded = part.name == generateImageTool.name
-        ? _decode(part.result)
-        : null;
+    // Generated images, screenshots and charts from code all show here.
+    final decoded = part.result != null && part.result!.contains('"image_path"') ? _decode(part.result) : null;
     final image = decoded == null ? null : decoded['image_path'] as String?;
     return Padding(
       padding: const EdgeInsets.only(bottom: Space.xs + 2),
@@ -282,6 +336,18 @@ class ToolCallCard extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    if (part.name.startsWith('browser_'))
+                      InkWell(
+                        borderRadius: BorderRadius.circular(99),
+                        onTap: () => BrowserScreen.open(context),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          child: Tooltip(
+                            message: 'Watch the browser',
+                            child: Icon(Icons.open_in_new_rounded, size: 15, color: AppColors.text2),
+                          ),
+                        ),
+                      ),
                     if (part.autoApproved) ...[
                       const SizedBox(width: Space.s),
                       const Tooltip(
@@ -295,12 +361,29 @@ class ToolCallCard extends ConsumerWidget {
                     ],
                     const SizedBox(width: Space.s),
                     status,
+                    if (part.status == ToolStatus.running &&
+                        ref.read(chatControllerProvider.notifier).canCancel(part))
+                      InkWell(
+                        borderRadius: BorderRadius.circular(99),
+                        onTap: () => ref.read(chatControllerProvider.notifier).cancelTool(part),
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: Space.s),
+                          child: Tooltip(
+                            message: 'Stop',
+                            child: Icon(Icons.stop_circle_outlined, size: 18, color: AppColors.danger),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
           ),
-          if (image != null)
+          // Books, videos, posts, repos and pages get a card of their own;
+          // other pictures (generated images, screenshots) show as they are.
+          if (richResultFor(part) case final rich?)
+            Padding(padding: const EdgeInsets.only(top: Space.s), child: rich)
+          else if (image != null)
             Padding(
               padding: const EdgeInsets.only(top: Space.s),
               child: GeneratedImage(path: image),
@@ -326,6 +409,7 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
     text: '${widget.part.args['text'] ?? ''}',
   );
   late final List<Attachment> _files = _initialFiles();
+  late bool _asFiles = widget.part.args['send_as'] == 'file';
   bool _adding = false;
   List<td.Message>? _forwardPreview;
 
@@ -581,6 +665,17 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
                         onPressed: _adding ? null : () => _add(_pickFiles),
                       ),
                       const Spacer(),
+                      if (_files.any((a) => a.isImage || a.isVideo))
+                        Padding(
+                          padding: const EdgeInsets.only(right: Space.s),
+                          child: FilterChip(
+                            visualDensity: VisualDensity.compact,
+                            tooltip: _asFiles ? 'Sent uncompressed, as files' : 'Sent compressed, shown in the chat',
+                            label: Text(_asFiles ? 'As files' : 'Compressed', style: const TextStyle(fontSize: 12)),
+                            selected: _asFiles,
+                            onSelected: (v) => setState(() => _asFiles = v),
+                          ),
+                        ),
                       if (_files.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(right: Space.s),
@@ -634,6 +729,7 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
                                 part.callId,
                                 text: _text.text.trim(),
                                 files: [..._files],
+                                asFiles: _asFiles,
                               ),
                   child: Text(
                     _simple ? 'Approve' : (_forward ? 'Forward' : 'Send'),
@@ -842,6 +938,9 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
   Widget build(BuildContext context) {
     final part = widget.part;
     final store = ref.watch(telegramStoreProvider);
+    // The part changes as the tool runs; the controller says when.
+    ref.watch(chatControllerProvider.select((s) => s.revision));
+    final controller = ref.read(chatControllerProvider.notifier);
     final tool = toolNamed(part.name);
     final result = _decode(part.result);
     final args = part.args;
@@ -910,6 +1009,29 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             _Pill(TimeOfDay.fromDateTime(part.startedAt).format(context)),
           ],
         ),
+        if (part.status == ToolStatus.running && controller.canCancel(part)) ...[
+          const SizedBox(height: Space.l),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            onPressed: () => controller.cancelTool(part),
+            icon: const Icon(Icons.stop_rounded),
+            label: Text(switch (part.name) {
+              'run_code' => 'Stop the code',
+              final n when n.startsWith('browser_') || n.startsWith('web_') || n == 'fetch_url' => 'Stop browsing',
+              _ => 'Stop',
+            }),
+          ),
+        ] else if (part.status == ToolStatus.awaitingApproval) ...[
+          const SizedBox(height: Space.l),
+          OutlinedButton.icon(
+            onPressed: () {
+              controller.deny(part.callId);
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.block_rounded),
+            label: const Text('Decline'),
+          ),
+        ],
         const SizedBox(height: Space.l),
         SegmentedButton<bool>(
           showSelectedIcon: false,

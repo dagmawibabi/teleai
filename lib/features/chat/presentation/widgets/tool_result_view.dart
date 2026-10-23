@@ -4,13 +4,13 @@ import 'package:audioplayers/audioplayers.dart';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme.dart';
 import '../../../telegram/presentation/chat_view_screen.dart';
 import '../../../telegram/presentation/tg_avatar.dart';
 import '../../domain/chat_models.dart';
 import 'post_viewer.dart';
+import '../../../telegram/presentation/link_opener.dart';
 
 final _ref = RegExp(r'post:(-?\d+):(\d+)');
 
@@ -349,7 +349,7 @@ class ToolResultView extends StatelessWidget {
           .map(Map<String, dynamic>.from)
           .toList();
       final grouped = list.any((c) => c['messages'] is List);
-      children.add(_Section(title: 'Chats', count: list.length));
+      children.add(_Section(title: j['folder'] is String ? 'Folder · ${j['folder']}' : 'Chats', count: list.length));
       if (list.isEmpty) children.add(const _Empty('No chats'));
       for (final c in list) {
         children.add(_ChatRow(c: c));
@@ -560,7 +560,7 @@ class _WebResultCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.m),
           onTap: uri == null || !uri.hasScheme
               ? null
-              : () => launchUrl(uri, mode: LaunchMode.externalApplication),
+              : () => openUrl('$uri', context: context),
           child: Padding(
             padding: const EdgeInsets.all(Space.m),
             child: Row(
