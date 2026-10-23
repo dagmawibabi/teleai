@@ -368,19 +368,6 @@ class SettingsHub extends ConsumerWidget {
                 ),
               ]),
               const SizedBox(height: Space.l),
-              Center(
-                child: Column(
-                  children: [
-                    const BrandMark(size: 36),
-                    const SizedBox(height: Space.s),
-                    Text(
-                      '${AppConfig.appName} ${AppConfig.version}',
-                      style: context.text.labelSmall,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: Space.l),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -391,6 +378,19 @@ class SettingsHub extends ConsumerWidget {
                     foregroundColor: AppColors.danger,
                     side: const BorderSide(color: AppColors.danger),
                   ),
+                ),
+              ),
+              const SizedBox(height: Space.l),
+              Center(
+                child: Column(
+                  children: [
+                    const BrandMark(size: 36),
+                    const SizedBox(height: Space.s),
+                    Text(
+                      '${AppConfig.appName} ${AppConfig.version}',
+                      style: context.text.labelSmall,
+                    ),
+                  ],
                 ),
               ),
             ],
