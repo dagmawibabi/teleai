@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -29,10 +31,11 @@ class AuthUiState {
   /// waiting for a code (to fix a typo, say).
   final bool editingPhone;
 
-  AuthUiState copyWith({bool? startedSignIn, bool? editingPhone}) => AuthUiState(
-    startedSignIn: startedSignIn ?? this.startedSignIn,
-    editingPhone: editingPhone ?? this.editingPhone,
-  );
+  AuthUiState copyWith({bool? startedSignIn, bool? editingPhone}) =>
+      AuthUiState(
+        startedSignIn: startedSignIn ?? this.startedSignIn,
+        editingPhone: editingPhone ?? this.editingPhone,
+      );
 }
 
 /// Sign-in actions, as telegrive does them. Each throws a
@@ -45,7 +48,17 @@ class AuthController extends Notifier<AuthUiState> {
 
   void startSignIn() => state = state.copyWith(startedSignIn: true);
 
-  void editPhone() => state = state.copyWith(editingPhone: true);
+  /// A QR confirmation is its own TDLib authorization branch. It must be
+  /// closed before another phone number can be submitted; merely swapping the
+  /// Flutter screen would leave TDLib in the QR state and yield `Unexpected`.
+  void editPhone() {
+    if (_client.authState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
+      state = state.copyWith(startedSignIn: true, editingPhone: false);
+      unawaited(_client.restartAfterQrAuthentication());
+      return;
+    }
+    state = state.copyWith(editingPhone: true);
+  }
 
   void cancelEditPhone() => state = state.copyWith(editingPhone: false);
 
@@ -68,13 +81,17 @@ class AuthController extends Notifier<AuthUiState> {
   }
 
   Future<void> requestQrCode() async {
-    await _client.send<td.Ok>(const td.RequestQrCodeAuthentication(otherUserIds: []));
+    await _client.send<td.Ok>(
+      const td.RequestQrCodeAuthentication(otherUserIds: []),
+    );
     state = state.copyWith(editingPhone: false);
   }
 
-  Future<void> submitCode(String code) => _client.send<td.Ok>(td.CheckAuthenticationCode(code: code.trim()));
+  Future<void> submitCode(String code) =>
+      _client.send<td.Ok>(td.CheckAuthenticationCode(code: code.trim()));
 
-  Future<void> resendCode() => _client.send<td.Ok>(const td.ResendAuthenticationCode());
+  Future<void> resendCode() =>
+      _client.send<td.Ok>(const td.ResendAuthenticationCode());
 
   Future<void> submitPassword(String password) =>
       _client.send<td.Ok>(td.CheckAuthenticationPassword(password: password));
@@ -88,4 +105,6 @@ class AuthController extends Notifier<AuthUiState> {
   }
 }
 
-final authControllerProvider = NotifierProvider<AuthController, AuthUiState>(AuthController.new);
+final authControllerProvider = NotifierProvider<AuthController, AuthUiState>(
+  AuthController.new,
+);

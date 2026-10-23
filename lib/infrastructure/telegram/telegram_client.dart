@@ -73,7 +73,9 @@ class TelegramClient {
       return;
     }
     try {
-      _root = Directory('${(await getApplicationSupportDirectory()).path}/tdlib');
+      _root = Directory(
+        '${(await getApplicationSupportDirectory()).path}/tdlib',
+      );
       await _root!.create(recursive: true);
       // A client this process opened and never closed: a hot restart, or
       // Android starting a new Flutter engine in the same process after the
@@ -81,7 +83,11 @@ class TelegramClient {
       // database lock, so it is taken over rather than opened twice.
       final leftOpen = await _leftOpenClient();
       await openTdLibrary();
-      TdPlugin.instance.tdExecute(jsonEncode(const td.SetLogVerbosityLevel(newVerbosityLevel: 1).toJson()));
+      TdPlugin.instance.tdExecute(
+        jsonEncode(
+          const td.SetLogVerbosityLevel(newVerbosityLevel: 1).toJson(),
+        ),
+      );
       await _receiver.start();
       if (leftOpen != null) {
         _adopt(leftOpen);
@@ -97,13 +103,15 @@ class TelegramClient {
 
   Directory? _root;
 
-  File? get _clientFile => _root == null ? null : File('${_root!.path}/client.json');
+  File? get _clientFile =>
+      _root == null ? null : File('${_root!.path}/client.json');
 
   /// The client id `client.json` names, when this very process wrote it.
   Future<int?> _leftOpenClient() async {
     try {
       final saved = jsonDecode(await _clientFile!.readAsString());
-      if (saved is Map && saved['pid'] == pid && saved['clientId'] is int) return saved['clientId'] as int;
+      if (saved is Map && saved['pid'] == pid && saved['clientId'] is int)
+        return saved['clientId'] as int;
     } catch (_) {
       // None saved, or unreadable: nothing to take over.
     }
@@ -112,7 +120,9 @@ class TelegramClient {
 
   Future<void> _saveClient(int clientId) async {
     try {
-      await _clientFile?.writeAsString(jsonEncode({'pid': pid, 'clientId': clientId}));
+      await _clientFile?.writeAsString(
+        jsonEncode({'pid': pid, 'clientId': clientId}),
+      );
     } catch (e) {
       debugPrint('[Telegram] Could not save the client id: $e');
     }
@@ -134,7 +144,9 @@ class TelegramClient {
     debugPrint('[Telegram] Client $clientId taken over');
     unawaited(() async {
       try {
-        _onAuthorizationState(await send<td.AuthorizationState>(const td.GetAuthorizationState()));
+        _onAuthorizationState(
+          await send<td.AuthorizationState>(const td.GetAuthorizationState()),
+        );
       } catch (e) {
         debugPrint('[Telegram] Could not take client $clientId over: $e');
         if (!_disposed) _createClient();
@@ -167,9 +179,13 @@ class TelegramClient {
     }
   }
 
-  Future<T> _sendOnce<T extends td.TdObject>(td.TdFunction function, Duration timeout) async {
+  Future<T> _sendOnce<T extends td.TdObject>(
+    td.TdFunction function,
+    Duration timeout,
+  ) async {
     final clientId = _clientId;
-    if (clientId == null) throw const TelegramException(500, 'Telegram is not running');
+    if (clientId == null)
+      throw const TelegramException(500, 'Telegram is not running');
     final extra = '${++_requestSeq}';
     final completer = Completer<td.TdObject>();
     _pending[extra] = completer;
@@ -183,7 +199,10 @@ class TelegramClient {
       },
     );
     if (result is! T) {
-      throw TelegramException(500, 'Expected $T from ${function.runtimeType}, got ${result.runtimeType}');
+      throw TelegramException(
+        500,
+        'Expected $T from ${function.runtimeType}, got ${result.runtimeType}',
+      );
     }
     return result;
   }
@@ -197,7 +216,9 @@ class TelegramClient {
       if (completer == null) return;
       final object = td.convertMapToObject(map);
       if (object == null) {
-        completer.completeError(TelegramException(500, 'Unreadable reply: ${map['@type']}'));
+        completer.completeError(
+          TelegramException(500, 'Unreadable reply: ${map['@type']}'),
+        );
       } else if (object is td.TdError) {
         completer.completeError(TelegramException(object.code, object.message));
       } else {
@@ -208,7 +229,8 @@ class TelegramClient {
 
     final object = td.convertMapToObject(map);
     if (object == null) return;
-    if (object is td.UpdateAuthorizationState) _onAuthorizationState(object.authorizationState);
+    if (object is td.UpdateAuthorizationState)
+      _onAuthorizationState(object.authorizationState);
     if (!_updates.isClosed) _updates.add(object);
   }
 
@@ -303,12 +325,33 @@ class TelegramClient {
   Future<void> setOnline(bool online) async {
     _wantOnline = online;
     if (_authState is! td.AuthorizationStateReady) return;
-    await _sendQuietly(td.SetOption(name: 'online', value: td.OptionValueBoolean(value: online)));
+    await _sendQuietly(
+      td.SetOption(
+        name: 'online',
+        value: td.OptionValueBoolean(value: online),
+      ),
+    );
   }
 
   Future<void> logOut() => _sendQuietly(const td.LogOut());
 
-  Future<void> _sendQuietly(td.TdFunction function, {Duration timeout = const Duration(seconds: 10)}) async {
+  /// Abandons a QR sign-in attempt and starts a fresh authorization flow.
+  ///
+  /// TDLib can't switch directly from `authorizationStateWaitOtherDeviceConfirmation`
+  /// to a phone-number request. Logging out is the documented way to close
+  /// that unauthenticated client; the closed-state handler then creates a new
+  /// client which proceeds to `authorizationStateWaitPhoneNumber`.
+  Future<void> restartAfterQrAuthentication() async {
+    if (_authState is! td.AuthorizationStateWaitOtherDeviceConfirmation) {
+      return;
+    }
+    await _sendQuietly(const td.LogOut());
+  }
+
+  Future<void> _sendQuietly(
+    td.TdFunction function, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
     try {
       await send<td.TdObject>(function, timeout: timeout);
     } catch (e) {
@@ -320,7 +363,9 @@ class TelegramClient {
     final pending = Map.of(_pending);
     _pending.clear();
     for (final completer in pending.values) {
-      completer.completeError(const TelegramException(500, 'Telegram session closed'));
+      completer.completeError(
+        const TelegramException(500, 'Telegram session closed'),
+      );
     }
   }
 

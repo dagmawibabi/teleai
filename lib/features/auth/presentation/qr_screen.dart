@@ -41,7 +41,10 @@ class QrScreen extends ConsumerWidget {
                   mode: LaunchMode.externalApplication,
                 );
                 if (!opened && context.mounted) {
-                  showSnack(context, 'Telegram isn\'t installed on this device.');
+                  showSnack(
+                    context,
+                    'Telegram isn\'t installed on this device.',
+                  );
                 }
               },
         child: const Text('Confirm in Telegram on this phone'),
@@ -88,7 +91,9 @@ class QrScreen extends ConsumerWidget {
         Center(
           child: Text(
             'The code refreshes by itself.',
-            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
         ),
       ],
