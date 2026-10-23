@@ -1,0 +1,1221 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
+import 'package:image_picker/image_picker.dart';
+
+import '../../../../app/theme.dart';
+import '../../../telegram/data/telegram_store.dart';
+import '../../../../infrastructure/telegram/telegram_client.dart';
+import '../../../telegram/presentation/message_tile.dart';
+import '../../../telegram/data/telegram_tools.dart';
+import '../../data/chat_controller.dart';
+import '../../domain/chat_models.dart';
+import 'json_tree.dart';
+import 'tool_result_view.dart';
+
+IconData toolIcon(String name) => switch (name) {
+  'get_account_overview' => Icons.person_outline_rounded,
+  'list_chats' => Icons.forum_outlined,
+  'get_chat_info' => Icons.info_outline_rounded,
+  'read_messages' => Icons.article_outlined,
+  'get_recent_activity' => Icons.bolt_rounded,
+  'search_messages' => Icons.search_rounded,
+  'get_message' => Icons.chat_bubble_outline_rounded,
+  'send_message' => Icons.send_rounded,
+  'send_voice_message' => Icons.mic_none_rounded,
+  'list_contacts' => Icons.contacts_outlined,
+  'list_chat_folders' => Icons.folder_outlined,
+  'get_unread_mentions' => Icons.alternate_email_rounded,
+  'get_pinned_messages' => Icons.push_pin_outlined,
+  'get_comments' => Icons.mode_comment_outlined,
+  'list_shared_media' => Icons.perm_media_outlined,
+  'get_chat_members' => Icons.groups_outlined,
+  'search_public_chats' => Icons.travel_explore_rounded,
+  'forward_message' => Icons.shortcut_rounded,
+  'show_channel_post' => Icons.article_outlined,
+  'generate_audio' => Icons.graphic_eq_rounded,
+  'generate_image' => Icons.brush_outlined,
+  'get_forum_topics' => Icons.topic_outlined,
+  'get_user_profile' => Icons.badge_outlined,
+  'send_chat_action' => Icons.more_time_rounded,
+  'react_to_message' => Icons.add_reaction_outlined,
+  'set_chat_notifications' => Icons.notifications_none_rounded,
+  'mark_as_read' => Icons.mark_chat_read_outlined,
+  'explore_forum' => Icons.forum_outlined,
+  'get_message_reactions' => Icons.emoji_emotions_outlined,
+  'comment_on_post' => Icons.add_comment_outlined,
+  'edit_message' => Icons.edit_note_rounded,
+  'reply_to_message' => Icons.reply_rounded,
+  'pin_message' => Icons.push_pin_outlined,
+  'archive_chat' => Icons.archive_outlined,
+  'schedule_message' => Icons.schedule_send_outlined,
+  'list_scheduled_messages' => Icons.event_note_outlined,
+  'reschedule_message' => Icons.update_rounded,
+  'remember' => Icons.bookmark_add_outlined,
+  'update_memory' => Icons.bookmark_outlined,
+  'forget_memory' => Icons.bookmark_remove_outlined,
+  'list_memories' => Icons.bookmarks_outlined,
+  'create_watch' => Icons.visibility_outlined,
+  'list_watches' => Icons.remove_red_eye_outlined,
+  'update_watch' => Icons.edit_notifications_outlined,
+  'delete_watch' => Icons.visibility_off_outlined,
+  'notify_me' => Icons.notifications_active_outlined,
+  'list_attachments' => Icons.attach_file_rounded,
+  'create_poll' => Icons.poll_outlined,
+  'get_poll_results' => Icons.bar_chart_rounded,
+  'vote_poll' => Icons.how_to_vote_outlined,
+  'stop_poll' => Icons.block_outlined,
+  'send_contact' => Icons.contact_page_outlined,
+  'search_gifs' => Icons.gif_box_outlined,
+  'list_saved_gifs' => Icons.gif_outlined,
+  'send_gif' => Icons.gif_rounded,
+  'list_calls' => Icons.call_outlined,
+  'view_image' => Icons.image_search_rounded,
+  'list_my_bots' || 'get_bot_profile' => Icons.smart_toy_outlined,
+  'edit_bot' || 'botfather' => Icons.precision_manufacturing_outlined,
+  'create_bot' => Icons.add_reaction_outlined,
+  'get_stories' => Icons.amp_stories_outlined,
+  'add_contact' => Icons.person_add_alt_1_outlined,
+  'set_draft' => Icons.edit_note_rounded,
+  'start_bot' => Icons.play_circle_outline_rounded,
+  'get_chat_stats' || 'get_post_stats' => Icons.query_stats_rounded,
+  'list_members' || 'get_member' => Icons.groups_outlined,
+  'get_chat_permissions' || 'set_chat_permissions' => Icons.tune_rounded,
+  'promote_member' => Icons.admin_panel_settings_outlined,
+  'restrict_member' => Icons.voice_over_off_outlined,
+  'edit_chat_info' => Icons.edit_outlined,
+  'list_invite_links' || 'create_invite_link' => Icons.link_rounded,
+  'list_join_requests' || 'answer_join_request' => Icons.how_to_reg_outlined,
+  'get_admin_log' => Icons.history_rounded,
+  'add_members' => Icons.group_add_outlined,
+  'create_chat' => Icons.add_box_outlined,
+  'join_chat' => Icons.login_rounded,
+  'list_blocked' => Icons.block_rounded,
+  'list_briefs' || 'read_brief' => Icons.wb_twilight_rounded,
+  'canvas_overview' => Icons.dashboard_outlined,
+  'canvas_create_folder' || 'canvas_update_folder' => Icons.create_new_folder_outlined,
+  'canvas_delete_folder' || 'canvas_remove' => Icons.folder_delete_outlined,
+  'canvas_add' || 'canvas_move' => Icons.dashboard_customize_outlined,
+  'canvas_add_note' => Icons.sticky_note_2_outlined,
+  'translate_message' => Icons.translate_rounded,
+  'delete_messages' || 'clear_chat_history' || 'delete_all_from_member' => Icons.delete_outline_rounded,
+  'leave_chat' => Icons.logout_rounded,
+  'delete_chat' => Icons.delete_forever_outlined,
+  'block_user' => Icons.block_rounded,
+  'remove_contact' => Icons.person_remove_outlined,
+  'ban_member' => Icons.gavel_rounded,
+  'mark_as_unread' => Icons.mark_chat_unread_outlined,
+  'pin_chat' => Icons.push_pin_outlined,
+  'add_chat_to_folder' => Icons.create_new_folder_outlined,
+  'list_my_chats' => Icons.admin_panel_settings_outlined,
+  'recently_joined_chats' => Icons.new_releases_outlined,
+  'contact_joins' => Icons.person_add_alt_outlined,
+  'get_bot_buttons' || 'press_bot_button' => Icons.smart_button_outlined,
+  'list_backgrounds' || 'get_chat_background' || 'set_chat_background' => Icons.wallpaper_rounded,
+  'save_gif' => Icons.bookmark_add_outlined,
+  'list_sticker_sets' => Icons.collections_outlined,
+  'get_sticker_set' => Icons.emoji_emotions_outlined,
+  'list_favorite_stickers' => Icons.star_outline_rounded,
+  'favorite_sticker' => Icons.star_rounded,
+  _ => Icons.build_outlined,
+};
+
+/// A few words on what a call is about: the chat, the query, the window.
+String toolSubject(ToolPart part, TelegramStore store) {
+  final a = part.args;
+  final bits = <String>[];
+  for (final key in const ['chat_id', 'from_chat_id', 'to_chat_id']) {
+    final id = a[key];
+    if (id is num) bits.add(store.chat(id.toInt())?.title ?? 'chat $id');
+  }
+  if (a['to_chat_ids'] case final List ids when ids.isNotEmpty) {
+    bits.add(ids.length == 1 ? (store.chat((ids.first as num).toInt())?.title ?? 'a chat') : '${ids.length} chats');
+  }
+  if (a['query'] case final String q when q.isNotEmpty) bits.add('"$q"');
+  if (a['prompt'] case final String p when p.isNotEmpty) bits.add(p);
+  if (a['type'] case final String t when t != 'all') bits.add(t);
+  if (a['since_hours'] case final num h)
+    bits.add(h <= 24 ? 'last ${h.round()}h' : 'last ${(h / 24).round()}d');
+  if (a['unread_only'] == true) bits.add('unread');
+  return bits.join(' · ');
+}
+
+Map<String, dynamic>? _decode(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  try {
+    final v = jsonDecode(raw);
+    return v is Map<String, dynamic> ? v : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+String _summary(ToolPart part) {
+  final j = _decode(part.result);
+  if (j == null) return '';
+  if (j['error'] != null) return 'Failed';
+  if (j['sent'] == true) return j['forwarded'] != null ? 'Forwarded' : 'Sent';
+  if (j['created'] == true) return 'Created';
+  if (j['done'] == true) return 'Done';
+  if (j['scheduled'] == true) return 'Scheduled';
+  if (j['scheduled'] is List)
+    return '${(j['scheduled'] as List).length} scheduled';
+  if (j['topics'] is List) return '${(j['topics'] as List).length} topics';
+  if (j['count'] != null) return '${j['count']} messages';
+  if (j['chats_read'] != null) return '${j['chats_read']} chats read';
+  if (j['total_matching'] != null) return '${j['total_matching']} chats';
+  if (j['total_chats'] != null) return '${j['total_chats']} chats';
+  if (j['matching'] != null) return '${j['matching']} contacts';
+  if (j['members'] is List) return '${(j['members'] as List).length} people';
+  if (j['folders'] is List) return '${(j['folders'] as List).length} folders';
+  if (j['chats'] is List) return '${(j['chats'] as List).length} chats';
+  return '';
+}
+
+class ToolCallCard extends ConsumerWidget {
+  const ToolCallCard({super.key, required this.part});
+  final ToolPart part;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final store = ref.watch(telegramStoreProvider);
+    if (part.status == ToolStatus.awaitingApproval)
+      return ApprovalCard(part: part);
+    final tool = toolNamed(part.name);
+    final subject = toolSubject(part, store);
+    final summary = _summary(part);
+    final (Widget status, Color tint) = switch (part.status) {
+      ToolStatus.running => (
+        const SizedBox.square(
+          dimension: 13,
+          child: CircularProgressIndicator(strokeWidth: 1.6),
+        ),
+        AppColors.text2,
+      ),
+      ToolStatus.done => (
+        const Icon(Icons.check_rounded, size: 15, color: AppColors.success),
+        AppColors.text2,
+      ),
+      ToolStatus.error => (
+        const Icon(
+          Icons.error_outline_rounded,
+          size: 15,
+          color: AppColors.danger,
+        ),
+        AppColors.danger,
+      ),
+      ToolStatus.denied => (
+        const Icon(Icons.block_rounded, size: 15, color: AppColors.text3),
+        AppColors.text3,
+      ),
+      ToolStatus.awaitingApproval => (const SizedBox.shrink(), AppColors.text2),
+    };
+    final decoded = part.name == generateImageTool.name
+        ? _decode(part.result)
+        : null;
+    final image = decoded == null ? null : decoded['image_path'] as String?;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.xs + 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(Radii.m),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Radii.m),
+              onTap: () => showToolDetails(context, part),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Space.m,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(Radii.m),
+                  border: Border.all(color: AppColors.line),
+                ),
+                child: Row(
+                  children: [
+                    Icon(toolIcon(part.name), size: 16, color: AppColors.text2),
+                    const SizedBox(width: Space.s + 2),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: part.status == ToolStatus.denied
+                                  ? 'Declined: ${tool?.label ?? part.name}'
+                                  : (tool?.label ?? part.name),
+                              style: const TextStyle(
+                                color: AppColors.text,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (subject.isNotEmpty)
+                              TextSpan(
+                                text: '  $subject',
+                                style: const TextStyle(color: AppColors.text3),
+                              ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    if (summary.isNotEmpty) ...[
+                      const SizedBox(width: Space.s),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 140),
+                        child: Text(
+                          summary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: tint),
+                        ),
+                      ),
+                    ],
+                    if (part.autoApproved) ...[
+                      const SizedBox(width: Space.s),
+                      const Tooltip(
+                        message: 'Ran without asking (Settings → Approvals)',
+                        child: Icon(
+                          Icons.bolt_rounded,
+                          size: 14,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: Space.s),
+                    status,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (image != null)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.s),
+              child: GeneratedImage(path: image),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A message the assistant wants to send or forward, as an editable draft
+/// waiting for the person's say-so.
+class ApprovalCard extends ConsumerStatefulWidget {
+  const ApprovalCard({super.key, required this.part});
+  final ToolPart part;
+
+  @override
+  ConsumerState<ApprovalCard> createState() => _ApprovalCardState();
+}
+
+class _ApprovalCardState extends ConsumerState<ApprovalCard> {
+  late final TextEditingController _text = TextEditingController(
+    text: '${widget.part.args['text'] ?? ''}',
+  );
+  late final List<Attachment> _files = _initialFiles();
+  bool _adding = false;
+  List<td.Message>? _forwardPreview;
+
+  bool get _forward => widget.part.name == 'forward_message';
+
+  @override
+  void initState() {
+    super.initState();
+    if (_forward) _loadForwardPreview();
+  }
+
+  Future<void> _loadForwardPreview() async {
+    final from = widget.part.args['from_chat_id'];
+    final ids = widget.part.args['message_ids'] as List? ?? const [];
+    if (from is! num) return;
+    final client = ref.read(telegramClientProvider);
+    final messages = <td.Message>[];
+    for (final id in ids) {
+      if (id is! num) continue;
+      try {
+        messages.add(
+          await client.send<td.Message>(
+            td.GetMessage(chatId: from.toInt(), messageId: id.toInt()),
+            limited: true,
+          ),
+        );
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _forwardPreview = messages);
+  }
+
+  /// A reaction, mute or mark-as-read: nothing to edit, just a yes or no.
+  bool get _simple => !const {
+    'forward_message',
+    'send_message',
+    'send_voice_message',
+    'comment_on_post',
+    'schedule_message',
+    'reply_to_message',
+  }.contains(widget.part.name);
+
+  /// The files the assistant named, matched to what this conversation has.
+  List<Attachment> _initialFiles() {
+    final named = [
+      for (final f in (widget.part.args['files'] as List? ?? const [])) '$f',
+    ];
+    if (named.isEmpty) return [];
+    final available = ref.read(chatControllerProvider.notifier).sendableFiles();
+    return [
+      for (final n in named)
+        ?available
+            .where((a) => a.name == n || a.path == n || a.path.endsWith(n))
+            .firstOrNull,
+    ];
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _add(Future<List<(String, String?)>> Function() pick) async {
+    setState(() => _adding = true);
+    try {
+      for (final (path, name) in await pick()) {
+        final a = await ChatController.attach(path, name: name);
+        if (mounted) setState(() => _files.add(a));
+      }
+    } catch (e) {
+      if (mounted)
+        showSnack(
+          context,
+          'Couldn\'t attach: $e',
+          icon: Icons.error_outline_rounded,
+        );
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  static Future<List<(String, String?)>> _pickMedia() async {
+    final picked = await ImagePicker().pickMultipleMedia(imageQuality: 90);
+    return [for (final x in picked) (x.path, x.name)];
+  }
+
+  static Future<List<(String, String?)>> _pickFiles() async {
+    final files = await FilePicker.pickFiles();
+    return [
+      for (final f in files)
+        if (f.path != null) (f.path!, f.name),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final part = widget.part;
+    final runner = ref.watch(toolRunnerProvider);
+    final store = ref.watch(telegramStoreProvider);
+    final args = part.args;
+    final controller = ref.read(chatControllerProvider.notifier);
+    final fromId = args['from_chat_id'];
+    final ids = (args['message_ids'] as List? ?? const []);
+    final canSend =
+        _forward ||
+        _simple ||
+        _text.text.trim().isNotEmpty ||
+        _files.isNotEmpty;
+
+    final danger = toolNamed(widget.part.name)?.destructive ?? false;
+    final tone = danger ? AppColors.danger : AppColors.warning;
+    return Container(
+      margin: const EdgeInsets.only(bottom: Space.s),
+      padding: const EdgeInsets.all(Space.l),
+      decoration: BoxDecoration(
+        color: danger ? AppColors.danger.withValues(alpha: 0.08) : AppColors.surface,
+        borderRadius: BorderRadius.circular(Radii.l),
+        border: Border.all(color: tone.withValues(alpha: danger ? 0.8 : 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                danger ? Icons.warning_amber_rounded : Icons.shield_outlined,
+                size: 16,
+                color: tone,
+              ),
+              const SizedBox(width: Space.s),
+              Expanded(
+                child: Text(
+                  danger
+                      ? 'Destructive action: approve?'
+                      : _simple
+                      ? 'Approve this?'
+                      : (_forward ? 'Approve forwarding?' : 'Approve sending?'),
+                  style: context.text.titleSmall,
+                ),
+              ),
+              if (!_forward && !_simple)
+                Text('You can edit this', style: context.text.labelSmall),
+            ],
+          ),
+          const SizedBox(height: Space.m),
+          if (_simple)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(Space.m),
+              decoration: BoxDecoration(
+                color: AppColors.surface2,
+                borderRadius: BorderRadius.circular(Radii.m),
+              ),
+              child: Text(
+                runner.describeAction(part.name, args),
+                style: context.text.bodyMedium,
+              ),
+            )
+          else ...[
+            Text('To', style: context.text.labelSmall),
+            const SizedBox(height: 2),
+            Text(
+              runner.describeTarget(args, tool: part.name),
+              style: context.text.bodyMedium,
+            ),
+            const SizedBox(height: Space.m),
+          ],
+          if (_simple)
+            const SizedBox.shrink()
+          else if (_forward)
+            _ForwardPostPreview(
+              messages: _forwardPreview,
+              count: ids.length,
+              source: fromId is num ? store.chat(fromId.toInt()) : null,
+              copied:
+                  args['hide_sender'] == true || args['remove_caption'] == true,
+              captionsRemoved: args['remove_caption'] == true,
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface2,
+                borderRadius: BorderRadius.circular(Radii.m),
+              ),
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_files.isNotEmpty || _adding)
+                    SizedBox(
+                      height: 72,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(6, 8, 6, 4),
+                        children: [
+                          for (final a in _files)
+                            _DraftFile(
+                              attachment: a,
+                              onRemove: () => setState(() => _files.remove(a)),
+                            ),
+                          if (_adding)
+                            const Padding(
+                              padding: EdgeInsets.all(Space.m),
+                              child: SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  TextField(
+                    controller: _text,
+                    minLines: 1,
+                    maxLines: 8,
+                    onChanged: (_) => setState(() {}),
+                    textCapitalization: TextCapitalization.sentences,
+                    style: context.text.bodyMedium,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      hintText: _files.isEmpty
+                          ? 'Message'
+                          : 'Caption (optional)',
+                      contentPadding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Add photos or videos',
+                        icon: const Icon(
+                          Icons.photo_library_outlined,
+                          size: 20,
+                          color: AppColors.text2,
+                        ),
+                        onPressed: _adding ? null : () => _add(_pickMedia),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Add files',
+                        icon: const Icon(
+                          Icons.attach_file_rounded,
+                          size: 20,
+                          color: AppColors.text2,
+                        ),
+                        onPressed: _adding ? null : () => _add(_pickFiles),
+                      ),
+                      const Spacer(),
+                      if (_files.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(right: Space.s),
+                          child: Text(
+                            '${_files.length} attached',
+                            style: context.text.labelSmall,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          if (args['reply_to_message_id'] != null) ...[
+            const SizedBox(height: Space.s),
+            Text(
+              'As a reply to message ${args['reply_to_message_id']}',
+              style: context.text.bodySmall,
+            ),
+          ],
+          const SizedBox(height: Space.l),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    foregroundColor: AppColors.text,
+                    side: const BorderSide(color: AppColors.line),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Radii.m),
+                    ),
+                  ),
+                  onPressed: () => controller.deny(part.callId),
+                  child: const Text('Decline'),
+                ),
+              ),
+              const SizedBox(width: Space.m),
+              Expanded(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    backgroundColor: danger ? AppColors.danger : null,
+                    foregroundColor: danger ? Colors.white : null,
+                  ),
+                  onPressed: !canSend || _adding
+                      ? null
+                      : () => _forward || _simple
+                            ? controller.approve(part.callId)
+                            : controller.approve(
+                                part.callId,
+                                text: _text.text.trim(),
+                                files: [..._files],
+                              ),
+                  child: Text(
+                    _simple ? 'Approve' : (_forward ? 'Forward' : 'Send'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForwardPostPreview extends StatelessWidget {
+  const _ForwardPostPreview({
+    required this.messages,
+    required this.count,
+    required this.source,
+    required this.copied,
+    required this.captionsRemoved,
+  });
+  final List<td.Message>? messages;
+  final int count;
+  final ChatInfo? source;
+  final bool copied;
+  final bool captionsRemoved;
+
+  @override
+  Widget build(BuildContext context) {
+    final loaded = messages;
+    if (loaded == null)
+      return const Padding(
+        padding: EdgeInsets.all(Space.m),
+        child: Center(
+          child: SizedBox.square(
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    if (loaded.isEmpty)
+      return Text(
+        '$count message${count == 1 ? '' : 's'} from ${source?.title ?? 'a channel'}',
+        style: context.text.bodyMedium,
+      );
+    final kind = source == null
+        ? ChatKind.channel
+        : (source!.type is td.ChatTypeSupergroup ||
+                  source!.type is td.ChatTypeBasicGroup
+              ? ChatKind.group
+              : ChatKind.channel);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(Space.s),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(Radii.m),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'POST${loaded.length == 1 ? '' : 'S'} FROM ${(source?.title ?? 'Channel').toUpperCase()}',
+            style: context.text.labelSmall,
+          ),
+          const SizedBox(height: Space.s),
+          for (final message in loaded)
+            MessageTile(
+              message: message,
+              kind: kind,
+              chatTitle: source?.title ?? 'Channel',
+            ),
+          if (copied || captionsRemoved)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.s),
+              child: Text(
+                captionsRemoved ? 'Captions removed' : 'Forwarded as a copy',
+                style: context.text.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DraftFile extends StatelessWidget {
+  const _DraftFile({required this.attachment, required this.onRemove});
+  final Attachment attachment;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = attachment;
+    final video = a.mime.startsWith('video/');
+    return Padding(
+      padding: const EdgeInsets.only(right: Space.s),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(Radii.s),
+            child: a.isImage && File(a.path).existsSync()
+                ? Image.file(
+                    File(a.path),
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    width: video ? 58 : 140,
+                    height: 58,
+                    color: AppColors.surface3,
+                    padding: const EdgeInsets.symmetric(horizontal: Space.s),
+                    child: video
+                        ? const Icon(
+                            Icons.play_circle_outline_rounded,
+                            color: AppColors.text2,
+                          )
+                        : Row(
+                            children: [
+                              const Icon(
+                                Icons.description_outlined,
+                                size: 18,
+                                color: AppColors.text2,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  a.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: AppColors.text,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  size: 13,
+                  color: AppColors.bg,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> showToolDetails(BuildContext context, ToolPart part) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 1,
+      builder: (context, scroll) => _ToolDetails(part: part, scroll: scroll),
+    ),
+  );
+}
+
+class _ToolDetails extends ConsumerStatefulWidget {
+  const _ToolDetails({required this.part, required this.scroll});
+  final ToolPart part;
+  final ScrollController scroll;
+
+  @override
+  ConsumerState<_ToolDetails> createState() => _ToolDetailsState();
+}
+
+class _ToolDetailsState extends ConsumerState<_ToolDetails> {
+  bool _raw = false;
+  final _argsTree = JsonTreeController();
+  final _resultTree = JsonTreeController();
+
+  @override
+  void dispose() {
+    _argsTree.dispose();
+    _resultTree.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final part = widget.part;
+    final store = ref.watch(telegramStoreProvider);
+    final tool = toolNamed(part.name);
+    final result = _decode(part.result);
+    final args = part.args;
+    final (status, color) = switch (part.status) {
+      ToolStatus.running => ('Running', AppColors.accent),
+      ToolStatus.awaitingApproval => (
+        'Waiting for approval',
+        AppColors.warning,
+      ),
+      ToolStatus.denied => ('Declined by you', AppColors.text3),
+      ToolStatus.done => ('Done', AppColors.success),
+      ToolStatus.error => ('Failed', AppColors.danger),
+    };
+
+    return ListView(
+      controller: widget.scroll,
+      padding: const EdgeInsets.fromLTRB(Space.xl, 0, Space.xl, Space.x4),
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(Space.s),
+              decoration: BoxDecoration(
+                color: AppColors.surface2,
+                borderRadius: BorderRadius.circular(Radii.s),
+              ),
+              child: Icon(
+                toolIcon(part.name),
+                size: 18,
+                color: AppColors.accent,
+              ),
+            ),
+            const SizedBox(width: Space.m),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tool?.label ?? part.name,
+                    style: context.text.titleMedium,
+                  ),
+                  Text(
+                    part.name,
+                    style: context.text.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Space.l),
+        Wrap(
+          spacing: Space.s,
+          runSpacing: Space.s,
+          children: [
+            _Pill(status, color: color),
+            if (part.durationMs != null)
+              _Pill('${(part.durationMs! / 1000).toStringAsFixed(2)} s'),
+            if (tool != null) _Pill(tool.cost.label),
+            if (part.autoApproved)
+              const _Pill('Ran without asking', color: AppColors.warning)
+            else if (tool?.requiresApproval ?? false)
+              const _Pill('Needs approval'),
+            _Pill(TimeOfDay.fromDateTime(part.startedAt).format(context)),
+          ],
+        ),
+        const SizedBox(height: Space.l),
+        SegmentedButton<bool>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(
+              value: false,
+              label: Text('Details'),
+              icon: Icon(Icons.view_agenda_outlined, size: 16),
+            ),
+            ButtonSegment(
+              value: true,
+              label: Text('Raw JSON'),
+              icon: Icon(Icons.data_object_rounded, size: 16),
+            ),
+          ],
+          selected: {_raw},
+          onSelectionChanged: (v) => setState(() => _raw = v.first),
+        ),
+        if (!_raw) ...[
+          if (args.isNotEmpty) ...[
+            const SizedBox(height: Space.xl),
+            Text('ASKED FOR', style: context.text.labelSmall),
+            const SizedBox(height: Space.s),
+            Wrap(
+              spacing: Space.s,
+              runSpacing: Space.s,
+              children: [
+                for (final e in args.entries)
+                  _ArgChip(name: e.key, value: e.value, store: store),
+              ],
+            ),
+          ],
+          const SizedBox(height: Space.xl),
+          Text('RESULT', style: context.text.labelSmall),
+          const SizedBox(height: Space.xs),
+          if (result == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Space.m),
+              child: Text(
+                part.status == ToolStatus.running
+                    ? 'Still running…'
+                    : 'No result.',
+                style: context.text.bodySmall,
+              ),
+            )
+          else
+            ToolResultView(name: part.name, json: result),
+          const SizedBox(height: Space.xl),
+          Text('ABOUT THIS CALL', style: context.text.labelSmall),
+          const SizedBox(height: Space.s),
+          if (tool != null) ...[
+            Text(tool.description, style: context.text.bodySmall?.copyWith(height: 1.4)),
+            const SizedBox(height: Space.m),
+          ],
+          _InfoRow('Tool', part.name),
+          if (tool != null) _InfoRow('Category', tool.category.label),
+          if (tool != null) _InfoRow('Runs on', '${tool.cost.label}: ${tool.cost.explanation}'),
+          _InfoRow('Started', DateFormat('EEE d MMM y, HH:mm:ss').format(part.startedAt)),
+          if (part.durationMs != null) ...[
+            _InfoRow(
+              'Finished',
+              DateFormat(
+                'HH:mm:ss.SSS',
+              ).format(part.startedAt.add(Duration(milliseconds: part.durationMs!))),
+            ),
+            _InfoRow('Took', '${part.durationMs} ms'),
+          ],
+          _InfoRow(
+            'Approval',
+            part.autoApproved
+                ? 'Ran without asking (approval setting)'
+                : (tool?.requiresApproval ?? false)
+                ? (part.status == ToolStatus.denied ? 'You declined it' : 'Asked you first')
+                : 'Not needed (read-only)',
+          ),
+          _InfoRow('Arguments', '${args.length} · ${part.arguments.length} characters'),
+          if (part.result != null)
+            _InfoRow(
+              'Result size',
+              '${part.result!.length} characters (≈${(part.result!.length / 4).round()} tokens sent back to the model)',
+            ),
+          if (result case {'error': final err?}) _InfoRow('Error', '$err'),
+          _InfoRow('Call ID', part.callId),
+        ] else ...[
+          _RawSection(
+            title: 'Arguments',
+            raw: part.arguments.isEmpty ? '{}' : part.arguments,
+            controller: _argsTree,
+          ),
+          _RawSection(
+            title: 'Result',
+            raw: part.result ?? 'null',
+            controller: _resultTree,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ArgChip extends StatelessWidget {
+  const _ArgChip({
+    required this.name,
+    required this.value,
+    required this.store,
+  });
+  final String name;
+  final Object? value;
+  final TelegramStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    var shown = value is List ? (value as List).join(', ') : '$value';
+    if (name.endsWith('chat_id') && value is num) {
+      final title = store.chat((value as num).toInt())?.title;
+      if (title != null) shown = title;
+    }
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 320),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(Radii.s),
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '${name.replaceAll('_', ' ')}  ',
+              style: const TextStyle(color: AppColors.text3),
+            ),
+            TextSpan(
+              text: shown,
+              style: const TextStyle(color: AppColors.text),
+            ),
+          ],
+        ),
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12.5),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill(this.text, {this.color = AppColors.text2});
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: AppColors.surface2,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(text, style: TextStyle(fontSize: 12, color: color)),
+  );
+}
+
+class _RawSection extends StatefulWidget {
+  const _RawSection({
+    required this.title,
+    required this.raw,
+    required this.controller,
+  });
+  final String title;
+  final String raw;
+  final JsonTreeController controller;
+
+  @override
+  State<_RawSection> createState() => _RawSectionState();
+}
+
+class _RawSectionState extends State<_RawSection> {
+  bool _tree = true;
+
+  Object? get _parsed {
+    try {
+      return jsonDecode(widget.raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String get _pretty {
+    final p = _parsed;
+    return p == null
+        ? widget.raw
+        : const JsonEncoder.withIndent('  ').convert(p);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = _parsed;
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(widget.title.toUpperCase(), style: context.text.labelSmall),
+              const Spacer(),
+              if (parsed is Map || parsed is List) ...[
+                _Mini(
+                  icon: Icons.unfold_more_rounded,
+                  tip: 'Expand all',
+                  onTap: () => setState(() {
+                    _tree = true;
+                    widget.controller.expandAll();
+                  }),
+                ),
+                _Mini(
+                  icon: Icons.unfold_less_rounded,
+                  tip: 'Collapse all',
+                  onTap: () => setState(() {
+                    _tree = true;
+                    widget.controller.collapseAll();
+                  }),
+                ),
+                _Mini(
+                  icon: _tree
+                      ? Icons.notes_rounded
+                      : Icons.account_tree_outlined,
+                  tip: _tree ? 'Plain text' : 'Tree',
+                  onTap: () => setState(() => _tree = !_tree),
+                ),
+              ],
+              _Mini(
+                icon: Icons.copy_rounded,
+                tip: 'Copy',
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: _pretty));
+                  showSnack(context, '${widget.title} copied');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.xs),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(Space.m),
+            decoration: BoxDecoration(
+              color: AppColors.bg,
+              borderRadius: BorderRadius.circular(Radii.m),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: (parsed is Map || parsed is List) && _tree
+                  ? JsonTree(data: parsed, controller: widget.controller)
+                  : SelectableText(
+                      _pretty.length > 30000
+                          ? '${_pretty.substring(0, 30000)}\n…'
+                          : _pretty,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        height: 1.45,
+                        color: AppColors.text2,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Mini extends StatelessWidget {
+  const _Mini({required this.icon, required this.tip, required this.onTap});
+  final IconData icon;
+  final String tip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tip,
+    visualDensity: VisualDensity.compact,
+    icon: Icon(icon, size: 17, color: AppColors.text3),
+    onPressed: onTap,
+  );
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 104,
+          child: Text(label, style: const TextStyle(fontSize: 12.5, color: AppColors.text3)),
+        ),
+        Expanded(
+          child: SelectableText(value, style: const TextStyle(fontSize: 13, color: AppColors.text)),
+        ),
+      ],
+    ),
+  );
+}

@@ -1,0 +1,608 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../app/theme.dart';
+import '../../../core/widgets/brand_mark.dart';
+import '../../telegram/data/telegram_store.dart';
+import '../../telegram/presentation/calls_screen.dart';
+import '../../telegram/presentation/chat_list_screen.dart';
+import '../../telegram/presentation/chat_profile_screen.dart';
+import '../../../infrastructure/telegram/telegram_client.dart';
+
+import 'package:handy_tdlib/api.dart' as td;
+
+import '../../telegram/presentation/tg_avatar.dart';
+import '../data/chat_controller.dart';
+import '../domain/chat_models.dart';
+import 'generated_files_screen.dart';
+import '../../brief/brief_screen.dart';
+import '../../brief/brief_store.dart';
+import '../../canvas/canvas_store.dart';
+import '../../telegram/presentation/content_canvas_screen.dart';
+
+/// Past conversations, grouped by when they were last used.
+class HistoryDrawer extends ConsumerStatefulWidget {
+  const HistoryDrawer({super.key, required this.onOpenSettings});
+  final VoidCallback onOpenSettings;
+
+  @override
+  ConsumerState<HistoryDrawer> createState() => _HistoryDrawerState();
+}
+
+class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
+  bool _chatsExpanded = true;
+  bool _foldersExpanded = true;
+
+  static String _bucket(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(day).inDays;
+    if (diff <= 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return 'Previous 7 days';
+    if (diff < 30) return 'Previous 30 days';
+    return 'Older';
+  }
+
+  Future<void> _rename(
+    BuildContext context,
+    WidgetRef ref,
+    ConversationSummary c,
+  ) async {
+    final ctrl = TextEditingController(text: c.title);
+    final title = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename chat'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (title != null && title.trim().isNotEmpty) {
+      await ref
+          .read(chatControllerProvider.notifier)
+          .rename(c.id, title.trim());
+    }
+  }
+
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    ConversationSummary c,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this chat?'),
+        content: const Text(
+          'It is removed from this app only. Nothing in Telegram changes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true)
+      await ref.read(chatControllerProvider.notifier).delete(c.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(chatControllerProvider);
+    final store = ref.watch(telegramStoreProvider);
+    final me = store.me;
+    final controller = ref.read(chatControllerProvider.notifier);
+
+    final groups = <String, List<ConversationSummary>>{};
+    for (final c in state.history) {
+      groups.putIfAbsent(_bucket(c.updatedAt), () => []).add(c);
+    }
+
+    return Drawer(
+      width: 300,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(30)),
+      ),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Space.l,
+                Space.l,
+                Space.m,
+                Space.s,
+              ),
+              child: Row(
+                children: [
+                  const BrandLockup(markSize: 26),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'New chat',
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    onPressed: () {
+                      controller.newChat();
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: Space.s),
+                children: [
+                  ExpansionTile(
+                    key: const PageStorageKey('drawer-chats'),
+                    initiallyExpanded: _chatsExpanded,
+                    onExpansionChanged: (v) =>
+                        setState(() => _chatsExpanded = v),
+                    title: Text('Chats', style: context.text.titleSmall),
+                    trailing: Icon(
+                      _chatsExpanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: AppColors.text3,
+                    ),
+                    children: [
+                      for (final section in BrowseSection.values)
+                        _BrowseTile(
+                          section: section,
+                          count: section == BrowseSection.contacts
+                              ? null
+                              : chatsIn(store, section).length,
+                          unread: section == BrowseSection.contacts
+                              ? 0
+                              : chatsIn(store, section)
+                                    .where((c) => c.hasUnread && !c.isMuted)
+                                    .length,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    ChatListScreen(section: section),
+                              ),
+                            );
+                          },
+                        ),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(Radii.s),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.call_outlined, size: 20, color: AppColors.text2),
+                              const SizedBox(width: Space.m + 2),
+                              Expanded(child: Text('Calls', style: context.text.bodyMedium)),
+                            ],
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(builder: (_) => const CallsScreen()),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  if (store.folders.isNotEmpty) ...[
+                    ExpansionTile(
+                      key: const PageStorageKey('drawer-folders'),
+                      initiallyExpanded: _foldersExpanded,
+                      onExpansionChanged: (v) =>
+                          setState(() => _foldersExpanded = v),
+                      title: Text('Folders', style: context.text.titleSmall),
+                      trailing: Icon(
+                        _foldersExpanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        color: AppColors.text3,
+                      ),
+                      children: [
+                        for (final f in store.folders)
+                          _FolderTile(
+                            folder: f,
+                            count: store.folderChats[f.id]?.length,
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => ChatListScreen(folder: f),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: Space.xs),
+                  _DrawerActionTile(
+                    icon: Icons.folder_copy_outlined,
+                    title: 'Files',
+                    subtitle: 'Generated images and audio',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const GeneratedFilesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _DrawerActionTile(
+                    icon: Icons.wb_twilight_rounded,
+                    title: 'Brief',
+                    subtitle: briefSubtitle(ref.watch(briefStoreProvider).briefs),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(builder: (_) => const BriefScreen()),
+                      );
+                    },
+                  ),
+                  _DrawerActionTile(
+                    icon: Icons.dashboard_customize_outlined,
+                    title: 'Content Canvas',
+                    subtitle: '${ref.watch(canvasProvider).folders.length} folders · ${ref.watch(canvasProvider).items.length} saved',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(builder: (_) => const ContentCanvasScreen()),
+                      );
+                    },
+                  ),
+                  if (state.history.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(Space.xl),
+                      child: Center(
+                        child: Text(
+                          'No conversations yet',
+                          style: context.text.bodySmall,
+                        ),
+                      ),
+                    ),
+                  for (final g in groups.entries) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        Space.m,
+                        Space.l,
+                        Space.m,
+                        Space.xs,
+                      ),
+                      child: Text(
+                        g.key.toUpperCase(),
+                        style: context.text.labelSmall,
+                      ),
+                    ),
+                    for (final c in g.value)
+                      _HistoryTile(
+                        summary: c,
+                        selected: c.id == state.conversation.id,
+                        onTap: () {
+                          controller.open(c.id);
+                          Navigator.pop(context);
+                        },
+                        onRename: () => _rename(context, ref, c),
+                        onDelete: () => _delete(context, ref, c),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: Space.l),
+              leading: me == null
+                  ? const CircleAvatar(
+                      radius: 16,
+                      backgroundColor: AppColors.surface3,
+                    )
+                  : TgAvatar(
+                      userId: me.id,
+                      title: '${me.firstName} ${me.lastName}',
+                      size: 34,
+                    ),
+              title: Text(
+                me == null
+                    ? 'Telegram'
+                    : '${me.firstName} ${me.lastName}'.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                store.chatsLoaded
+                    ? '${store.chats.values.where((c) => c.isListed).length} chats'
+                    : 'Loading chats…',
+                style: context.text.bodySmall,
+              ),
+              trailing: IconButton(
+                tooltip: 'Settings',
+                icon: const Icon(
+                  Icons.settings_outlined,
+                  size: 20,
+                  color: AppColors.text2,
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  widget.onOpenSettings();
+                },
+              ),
+              onTap: me == null
+                  ? null
+                  : () async {
+                      final nav = Navigator.of(context);
+                      nav.pop();
+                      // Your profile lives on your Saved Messages chat; this
+                      // finds it (it creates nothing visible).
+                      try {
+                        final chat = await ref
+                            .read(telegramClientProvider)
+                            .send<td.Chat>(
+                              td.CreatePrivateChat(userId: me.id, force: false),
+                              limited: true,
+                            );
+                        nav.push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                ChatProfileScreen(chatId: chat.id, self: true),
+                          ),
+                        );
+                      } catch (_) {
+                        widget.onOpenSettings();
+                      }
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawerActionTile extends StatelessWidget {
+  const _DrawerActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(Radii.s),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Space.m,
+        vertical: Space.s,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppColors.text2),
+          const SizedBox(width: Space.m + 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: context.text.bodyMedium),
+                Text(subtitle, style: context.text.labelSmall),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+        ],
+      ),
+    ),
+  );
+}
+
+class _HistoryTile extends StatelessWidget {
+  const _HistoryTile({
+    required this.summary,
+    required this.selected,
+    required this.onTap,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  final ConversationSummary summary;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.surface3 : Colors.transparent,
+      borderRadius: BorderRadius.circular(Radii.s),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Radii.s),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.only(left: Space.m),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  summary.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.text.bodyMedium?.copyWith(
+                    color: selected || summary.unread > 0
+                        ? AppColors.text
+                        : AppColors.text2,
+                    fontWeight: summary.unread > 0 ? FontWeight.w600 : null,
+                  ),
+                ),
+              ),
+              if (summary.unread > 0 && !selected)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 20),
+                  height: 20,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.activeAccent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${summary.unread}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.bg,
+                    ),
+                  ),
+                ),
+              PopupMenuButton<String>(
+                tooltip: 'More',
+                icon: const Icon(
+                  Icons.more_horiz_rounded,
+                  size: 18,
+                  color: AppColors.text3,
+                ),
+                onSelected: (v) => v == 'rename' ? onRename() : onDelete(),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'rename', child: Text('Rename')),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      'Delete',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseTile extends StatelessWidget {
+  const _BrowseTile({
+    required this.section,
+    required this.count,
+    required this.unread,
+    required this.onTap,
+  });
+  final BrowseSection section;
+  final int? count;
+  final int unread;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(Radii.s),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
+        child: Row(
+          children: [
+            Icon(section.icon, size: 20, color: AppColors.text2),
+            const SizedBox(width: Space.m + 2),
+            Expanded(
+              child: Text(section.title, style: context.text.bodyMedium),
+            ),
+            if (unread > 0)
+              Container(
+                margin: const EdgeInsets.only(right: Space.s),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.activeAccent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$unread',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.bg,
+                  ),
+                ),
+              ),
+            if (count != null)
+              Text(
+                '$count',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderTile extends StatelessWidget {
+  const _FolderTile({
+    required this.folder,
+    required this.count,
+    required this.onTap,
+  });
+  final FolderInfo folder;
+  final int? count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(Radii.s),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
+        child: Row(
+          children: [
+            Icon(folderIcon(folder.icon), size: 20, color: AppColors.text2),
+            const SizedBox(width: Space.m + 2),
+            Expanded(
+              child: Text(
+                folder.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.text.bodyMedium,
+              ),
+            ),
+            if (count != null)
+              Text(
+                '$count',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
