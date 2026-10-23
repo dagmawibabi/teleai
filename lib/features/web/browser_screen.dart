@@ -12,7 +12,8 @@ class BrowserScreen extends ConsumerWidget {
   const BrowserScreen({super.key});
 
   static Future<void> open(BuildContext context) =>
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const BrowserScreen()));
+      Navigator.of(context)
+          .push(MaterialPageRoute<void>(builder: (_) => const BrowserScreen()));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,7 +46,11 @@ class BrowserScreen extends ConsumerWidget {
                     if (await c.canGoBack()) await c.goBack();
                   },
                 ),
-                IconButton(tooltip: 'Reload', icon: const Icon(Icons.refresh_rounded), onPressed: c.reload),
+                IconButton(
+                  tooltip: 'Reload',
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: c.reload,
+                ),
                 IconButton(
                   tooltip: 'Close the page',
                   icon: const Icon(Icons.close_rounded),
@@ -63,10 +68,12 @@ class BrowserScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(Space.xxl),
                     child: Text(
                       BrowserSession.supported
-                          ? 'Nothing open. Ask the assistant to open a site, e.g. "open sma.et/b/… and send hi".'
+                          ? 'Nothing open. Ask the assistant to open a site, e.g. "open Wikipedia and summarise the Moon article".'
                           : 'The browser works on Android and iOS.',
                       textAlign: TextAlign.center,
-                      style: context.text.bodyMedium?.copyWith(color: AppColors.text2),
+                      style: context.text.bodyMedium?.copyWith(
+                        color: AppColors.text2,
+                      ),
                     ),
                   ),
                 )

@@ -230,7 +230,11 @@ class ChatController extends Notifier<ChatState> {
   Future<void> deleteAll() async {
     if (state.busy) stop();
     await _repo.clearAll();
-    state = state.copyWith(history: const [], conversation: Conversation(id: _uuid.v4()), busy: false);
+    state = state.copyWith(
+      history: const [],
+      conversation: Conversation(id: _uuid.v4()),
+      busy: false,
+    );
   }
 
   Future<void> delete(String id) async {
@@ -249,14 +253,19 @@ class ChatController extends Notifier<ChatState> {
 
   /// Approves a pending call. For a message, [text] and [files] are what
   /// the person settled on in the card, and replace the model's draft.
-  void approve(String callId, {String? text, List<Attachment>? files, bool? asFiles}) {
+  void approve(
+    String callId, {
+    String? text,
+    List<Attachment>? files,
+    bool? asFiles,
+  }) {
     if (text != null || files != null || asFiles != null)
       _approvalEdits[callId] = (text: text, files: files, asFiles: asFiles);
     _approvals.remove(callId)?.complete(true);
   }
 
-  final Map<String, ({String? text, List<Attachment>? files, bool? asFiles})> _approvalEdits =
-      {};
+  final Map<String, ({String? text, List<Attachment>? files, bool? asFiles})>
+  _approvalEdits = {};
 
   /// Files the assistant may attach to a message: what the person attached
   /// in this conversation and the images the assistant made.
@@ -270,11 +279,15 @@ class ChatController extends Notifier<ChatState> {
           for (final s in steps) {
             for (final t in s.tools) {
               // Images and audio made here, and files zipped or downloaded.
-              if (t.result == null || !(t.result!.contains('_path"') || t.result!.contains('created_files'))) continue;
+              if (t.result == null ||
+                  !(t.result!.contains('_path"') ||
+                      t.result!.contains('created_files')))
+                continue;
               try {
                 final result = jsonDecode(t.result!) as Map;
                 // Code runs can make several files.
-                for (final p in (result['created_files'] as List? ?? const [])) {
+                for (final p
+                    in (result['created_files'] as List? ?? const [])) {
                   if (p is String && p != result['image_path']) {
                     out.add(
                       Attachment(
@@ -286,7 +299,10 @@ class ChatController extends Notifier<ChatState> {
                     );
                   }
                 }
-                final path = result['image_path'] ?? result['audio_path'] ?? result['file_path'];
+                final path =
+                    result['image_path'] ??
+                    result['audio_path'] ??
+                    result['file_path'];
                 if (path is String) {
                   out.add(
                     Attachment(
@@ -341,7 +357,8 @@ class ChatController extends Notifier<ChatState> {
     final sends = toolNamed(part.name)?.requiresApproval ?? false;
     waiter.complete(
       ToolOutput({
-        'error': 'Stopped by the user before it finished.'
+        'error':
+            'Stopped by the user before it finished.'
             '${sends ? ' It may already have reached Telegram or the site; check before trying again.' : ''}',
         'stopped': true,
       }),
@@ -472,7 +489,11 @@ class ChatController extends Notifier<ChatState> {
     bool stopped() => _stopping.contains(c.id);
 
     try {
-      for (var step = 0; step < settings.maxSteps.clamp(2, 40) && !stopped(); step++) {
+      for (
+        var step = 0;
+        step < settings.maxSteps.clamp(2, 40) && !stopped();
+        step++
+      ) {
         final s = ModelStep();
         reply.steps.add(s);
         _touch(c);
@@ -608,8 +629,7 @@ class ChatController extends Notifier<ChatState> {
   }) async {
     final tool = toolNamed(part.name);
     final timer = Stopwatch()..start();
-    if (tool == null ||
-        !tool.isOn(ref.read(settingsProvider))) {
+    if (tool == null || !tool.isOn(ref.read(settingsProvider))) {
       part
         ..status = ToolStatus.error
         ..result = jsonEncode({
@@ -624,7 +644,9 @@ class ChatController extends Notifier<ChatState> {
     if (_hidden.contains(c.id) && tool.requiresApproval) {
       part
         ..status = ToolStatus.denied
-        ..result = jsonEncode({'error': 'This is a read-only run (a brief): nothing can be sent or changed.'});
+        ..result = jsonEncode({
+          'error': 'This is a read-only run (a brief): nothing can be sent or changed.',
+        });
       return;
     }
     if (tool.requiresApproval && !_mustAsk(tool, watch)) {
@@ -672,7 +694,8 @@ class ChatController extends Notifier<ChatState> {
     Future<ToolOutput> work() async {
       if (part.name == generateImageTool.name) return _generateImage(part.args);
       if (part.name == generateAudioTool.name) return _generateAudio(part.args);
-      if (_localTools.contains(part.name)) return _runLocalTool(part.name, part.args, c);
+      if (_localTools.contains(part.name))
+        return _runLocalTool(part.name, part.args, c);
       if (canvasToolNames.contains(part.name)) {
         try {
           return await runCanvasTool(ref, part.name, part.args);
@@ -692,7 +715,9 @@ class ChatController extends Notifier<ChatState> {
       out = await Future.any([work(), cancel.future]);
     } catch (e) {
       // A tool that fails unexpectedly fails alone, not the whole answer.
-      out = ToolOutput({'error': 'The tool failed: ${e is UnsupportedError ? e.message : e}'});
+      out = ToolOutput({
+        'error': 'The tool failed: ${e is UnsupportedError ? e.message : e}',
+      });
     } finally {
       _toolCancels.remove(part.callId);
     }
@@ -893,12 +918,19 @@ class ChatController extends Notifier<ChatState> {
                 'kind': b.kind.name,
                 'written': b.at.toIso8601String().substring(0, 16),
                 'covers_since': b.since.toIso8601String().substring(0, 16),
-                'preview': b.text.length > 200 ? '${b.text.substring(0, 200)}…' : b.text,
+                'preview': b.text.length > 200
+                    ? '${b.text.substring(0, 200)}…'
+                    : b.text,
               },
           ],
         });
       case 'view_image':
-        final hears = ref.read(modelCatalogProvider).byId(ref.read(settingsProvider).model)?.vision ?? true;
+        final hears =
+            ref
+                .read(modelCatalogProvider)
+                .byId(ref.read(settingsProvider).model)
+                ?.vision ??
+            true;
         if (!hears) {
           return const ToolOutput({
             'error': 'The model in use can\'t see images. The user can pick a model with image input in Settings.',
@@ -910,9 +942,17 @@ class ChatController extends Notifier<ChatState> {
         for (final f in (a['files'] as List? ?? const []).map((e) => '$e')) {
           final want = f.toLowerCase();
           final hit = File(f).existsSync()
-              ? known.where((x) => x.path == f).firstOrNull ?? Attachment(path: f, name: f.split('/').last, mime: lookupMimeType(f) ?? 'image/jpeg', size: 0)
+              ? known.where((x) => x.path == f).firstOrNull ??
+                    Attachment(
+                      path: f,
+                      name: f.split('/').last,
+                      mime: lookupMimeType(f) ?? 'image/jpeg',
+                      size: 0,
+                    )
               : known.where((x) => x.name.toLowerCase() == want).firstOrNull ??
-                    known.where((x) => x.name.toLowerCase().contains(want)).firstOrNull;
+                    known
+                        .where((x) => x.name.toLowerCase().contains(want))
+                        .firstOrNull;
           if (hit != null && hit.isImage) {
             images.add({'source': hit.name, 'path': hit.path});
           } else {
@@ -927,8 +967,13 @@ class ChatController extends Notifier<ChatState> {
             continue;
           }
           try {
-            final path = await runner.messageImage(int.parse(m[1]!), int.parse(m[2]!));
-            path == null ? missing.add('$r (no image)') : images.add({'source': r, 'path': path});
+            final path = await runner.messageImage(
+              int.parse(m[1]!),
+              int.parse(m[2]!),
+            );
+            path == null
+                ? missing.add('$r (no image)')
+                : images.add({'source': r, 'path': path});
           } catch (e) {
             missing.add(r);
           }
@@ -936,13 +981,16 @@ class ChatController extends Notifier<ChatState> {
         return ToolOutput({
           'shown': [for (final i in images.take(6)) i['source']],
           if (missing.isNotEmpty) 'not_found': missing,
-          if (images.isNotEmpty) 'note': 'The images follow in the next message, in this order.',
+          if (images.isNotEmpty)
+            'note': 'The images follow in the next message, in this order.',
           '_images': [for (final i in images.take(6)) i['path']],
         });
       case 'read_brief':
         final briefs = ref.read(briefStoreProvider).briefs;
         final id = str('brief_id');
-        final b = id == 'latest' ? briefs.firstOrNull : briefs.where((b) => b.id == id).firstOrNull;
+        final b = id == 'latest'
+            ? briefs.firstOrNull
+            : briefs.where((b) => b.id == id).firstOrNull;
         if (b == null) return const ToolOutput({'error': 'No such brief.'});
         return ToolOutput({
           'brief_id': b.id,
@@ -954,14 +1002,18 @@ class ChatController extends Notifier<ChatState> {
         return _reminder(name, a, c);
       case 'list_reminders':
         final all = ref.read(reminderStoreProvider);
-        final shown = a['include_done'] == true ? all : all.where((r) => r.enabled || r.next != null).toList();
+        final shown = a['include_done'] == true
+            ? all
+            : all.where((r) => r.enabled || r.next != null).toList();
         return ToolOutput({
           'now': DateTime.now().toIso8601String().substring(0, 16),
           'reminders': [for (final r in shown) r.describe()],
           if (shown.isEmpty) 'note': 'No reminders.',
         });
       case 'delete_reminder':
-        return await ref.read(reminderStoreProvider.notifier).remove(str('reminder_id'))
+        return await ref
+                .read(reminderStoreProvider.notifier)
+                .remove(str('reminder_id'))
             ? const ToolOutput({'deleted': true})
             : const ToolOutput({'error': 'No reminder with that id.'});
       case 'zip_files':
@@ -976,9 +1028,15 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Sets up or changes a reminder from the assistant's arguments.
-  Future<ToolOutput> _reminder(String name, Map<String, dynamic> a, Conversation c) async {
+  Future<ToolOutput> _reminder(
+    String name,
+    Map<String, dynamic> a,
+    Conversation c,
+  ) async {
     final store = ref.read(reminderStoreProvider.notifier);
-    final minutes = a['in_minutes'] is num ? (a['in_minutes'] as num).toDouble() : double.tryParse('${a['in_minutes'] ?? ''}');
+    final minutes = a['in_minutes'] is num
+        ? (a['in_minutes'] as num).toDouble()
+        : double.tryParse('${a['in_minutes'] ?? ''}');
     final at = minutes != null
         ? DateTime.now().add(Duration(seconds: (minutes * 60).round()))
         : DateTime.tryParse('${a['at'] ?? ''}');
@@ -998,8 +1056,7 @@ class ChatController extends Notifier<ChatState> {
         return ToolOutput({
           'created': true,
           ...r.describe(),
-          if (r.isJob && (!s.proactive || !s.keepAlive))
-            'note': 'Jobs run only while the app is alive: tell the user to keep Proactivity and "Keep running in the background" on in Settings.',
+          if (r.isJob && (!s.proactive || !s.keepAlive)) 'note': 'Jobs run only while the app is alive: tell the user to keep Proactivity and "Keep running in the background" on in Settings.',
         });
       }
       final id = '${a['reminder_id'] ?? ''}'.trim();
@@ -1008,13 +1065,17 @@ class ChatController extends Notifier<ChatState> {
         (r) => r.copyWith(
           text: a['text'] == null ? null : '${a['text']}'.trim(),
           prompt: a['prompt'] == null ? null : '${a['prompt']}'.trim(),
-          enabled: a['enabled'] is bool ? a['enabled'] as bool : (at != null || cron.isNotEmpty ? true : null),
+          enabled: a['enabled'] is bool
+              ? a['enabled'] as bool
+              : (at != null || cron.isNotEmpty ? true : null),
           next: at,
           cron: cron.isEmpty ? null : cron,
           clearCron: a['cron'] != null && cron.isEmpty,
         ),
       );
-      return r == null ? const ToolOutput({'error': 'No reminder with that id.'}) : ToolOutput({'updated': true, ...r.describe()});
+      return r == null
+          ? const ToolOutput({'error': 'No reminder with that id.'})
+          : ToolOutput({'updated': true, ...r.describe()});
     } on FormatException catch (e) {
       return ToolOutput({'error': e.message});
     }
@@ -1022,13 +1083,23 @@ class ChatController extends Notifier<ChatState> {
 
   /// Packs files of [c] into a zip kept with the app's files.
   Future<ToolOutput> _zip(Map<String, dynamic> a, Conversation c) async {
-    final files = [for (final f in (a['files'] as List? ?? const [])) '$f'].where((f) => File(f).existsSync()).toList();
-    if (files.isEmpty) return const ToolOutput({'error': 'None of those files are here. list_attachments shows what there is.'});
+    final files = [for (final f in (a['files'] as List? ?? const [])) '$f']
+        .where((f) => File(f).existsSync())
+        .toList();
+    if (files.isEmpty)
+      return const ToolOutput({
+        'error': 'None of those files are here. list_attachments shows what there is.',
+      });
     var name = '${a['name'] ?? ''}'.trim();
-    if (name.isEmpty) name = files.length == 1 ? '${files.single.split(RegExp(r'[\\/]')).last}.zip' : 'files.zip';
+    if (name.isEmpty)
+      name = files.length == 1
+          ? '${files.single.split(RegExp(r'[\\/]')).last}.zip'
+          : 'files.zip';
     if (!name.toLowerCase().endsWith('.zip')) name = '$name.zip';
     name = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final dir = Directory('${(await getApplicationSupportDirectory()).path}/generated');
+    final dir = Directory(
+      '${(await getApplicationSupportDirectory()).path}/generated',
+    );
     if (!await dir.exists()) await dir.create(recursive: true);
     final out = '${dir.path}/${_uuid.v4().substring(0, 8)}_$name';
     final known = sendableFiles(c);
@@ -1037,10 +1108,14 @@ class ChatController extends Notifier<ChatState> {
     try {
       for (final f in files) {
         // Inside the zip, files keep the names the user knows them by.
-        var inner = known.where((k) => k.path == f).firstOrNull?.name ?? f.split(RegExp(r'[\\/]')).last;
+        var inner =
+            known.where((k) => k.path == f).firstOrNull?.name ??
+            f.split(RegExp(r'[\\/]')).last;
         for (var i = 2; !used.add(inner); i++) {
           final dot = inner.lastIndexOf('.');
-          inner = dot > 0 ? '${inner.substring(0, dot)} ($i)${inner.substring(dot)}' : '$inner ($i)';
+          inner = dot > 0
+              ? '${inner.substring(0, dot)} ($i)${inner.substring(dot)}'
+              : '$inner ($i)';
         }
         await encoder.addFile(File(f), inner);
       }
@@ -1072,13 +1147,20 @@ class ChatController extends Notifier<ChatState> {
       final want = f.toLowerCase().trim();
       final hit =
           known.where((a) => a.name.toLowerCase() == want).firstOrNull ??
-          known.where((a) => a.name.toLowerCase().contains(want) || a.path.toLowerCase().endsWith(want)).firstOrNull;
+          known
+              .where(
+                (a) =>
+                    a.name.toLowerCase().contains(want) ||
+                    a.path.toLowerCase().endsWith(want),
+              )
+              .firstOrNull;
       return hit?.path ?? f;
     }
 
     part.arguments = jsonEncode({
       ...args,
-      if (raw is List && raw.isNotEmpty) 'files': [for (final f in raw) resolve('$f')],
+      if (raw is List && raw.isNotEmpty)
+        'files': [for (final f in raw) resolve('$f')],
       if (single is String) 'file': resolve(single),
     });
   }
@@ -1093,7 +1175,8 @@ class ChatController extends Notifier<ChatState> {
     String? text;
     if (s.hasElevenKey) {
       try {
-        text = await ElevenLabsClient(s.elevenKey).transcribe(await File(a.path).readAsBytes(), filename: a.name);
+        text = await ElevenLabsClient(s.elevenKey)
+            .transcribe(await File(a.path).readAsBytes(), filename: a.name);
       } catch (e) {
         debugPrint('[Chat] transcript of ${a.name}: $e');
       }
@@ -1211,10 +1294,7 @@ class ChatController extends Notifier<ChatState> {
   /// The content of a user message: text, plus pictures as images, PDFs as
   /// files and text files pasted in. Only the latest few messages carry
   /// their files again; older ones just name them, to save tokens.
-  Future<Object> _userContent(
-    UserEntry e, {
-    required bool withFiles,
-  }) async {
+  Future<Object> _userContent(UserEntry e, {required bool withFiles}) async {
     var text0 = e.event == null
         ? e.text
         : '[Automatic event from your watch "${e.event}"]\n${e.text}';
@@ -1252,7 +1332,9 @@ class ChatController extends Notifier<ChatState> {
         // can send on with send_voice_message / send_files.
         final said = await _transcript(a);
         final settings = ref.read(settingsProvider);
-        final hears = ref.read(modelCatalogProvider).byId(settings.model)?.audioIn ?? false;
+        final hears =
+            ref.read(modelCatalogProvider).byId(settings.model)?.audioIn ??
+            false;
         if (hears) {
           final ext = a.name.split('.').last.toLowerCase();
           parts.add({
@@ -1350,7 +1432,7 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - The user may send voice messages: you get a transcript or the audio itself. Act on what they say; the recording can also be sent on to a chat with send_voice_message.
 - The user may attach pictures, voice notes and files; read them directly. To look (again) at an attached picture from earlier, or at a photo, video thumbnail, sticker or link-preview image in a Telegram post, use view_image. To send one of them (or an image you generated) to a chat, pass its name in files. Use send_voice_message for a recorded voice-note attachment; use generate_image when they ask you to create a picture.
 - Reminders and scheduled jobs: "remind me to walk in 5 minutes" → create_reminder(text, in_minutes). Use at for a clock time and cron for repeats; add prompt when something should be done at that time (a job). list_reminders, update_reminder, delete_reminder manage them. Reminders are separate from watches, which react to new messages.
-- The web: fetch_url reads a page or API without scripts (blogs, articles, docs: e.g. list the posts on a blog, then fetch the ones needed). Sites that are apps (forms sent by JavaScript, anonymous-message pages like sma.et, logins) need the browser: browser_open, then browser_type into the numbered fields and browser_click the button; browser_read to see the result. To follow a link, browser_open or fetch_url its URL. http_request calls APIs; submit_form posts plain HTML forms; download_file saves a file that can then be sent. Tell the user what you saw or did on the page, briefly.
+- The web: fetch_url reads a page or API without scripts (blogs, articles, docs: e.g. list the posts on a blog, then fetch the ones needed). Sites that are apps (forms sent by JavaScript, web apps, logins) need the browser: browser_open, then browser_type into the numbered fields and browser_click the button; browser_read to see the result. To follow a link, browser_open or fetch_url its URL. http_request calls APIs; submit_form posts plain HTML forms; download_file saves a file that can then be sent. Tell the user what you saw or did on the page, briefly.
 - Files: send_message and reply_to_message send photos and videos compressed by default; send_as "file" sends them uncompressed as documents. zip_files packs several files into one .zip to send. edit_message can replace a message's media as well as its text.
 - Stars: get_star_balance, list_star_transactions, list_star_subscriptions / set_star_subscription, get_star_revenue (the user's channels and bots), get_star_reactors (who gave Stars to a post), send_star_reaction (gives Stars to a post or message: it spends the user's Stars, so only when they asked, and it always asks them first).
 - Reactions in read_messages include ⭐ for Stars; get_message_reactions lists who reacted and the Star supporters. reactions_to_me shows new reactions to the user's messages (mark_reactions_seen clears them); set_chat_reactions sets which reactions a chat allows.
@@ -1454,7 +1536,8 @@ How to answer:
               if (t.name == 'view_image' && !old) {
                 try {
                   final j = jsonDecode(r);
-                  if (j is Map && j['_images'] is List) seen.addAll([for (final p in j['_images'] as List) '$p']);
+                  if (j is Map && j['_images'] is List)
+                    seen.addAll([for (final p in j['_images'] as List) '$p']);
                 } catch (_) {}
               }
             }
@@ -1462,14 +1545,20 @@ How to answer:
             // follows as a message of its own.
             if (seen.isNotEmpty) {
               final parts = <Map<String, dynamic>>[
-                {'type': 'text', 'text': 'The images you asked to see (view_image), in order:'},
+                {
+                  'type': 'text',
+                  'text': 'The images you asked to see (view_image), in order:',
+                },
               ];
               for (final path in seen) {
                 final f = File(path);
                 if (!await f.exists()) continue;
                 parts.add({
                   'type': 'image_url',
-                  'image_url': {'url': 'data:${lookupMimeType(path) ?? 'image/jpeg'};base64,${base64Encode(await f.readAsBytes())}'},
+                  'image_url': {
+                    'url':
+                        'data:${lookupMimeType(path) ?? 'image/jpeg'};base64,${base64Encode(await f.readAsBytes())}',
+                  },
                 });
               }
               if (parts.length > 1) out.add({'role': 'user', 'content': parts});
