@@ -9,6 +9,7 @@ import 'package:record/record.dart';
 
 import '../../../app/theme.dart';
 import '../../assistant/watch_engine.dart';
+import '../../device/device.dart';
 
 /// What Android lets TeleAI do, why each matters, and how to fix it.
 /// Rechecked whenever the app comes back to the front, since the answers
@@ -26,6 +27,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
   bool? _exactAlarms;
   LocationPermission? _location;
   bool? _microphone;
+  Map<String, bool> _device = const {};
 
   @override
   void initState() {
@@ -55,12 +57,14 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
       final b = Platform.isAndroid ? await FlutterForegroundTask.isIgnoringBatteryOptimizations : true;
       final a = await _android?.canScheduleExactNotifications() ?? true;
       final l = await Geolocator.checkPermission();
+      final d = await Device.status([for (final p in Device.all) p.id]);
       if (!mounted) return;
       setState(() {
         _notifications = n == NotificationPermission.granted;
         _battery = b;
         _exactAlarms = a;
         _location = l;
+        _device = d;
       });
     } catch (e) {
       debugPrint('[Permissions] $e');
@@ -90,6 +94,12 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
     } else {
       await Geolocator.requestPermission();
     }
+    await _check();
+  }
+
+  Future<void> _fixDevice(DevicePermission p) async {
+    final r = await Device.request([p.id]);
+    if (r[p.id] != true) await Device.openAppSettings();
     await _check();
   }
 
@@ -210,6 +220,26 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
             action: _location == LocationPermission.deniedForever ? 'Open settings' : 'Allow',
             onFix: _fixLocation,
           ),
+          if (Platform.isAndroid) ...[
+            const SizedBox(height: Space.l),
+            Text('FOR DEVICE TOOLS', style: context.text.labelSmall),
+            const SizedBox(height: Space.s),
+            for (final p in Device.all)
+              _PermissionCard(
+                icon: switch (p.id.split('.').last) {
+                  'READ_SMS' => Icons.sms_outlined,
+                  'SEND_SMS' => Icons.outgoing_mail,
+                  'READ_CALL_LOG' => Icons.call_received_rounded,
+                  'READ_CONTACTS' => Icons.contacts_outlined,
+                  _ => Icons.call_outlined,
+                },
+                title: p.title,
+                why: '${p.why} Asked the first time a tool needs it.',
+                ok: _device[p.id],
+                action: 'Allow',
+                onFix: () => _fixDevice(p),
+              ),
+          ],
           const SizedBox(height: Space.l),
           Container(
             padding: const EdgeInsets.all(Space.l),

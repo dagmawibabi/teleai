@@ -132,6 +132,21 @@ Future<ToolOutput> runCanvasTool(Ref ref, String name, Map<String, dynamic> a) a
         if (posts.length > added) 'already_there': posts.length - added,
         if (missing.isNotEmpty) 'not_found': missing,
       }, posts: posts);
+    case 'canvas_save':
+      final f = await ensure(str('folder'));
+      final kind = CanvasKind.values.asNameMap()[str('kind')] ?? CanvasKind.link;
+      final i = await store.addSaved(
+        f.id,
+        kind: kind,
+        title: str('title'),
+        text: str('text'),
+        url: str('url'),
+        source: str('source'),
+        path: str('file'),
+        note: str('note'),
+        tags: strs('tags'),
+      );
+      return ToolOutput({'item_id': i.id, 'kind': kind.name, 'folder': ref.read(canvasProvider).pathOf(f)});
     case 'canvas_add_note':
       final f = await ensure(str('folder'));
       final i = await store.addNote(f.id, str('text'));

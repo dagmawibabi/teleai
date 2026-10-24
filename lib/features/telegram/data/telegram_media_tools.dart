@@ -18,7 +18,7 @@ final _mediaTools = <TelegramTool>[
   TelegramTool(
     name: 'view_image',
     label: 'Looking at images',
-    category: ToolCategory.media,
+    category: ToolCategory.creative,
     description:
         'Lets you see images with your own eyes: pictures the user attached (files, by name, even from earlier in '
         'the conversation) and photos, video thumbnails, GIF frames, stickers and link-preview images from Telegram '

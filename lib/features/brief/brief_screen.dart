@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../chat/presentation/widgets/message_view.dart';
 import '../settings/data/settings.dart';
 import '../telegram/presentation/chat_actions.dart' show confirmAction;
+import 'brief_settings_screen.dart';
 import 'brief_store.dart';
 
 /// Briefs: write one now, see the latest, browse earlier ones, and set the
@@ -32,7 +33,18 @@ class BriefScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Brief')),
+      appBar: AppBar(
+        title: const Text('Brief'),
+        actions: [
+          IconButton(
+            tooltip: 'Brief settings',
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const BriefSettingsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.x4),
         children: [
@@ -47,8 +59,9 @@ class BriefScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'A detailed, priority-ordered rundown of what happened across your DMs, groups and channels since '
-                  'the last brief. Read-only: nothing is sent or marked as read.',
+                  'A detailed, priority-ordered rundown of what happened since the last brief across your DMs, groups and '
+                  'channels, and your email, calendar, Slack and other connected apps (set in Brief settings). Read-only: '
+                  'nothing is sent or marked as read.',
                   style: context.text.bodySmall,
                 ),
                 const SizedBox(height: Space.m),

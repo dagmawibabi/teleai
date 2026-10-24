@@ -15,6 +15,8 @@ import '../../../telegram/data/telegram_store.dart';
 import '../../../../infrastructure/telegram/telegram_client.dart';
 import '../../../telegram/presentation/message_tile.dart';
 import '../../../telegram/data/telegram_tools.dart';
+import '../../../integrations/app_toolkits.dart';
+import '../../../device/device.dart';
 import '../../../web/browser_screen.dart';
 import '../../data/chat_controller.dart';
 import '../../domain/chat_models.dart';
@@ -232,7 +234,7 @@ IconData toolIcon(String name) => switch (name) {
   'youtube_channel' ||
   'youtube_playlist' => Icons.smart_display_outlined,
   'x_post' || 'x_profile' => Icons.alternate_email_rounded,
-  _ => Icons.build_outlined,
+  _ => appToolIcon(name) ?? deviceToolIcon(name) ?? Icons.build_outlined,
 };
 
 /// A few words on what a call is about: the chat, the query, the window.

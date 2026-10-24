@@ -12,11 +12,16 @@ import '../online_alerts.dart';
 import '../reminders.dart';
 import '../watch_engine.dart';
 import '../watches.dart';
+import '../../auth/data/auth_controller.dart';
+import '../../integrations/app_toolkits.dart';
+import '../../integrations/integrations_store.dart';
 
 String watchTrigger(Watch w, TelegramStore store) => switch (w.scope) {
   WatchScope.chats => w.chatIds.map((id) => store.chat(id)?.title ?? 'chat $id').join(', '),
   WatchScope.folder => 'Folder ${store.folders.where((f) => f.id == w.folderId).firstOrNull?.title ?? w.folderId}',
   WatchScope.schedule => w.dailyAt != null ? 'Every day at ${w.dailyAt}' : 'Every ${w.everyMinutes} minutes',
+  WatchScope.app =>
+    '${w.app == null || w.app == 'any' ? 'Any app' : appLabel(w.app!)}${w.query.isEmpty ? '' : ': ${w.query}'} · every ${w.everyMinutes ?? 15} min',
   _ => w.scope.label,
 };
 
@@ -284,7 +289,7 @@ class WatchEditor extends ConsumerStatefulWidget {
 class _WatchEditorState extends ConsumerState<WatchEditor> {
   late final _name = TextEditingController(text: widget.watch?.name ?? '');
   late final _instructions = TextEditingController(text: widget.watch?.instructions ?? '');
-  late WatchScope _scope = widget.watch?.scope ?? WatchScope.chats;
+  late WatchScope _scope = widget.watch?.scope ?? (ref.read(telegramConnectedProvider) ? WatchScope.chats : WatchScope.app);
   late WatchMode _mode = widget.watch?.mode ?? WatchMode.notify;
   late List<int> _chatIds = [...?widget.watch?.chatIds];
   late int? _folderId = widget.watch?.folderId;
@@ -292,11 +297,14 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
   late int? _every = widget.watch?.everyMinutes;
   late bool _includeMuted = widget.watch?.includeMuted ?? true;
   late bool _notify = widget.watch?.notify ?? true;
+  late String _app = widget.watch?.app ?? 'gmail';
+  late final _query = TextEditingController(text: widget.watch?.query ?? '');
 
   @override
   void dispose() {
     _name.dispose();
     _instructions.dispose();
+    _query.dispose();
     super.dispose();
   }
 
@@ -308,7 +316,9 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
       return;
     }
     final schedule = _scope == WatchScope.schedule;
-    final mode = schedule && _mode == WatchMode.notify ? WatchMode.summarize : _mode;
+    final appWatch = _scope == WatchScope.app;
+    // Schedules and app watches always need the assistant.
+    final mode = (schedule || appWatch) && _mode == WatchMode.notify ? WatchMode.summarize : _mode;
     if (widget.watch == null) {
       await store.add(
         (id) => Watch(
@@ -322,8 +332,10 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
           includeMuted: _includeMuted,
           notify: _notify,
           dailyAt: schedule && _every == null ? _dailyAt : null,
-          everyMinutes: schedule ? _every : null,
+          everyMinutes: schedule ? _every : (appWatch ? (_every ?? 15) : null),
           createdAt: DateTime.now(),
+          app: appWatch ? _app : null,
+          query: appWatch ? _query.text.trim() : '',
         ),
       );
     } else {
@@ -341,11 +353,13 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
           includeMuted: _includeMuted,
           notify: _notify,
           dailyAt: schedule && _every == null ? _dailyAt : null,
-          everyMinutes: schedule ? _every : null,
+          everyMinutes: schedule ? _every : (appWatch ? (_every ?? 15) : null),
           conversationId: w.conversationId,
           lastRunAt: w.lastRunAt,
           runs: w.runs,
           createdAt: w.createdAt,
+          app: appWatch ? _app : null,
+          query: appWatch ? _query.text.trim() : '',
         ),
       );
     }
@@ -362,6 +376,8 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(telegramStoreProvider);
+    final telegram = ref.watch(telegramConnectedProvider);
+    final connected = ref.watch(integrationsProvider).connected;
     final w = widget.watch;
     return Scaffold(
       appBar: AppBar(
@@ -413,7 +429,8 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
             runSpacing: 6,
             children: [
               for (final s in WatchScope.values)
-                ChoiceChip(label: Text(s.label), selected: _scope == s, onSelected: (_) => setState(() => _scope = s)),
+                if (telegram || !s.needsTelegram || _scope == s)
+                  ChoiceChip(label: Text(s.label), selected: _scope == s, onSelected: (_) => setState(() => _scope = s)),
             ],
           ),
           const SizedBox(height: Space.m),
@@ -445,6 +462,55 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
                 if (store.folders.isEmpty) Text('You have no folders.', style: context.text.bodySmall),
               ],
             ),
+          if (!telegram)
+            Padding(
+              padding: const EdgeInsets.only(bottom: Space.s),
+              child: Text(
+                'Connect Telegram (Settings → Apps & web) to watch chats, groups, channels and mentions.',
+                style: context.text.bodySmall,
+              ),
+            ),
+          if (_scope == WatchScope.app) ...[
+            Text(
+              connected.isEmpty
+                  ? 'Connect an app first (Settings → Apps & web → Composio), e.g. Gmail or Slack.'
+                  : 'The assistant checks the app every so often and tells you about anything new that matches.',
+              style: context.text.bodySmall,
+            ),
+            const SizedBox(height: Space.s),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final a in {...connected, 'any', if (!connected.contains(_app) && _app != 'any') _app})
+                  ChoiceChip(
+                    label: Text(a == 'any' ? 'Any app' : appLabel(a)),
+                    selected: _app == a,
+                    onSelected: (_) => setState(() => _app = a),
+                  ),
+              ],
+            ),
+            const SizedBox(height: Space.m),
+            TextField(
+              controller: _query,
+              decoration: const InputDecoration(
+                labelText: 'Look for',
+                hintText: 'e.g. emails from my manager, Slack messages mentioning me',
+              ),
+            ),
+            const SizedBox(height: Space.m),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final m in const [15, 30, 60, 180, 360])
+                  ChoiceChip(
+                    label: Text(m < 60 ? 'Every $m min' : 'Every ${m ~/ 60} h'),
+                    selected: (_every ?? 15) == m,
+                    onSelected: (_) => setState(() => _every = m),
+                  ),
+              ],
+            ),
+          ],
           if (_scope == WatchScope.schedule) ...[
             SegmentedButton<bool>(
               segments: const [
@@ -483,7 +549,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
                 ],
               ),
           ],
-          if (_scope != WatchScope.schedule)
+          if (_scope.needsTelegram)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Include muted chats'),
@@ -499,7 +565,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
             child: Column(
               children: [
                 for (final m in WatchMode.values)
-                  if (!(m == WatchMode.notify && _scope == WatchScope.schedule))
+                  if (!(m == WatchMode.notify && !_scope.needsTelegram))
                     RadioListTile<WatchMode>(
                       contentPadding: EdgeInsets.zero,
                       value: m,
@@ -509,7 +575,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
               ],
             ),
           ),
-          if (_mode != WatchMode.notify || _scope == WatchScope.schedule) ...[
+          if (_mode != WatchMode.notify || !_scope.needsTelegram) ...[
             const SizedBox(height: Space.m),
             TextField(
               controller: _instructions,

@@ -19,6 +19,7 @@ enum Thinking {
 enum VoiceEngine {
   device('Device'),
   ai('AI model'),
+  addis('Addis AI'),
   elevenLabs('ElevenLabs');
 
   const VoiceEngine(this.label);
@@ -90,6 +91,8 @@ class AppSettings {
   const AppSettings({
     this.vercelKey = '',
     this.openRouterKey = '',
+    this.geminiKey = '',
+    this.addisKey = '',
     this.elevenKey = '',
     this.model = defaultModel,
     this.imageModel = defaultImageModel,
@@ -152,6 +155,19 @@ class AppSettings {
     this.chatFontSize = 15.5,
     this.codeTheme = CodeThemeChoice.midnight,
     this.exaKey = '',
+    this.composioKey = '',
+    this.composioUserId = '',
+    this.cloudflareToken = '',
+    this.cloudflareAccountId = '',
+    this.r2AccessKeyId = '',
+    this.r2SecretKey = '',
+    this.r2Bucket = '',
+    this.e2bKey = '',
+    this.e2bTemplate = 'code-interpreter-v1',
+    this.e2bTimeoutMinutes = 10,
+    this.e2bInternet = true,
+    this.e2bKeepAlive = true,
+    this.telegramSkipped = false,
     this.loaded = false,
   });
 
@@ -264,6 +280,46 @@ class AppSettings {
   final CodeThemeChoice codeTheme;
   final String exaKey;
 
+  /// Composio project API key (ak_…): connects Gmail, Slack, Notion and more.
+  final String composioKey;
+
+  /// Names this person's Composio connections; made once, kept with the
+  /// preferences.
+  final String composioUserId;
+
+  /// Cloudflare API token (dash.cloudflare.com → My Profile → API Tokens).
+  final String cloudflareToken;
+
+  /// The account Workers, Pages, KV and R2 use; found from the token when
+  /// empty.
+  final String cloudflareAccountId;
+
+  /// R2's S3 access key pair, for reading and writing files in buckets.
+  final String r2AccessKeyId;
+  final String r2SecretKey;
+
+  /// The bucket R2 file tools use when none is named.
+  final String r2Bucket;
+
+  /// E2B API key: cloud sandboxes that run code.
+  final String e2bKey;
+
+  /// The E2B template sandboxes start from.
+  final String e2bTemplate;
+
+  /// How long an idle sandbox lives before E2B stops it.
+  final int e2bTimeoutMinutes;
+
+  /// Sandboxes may reach the internet (pip install, downloads).
+  final bool e2bInternet;
+
+  /// One sandbox is kept between runs, so variables and files carry over.
+  final bool e2bKeepAlive;
+
+  /// Chose to use the app without Telegram for now; it can be connected
+  /// later under Settings → Apps & web → Telegram.
+  final bool telegramSkipped;
+
   static const defaultModel = 'anthropic/claude-sonnet-5.5';
   static const defaultImageModel = 'google/gemini-3.1-flash-lite-image';
   static const defaultSpeechModel = 'openai/gpt-4o-mini-tts';
@@ -271,6 +327,12 @@ class AppSettings {
 
   final String vercelKey;
   final String openRouterKey;
+
+  /// Google AI Studio Gemini API key.
+  final String geminiKey;
+
+  /// Addis AI key, used for Addis Voices 2.
+  final String addisKey;
   final String elevenKey;
 
   /// A gateway id like `openai/gpt-5`, or `or:` + an OpenRouter id.
@@ -340,13 +402,21 @@ class AppSettings {
 
   bool get hasVercelKey => vercelKey.trim().isNotEmpty;
   bool get hasOpenRouterKey => openRouterKey.trim().isNotEmpty;
+  bool get hasGeminiKey => geminiKey.trim().isNotEmpty;
+  bool get hasAddisKey => addisKey.trim().isNotEmpty;
   bool get hasElevenKey => elevenKey.trim().isNotEmpty;
   bool get hasExaKey => exaKey.trim().isNotEmpty;
-  bool get hasAnyKey => hasVercelKey || hasOpenRouterKey;
+  bool get hasComposioKey => composioKey.trim().isNotEmpty;
+  bool get hasCloudflare => cloudflareToken.trim().isNotEmpty;
+  bool get hasR2Keys => r2AccessKeyId.trim().isNotEmpty && r2SecretKey.trim().isNotEmpty;
+  bool get hasE2bKey => e2bKey.trim().isNotEmpty;
+  bool get hasAnyKey => hasVercelKey || hasOpenRouterKey || hasGeminiKey;
 
   AppSettings copyWith({
     String? vercelKey,
     String? openRouterKey,
+    String? geminiKey,
+    String? addisKey,
     String? elevenKey,
     String? model,
     String? imageModel,
@@ -409,10 +479,25 @@ class AppSettings {
     double? chatFontSize,
     CodeThemeChoice? codeTheme,
     String? exaKey,
+    String? composioKey,
+    String? composioUserId,
+    String? cloudflareToken,
+    String? cloudflareAccountId,
+    String? r2AccessKeyId,
+    String? r2SecretKey,
+    String? r2Bucket,
+    String? e2bKey,
+    String? e2bTemplate,
+    int? e2bTimeoutMinutes,
+    bool? e2bInternet,
+    bool? e2bKeepAlive,
+    bool? telegramSkipped,
     bool? loaded,
   }) => AppSettings(
     vercelKey: vercelKey ?? this.vercelKey,
     openRouterKey: openRouterKey ?? this.openRouterKey,
+    geminiKey: geminiKey ?? this.geminiKey,
+    addisKey: addisKey ?? this.addisKey,
     elevenKey: elevenKey ?? this.elevenKey,
     model: model ?? this.model,
     imageModel: imageModel ?? this.imageModel,
@@ -476,6 +561,19 @@ class AppSettings {
     chatFontSize: chatFontSize ?? this.chatFontSize,
     codeTheme: codeTheme ?? this.codeTheme,
     exaKey: exaKey ?? this.exaKey,
+    composioKey: composioKey ?? this.composioKey,
+    composioUserId: composioUserId ?? this.composioUserId,
+    cloudflareToken: cloudflareToken ?? this.cloudflareToken,
+    cloudflareAccountId: cloudflareAccountId ?? this.cloudflareAccountId,
+    r2AccessKeyId: r2AccessKeyId ?? this.r2AccessKeyId,
+    r2SecretKey: r2SecretKey ?? this.r2SecretKey,
+    r2Bucket: r2Bucket ?? this.r2Bucket,
+    e2bKey: e2bKey ?? this.e2bKey,
+    e2bTemplate: e2bTemplate ?? this.e2bTemplate,
+    e2bTimeoutMinutes: e2bTimeoutMinutes ?? this.e2bTimeoutMinutes,
+    e2bInternet: e2bInternet ?? this.e2bInternet,
+    e2bKeepAlive: e2bKeepAlive ?? this.e2bKeepAlive,
+    telegramSkipped: telegramSkipped ?? this.telegramSkipped,
     loaded: loaded ?? this.loaded,
   );
 }
@@ -485,8 +583,15 @@ class SettingsController extends Notifier<AppSettings> {
   static const _secure = FlutterSecureStorage();
   static const _vercelKey = 'vercel_ai_gateway_key';
   static const _openRouterKey = 'openrouter_key';
+  static const _geminiKey = 'gemini_key';
+  static const _addisKey = 'addis_key';
   static const _elevenKey = 'elevenlabs_key';
   static const _exaKey = 'exa_key';
+  static const _composioKey = 'composio_key';
+  static const _cloudflareToken = 'cloudflare_token';
+  static const _r2AccessKeyId = 'r2_access_key_id';
+  static const _r2SecretKey = 'r2_secret_key';
+  static const _e2bKey = 'e2b_key';
 
   @override
   AppSettings build() {
@@ -509,8 +614,23 @@ class SettingsController extends Notifier<AppSettings> {
     state = AppSettings(
       vercelKey: await _secret(_vercelKey),
       openRouterKey: await _secret(_openRouterKey),
+      geminiKey: await _secret(_geminiKey),
+      addisKey: await _secret(_addisKey),
       elevenKey: await _secret(_elevenKey),
       exaKey: await _secret(_exaKey),
+      composioKey: await _secret(_composioKey),
+      composioUserId: p.getString('composio_user_id') ?? d.composioUserId,
+      cloudflareToken: await _secret(_cloudflareToken),
+      cloudflareAccountId: p.getString('cloudflare_account_id') ?? d.cloudflareAccountId,
+      r2AccessKeyId: await _secret(_r2AccessKeyId),
+      r2SecretKey: await _secret(_r2SecretKey),
+      r2Bucket: p.getString('r2_bucket') ?? d.r2Bucket,
+      e2bKey: await _secret(_e2bKey),
+      e2bTemplate: p.getString('e2b_template') ?? d.e2bTemplate,
+      e2bTimeoutMinutes: p.getInt('e2b_timeout_minutes') ?? d.e2bTimeoutMinutes,
+      e2bInternet: p.getBool('e2b_internet') ?? d.e2bInternet,
+      e2bKeepAlive: p.getBool('e2b_keep_alive') ?? d.e2bKeepAlive,
+      telegramSkipped: p.getBool('telegram_skipped') ?? d.telegramSkipped,
       model: p.getString('chat_model') ?? d.model,
       imageModel: p.getString('image_model') ?? d.imageModel,
       thinking:
@@ -618,6 +738,16 @@ class SettingsController extends Notifier<AppSettings> {
     await _secure.write(key: _openRouterKey, value: key.trim());
   }
 
+  Future<void> setGeminiKey(String key) async {
+    state = state.copyWith(geminiKey: key.trim());
+    await _secure.write(key: _geminiKey, value: key.trim());
+  }
+
+  Future<void> setAddisKey(String key) async {
+    state = state.copyWith(addisKey: key.trim());
+    await _secure.write(key: _addisKey, value: key.trim());
+  }
+
   Future<void> setElevenKey(String key) async {
     state = state.copyWith(elevenKey: key.trim());
     await _secure.write(key: _elevenKey, value: key.trim());
@@ -626,6 +756,48 @@ class SettingsController extends Notifier<AppSettings> {
   Future<void> setExaKey(String key) async {
     state = state.copyWith(exaKey: key.trim());
     await _secure.write(key: _exaKey, value: key.trim());
+  }
+
+  Future<void> setComposioKey(String key) async {
+    state = state.copyWith(composioKey: key.trim());
+    await _secure.write(key: _composioKey, value: key.trim());
+  }
+
+  Future<void> setCloudflareToken(String v) async {
+    state = state.copyWith(cloudflareToken: v.trim());
+    await _secure.write(key: _cloudflareToken, value: v.trim());
+  }
+
+  Future<void> setR2Keys({String? accessKeyId, String? secret}) async {
+    state = state.copyWith(r2AccessKeyId: accessKeyId?.trim(), r2SecretKey: secret?.trim());
+    if (accessKeyId != null) await _secure.write(key: _r2AccessKeyId, value: accessKeyId.trim());
+    if (secret != null) await _secure.write(key: _r2SecretKey, value: secret.trim());
+  }
+
+  Future<void> setCloudflareAccountId(String v) =>
+      customize(state.copyWith(cloudflareAccountId: v.trim()), 'cloudflare_account_id', v.trim());
+  Future<void> setR2Bucket(String v) => customize(state.copyWith(r2Bucket: v.trim()), 'r2_bucket', v.trim());
+
+  Future<void> setE2bKey(String v) async {
+    state = state.copyWith(e2bKey: v.trim());
+    await _secure.write(key: _e2bKey, value: v.trim());
+  }
+
+  Future<void> setE2bTemplate(String v) => customize(
+    state.copyWith(e2bTemplate: v.trim().isEmpty ? 'code-interpreter-v1' : v.trim()),
+    'e2b_template',
+    v.trim().isEmpty ? 'code-interpreter-v1' : v.trim(),
+  );
+  Future<void> setE2bTimeoutMinutes(int v) =>
+      customize(state.copyWith(e2bTimeoutMinutes: v.clamp(1, 60)), 'e2b_timeout_minutes', v.clamp(1, 60));
+  Future<void> setE2bInternet(bool v) => customize(state.copyWith(e2bInternet: v), 'e2b_internet', v);
+  Future<void> setTelegramSkipped(bool v) =>
+      customize(state.copyWith(telegramSkipped: v), 'telegram_skipped', v);
+  Future<void> setE2bKeepAlive(bool v) => customize(state.copyWith(e2bKeepAlive: v), 'e2b_keep_alive', v);
+
+  Future<void> setComposioUserId(String id) async {
+    state = state.copyWith(composioUserId: id);
+    await _write('composio_user_id', id);
   }
 
   Future<void> setAccent(AccentChoice value) async {
@@ -803,15 +975,23 @@ class SettingsController extends Notifier<AppSettings> {
     final p = await SharedPreferences.getInstance();
     // Keys live in secure storage and aren't touched; the models and the
     // standing instructions are kept too.
-    const keep = {'chat_model', 'image_model', 'custom_instructions'};
+    const keep = {'chat_model', 'image_model', 'custom_instructions', 'composio_user_id'};
     for (final k in p.getKeys().toList()) {
       if (!keep.contains(k)) await p.remove(k);
     }
     state = const AppSettings().copyWith(
       vercelKey: state.vercelKey,
       openRouterKey: state.openRouterKey,
+      geminiKey: state.geminiKey,
+      addisKey: state.addisKey,
       elevenKey: state.elevenKey,
       exaKey: state.exaKey,
+      composioKey: state.composioKey,
+      composioUserId: state.composioUserId,
+      cloudflareToken: state.cloudflareToken,
+      r2AccessKeyId: state.r2AccessKeyId,
+      r2SecretKey: state.r2SecretKey,
+      e2bKey: state.e2bKey,
       model: state.model,
       imageModel: state.imageModel,
       customInstructions: state.customInstructions,

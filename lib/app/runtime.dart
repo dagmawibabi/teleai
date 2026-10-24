@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:handy_tdlib/api.dart' as td;
 
 import '../features/assistant/watch_engine.dart';
 import '../features/telegram/data/telegram_store.dart';
@@ -16,7 +15,8 @@ void startRuntime(ProviderContainer container) {
   // before a screen opens is missed.
   container.read(telegramStoreProvider);
   container.read(telegramClientProvider).start().catchError((_) {});
-  container.listen<AsyncValue<td.AuthorizationState>>(authStateProvider, (_, next) {
-    if (next.value is td.AuthorizationStateReady) container.read(watchEngineProvider).start();
-  }, fireImmediately: true);
+  // Reminders, scheduled jobs, schedule and app watches, and briefs run
+  // without Telegram too; Telegram watches start hearing messages once an
+  // account is signed in (the engine listens to TDLib's updates throughout).
+  container.read(watchEngineProvider).start();
 }

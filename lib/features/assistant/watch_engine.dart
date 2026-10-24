@@ -13,6 +13,7 @@ import '../../infrastructure/telegram/telegram_client.dart';
 import '../../infrastructure/telegram/open_chats.dart';
 import '../chat/data/chat_controller.dart';
 import '../chat/domain/chat_models.dart';
+import '../integrations/app_toolkits.dart';
 import '../settings/data/settings.dart';
 import '../telegram/data/message_content.dart';
 import '../telegram/data/telegram_store.dart';
@@ -244,7 +245,11 @@ class WatchEngine {
 
   /// Opens the groups and channels the watches cover, and closes ones no
   /// longer watched.
+  bool get _telegram => _ref.read(telegramClientProvider).authState is td.AuthorizationStateReady;
+
   Future<void> _syncOpenChats() async {
+    // Nothing to keep open without a Telegram account.
+    if (!_telegram) return;
     final store = _ref.read(telegramStoreProvider);
     bool needsOpen(ChatInfo c) =>
         c.type is td.ChatTypeSupergroup || c.type is td.ChatTypeBasicGroup;
@@ -316,7 +321,7 @@ class WatchEngine {
       WatchScope.folder =>
         w.folderId != null &&
             (store.folderChats[w.folderId!]?.contains(m.chatId) ?? false),
-      WatchScope.schedule => false,
+      WatchScope.schedule || WatchScope.app => false,
     };
   }
 
@@ -474,11 +479,13 @@ class WatchEngine {
     unawaited(_ref.read(briefStoreProvider.notifier).tick());
     unawaited(_ref.read(reminderStoreProvider.notifier).tick());
     final now = DateTime.now();
-    for (final w in _active.where((w) => w.scope == WatchScope.schedule)) {
+    for (final w in _active.where((w) => w.scope == WatchScope.schedule || w.scope == WatchScope.app)) {
       final last = w.lastRunAt;
       var due = false;
-      if (w.everyMinutes != null) {
-        due = last == null || now.difference(last).inMinutes >= w.everyMinutes!;
+      // An app watch checks its app every so often (15 minutes unless set).
+      final every = w.everyMinutes ?? (w.scope == WatchScope.app ? 15 : null);
+      if (every != null) {
+        due = last == null || now.difference(last).inMinutes >= every;
       } else if (w.dailyAt != null) {
         final parts = w.dailyAt!.split(':');
         final h = int.tryParse(parts.first) ?? 0,
@@ -518,7 +525,7 @@ class WatchEngine {
   /// Fires [w] now, with the newest matching message there is (or as a
   /// scheduled run), so the person can see it work.
   Future<String?> runNow(Watch w) async {
-    if (w.scope == WatchScope.schedule) {
+    if (w.scope == WatchScope.schedule || w.scope == WatchScope.app) {
       await _fire(w, const [], scheduled: true, test: true);
       return null;
     }
@@ -659,7 +666,13 @@ class WatchEngine {
       }
       _aiRuns[w.id] = [...runs, DateTime.now()];
 
-      final event = scheduled
+      final appName = w.app == null || w.app == 'any' ? 'the user\'s connected apps' : appLabel(w.app!);
+      final event = w.scope == WatchScope.app
+          ? '${test ? 'Test run · ' : ''}App watch: check $appName for anything new${w.query.isEmpty ? '' : ' matching: ${w.query}'}'
+                '${w.lastRunAt == null || test ? ' (look at roughly the last day)' : ' since ${w.lastRunAt!.toIso8601String().substring(0, 16)}'}. '
+                'Read only with the app\'s tools; then follow the instructions for what you found. '
+                'If there is nothing new that matches, answer with exactly $nothingNew and nothing else.'
+          : scheduled
           ? '${test ? 'Test run · ' : ''}Scheduled run (${w.dailyAt != null ? 'daily at ${w.dailyAt}' : 'every ${w.everyMinutes} minutes'}).'
           : '${test ? 'Test run with the latest matching message · ' : ''}New messages arrived in $where:\n${[for (final m in messages) '- ${store.chat(m.chatId)?.title ?? 'Chat'} (chat_id ${m.chatId}, message_id ${m.id}, ref post:${m.chatId}:${m.id}'
                   '${m.isTopicMessage ? ', topic_id ${m.messageThreadId}' : ''}'
@@ -674,6 +687,8 @@ class WatchEngine {
         );
         return;
       }
+      // An app watch that found nothing stays quiet.
+      if (w.scope == WatchScope.app && result.text.trim().contains(nothingNew)) return;
       if (!settings.notifications || !w.notify || result.seen) return;
       final text = Speaker.clean(result.text);
       await notifier.show(
@@ -699,6 +714,9 @@ class WatchEngine {
     return one.length <= max ? one : '${one.substring(0, max)}…';
   }
 }
+
+/// What an app watch answers when it found nothing, so nobody is notified.
+const nothingNew = 'NOTHING_NEW';
 
 final watchEngineProvider = Provider<WatchEngine>((ref) {
   final engine = WatchEngine(ref);

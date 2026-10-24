@@ -14,7 +14,12 @@ class ToolPart {
     DateTime? startedAt,
     this.durationMs,
     this.autoApproved = false,
+    this.extra,
   }) : startedAt = startedAt ?? DateTime.now();
+
+  /// What the provider attached to the call and wants back with it
+  /// (Gemini's thought signature).
+  Map<String, dynamic>? extra;
 
   /// Ran without asking, because of the approval setting.
   bool autoApproved;
@@ -49,6 +54,7 @@ class ToolPart {
     'at': startedAt.toIso8601String(),
     'ms': durationMs,
     if (autoApproved) 'auto': true,
+    if (extra != null) 'x': extra,
   };
 
   factory ToolPart.fromJson(Map<String, dynamic> j) => ToolPart(
@@ -65,6 +71,7 @@ class ToolPart {
     startedAt: DateTime.tryParse(j['at'] ?? ''),
     durationMs: j['ms'],
     autoApproved: j['auto'] ?? false,
+    extra: j['x'] is Map ? Map<String, dynamic>.from(j['x'] as Map) : null,
   );
 }
 

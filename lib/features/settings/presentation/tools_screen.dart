@@ -1,63 +1,131 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 
 import '../../../app/theme.dart';
+import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../chat/presentation/widgets/tool_card.dart';
+import '../../integrations/app_toolkits.dart';
+import '../../integrations/integrations_store.dart';
 import '../../telegram/data/telegram_tools.dart';
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
 import '../data/settings.dart';
+import 'apps_screen.dart';
+import 'cloud_settings.dart';
+import 'telegram_tab.dart';
 
-/// Every tool the assistant can use, each one switchable. Destructive
-/// tools have their own red tab and start off.
-class ToolsScreen extends ConsumerWidget {
-  const ToolsScreen({super.key});
+/// The three kinds of tools Settings → Tools switches between.
+enum ToolGroup {
+  telegram('Telegram', Icons.send_rounded),
+  apps('Apps & web', Icons.hub_outlined),
+  device('Device', Icons.phone_android_rounded);
+
+  const ToolGroup(this.label, this.icon);
+  final String label;
+  final IconData icon;
+
+  bool has(TelegramTool t) => switch (this) {
+    ToolGroup.apps => t.category.onAppsScreen,
+    ToolGroup.device => t.category == ToolCategory.device,
+    ToolGroup.telegram => !t.category.onAppsScreen && t.category != ToolCategory.device,
+  };
+}
+
+List<TelegramTool> toolsIn(ToolGroup group) => [
+  for (final t in telegramTools)
+    if (group.has(t)) t,
+];
+
+/// Every tool the assistant can use, each one switchable, in three groups:
+/// Telegram, apps and the web, and the phone itself. Destructive tools have
+/// their own red tab and start off.
+class ToolsScreen extends ConsumerStatefulWidget {
+  const ToolsScreen({super.key, this.group = ToolGroup.telegram});
+  final ToolGroup group;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ToolsScreen> createState() => _ToolsScreenState();
+}
+
+class _ToolsScreenState extends ConsumerState<ToolsScreen> {
+  late ToolGroup _group = widget.group;
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(settingsProvider);
-    final safe = telegramTools.where((t) => !t.destructive).toList();
-    final danger = telegramTools.where((t) => t.destructive).toList();
+    final all = toolsIn(_group);
+    final safe = all.where((t) => !t.destructive).toList();
+    final danger = all.where((t) => t.destructive).toList();
     final enabled = safe.where((t) => t.isOn(s)).length;
     final dangerOn = danger.where((t) => t.isOn(s)).length;
+    final intro = switch (_group) {
+      ToolGroup.telegram =>
+        '$enabled of ${safe.length} Telegram tools on. The assistant only sees the tools that are on. Anything that sends or '
+            'changes something asks you first (see the approval setting).',
+      ToolGroup.apps =>
+        '$enabled of ${safe.length} tools on. App tools are offered only for apps you connected and services whose key you added '
+            '(Settings → Apps & web); the web, GitHub, books, music, film and YouTube tools need nothing.',
+      ToolGroup.device =>
+        '$enabled of ${safe.length} device tools on. Android asks for a permission the first time a tool needs one (text messages, '
+            'calls, contacts); actions like calling, texting or the flashlight ask you first.',
+    };
+    final dangerIntro = switch (_group) {
+      ToolGroup.telegram =>
+        'These delete, leave, block or ban, and most can\'t be undone. They are off until you turn them on, and every call '
+            'waits for your approval, even when approvals are otherwise skipped.',
+      ToolGroup.apps =>
+        'These delete, trash, archive or merge in your apps and cloud accounts, or run any app action, and some can\'t be '
+            'undone. They are off until you turn them on, and every call waits for your approval.',
+      ToolGroup.device => 'No device tool deletes anything, so there is nothing here.',
+    };
     return DefaultTabController(
+      key: ValueKey(_group),
       length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Tools'),
-          bottom: TabBar(
-            tabs: [
-              Tab(text: 'Tools · $enabled/${safe.length}'),
-              Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Destructive · $dangerOn/${danger.length}',
-                      style: const TextStyle(color: AppColors.danger),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(104),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<ToolGroup>(
+                      showSelectedIcon: false,
+                      segments: [
+                        for (final g in ToolGroup.values)
+                          ButtonSegment(value: g, icon: Icon(g.icon, size: 16), label: Text(g.label)),
+                      ],
+                      selected: {_group},
+                      onSelectionChanged: (v) => setState(() => _group = v.first),
+                    ),
+                  ),
+                ),
+                TabBar(
+                  tabs: [
+                    Tab(text: 'Tools · $enabled/${safe.length}'),
+                    Tab(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
+                          const SizedBox(width: 6),
+                          Text('Destructive · $dangerOn/${danger.length}', style: const TextStyle(color: AppColors.danger)),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         body: TabBarView(
           children: [
-            _ToolList(
-              tools: safe,
-              intro:
-                  '$enabled of ${safe.length} tools on. The assistant only sees the tools that are on. Anything that '
-                  'sends or changes something asks you first (see the approval setting).',
-            ),
-            _ToolList(
-              tools: danger,
-              danger: true,
-              intro:
-                  'These delete, leave, block or ban, and most can\'t be undone. They are off until you turn them on, '
-                  'and every call waits for your approval, even when approvals are otherwise skipped.',
-            ),
+            _ToolList(key: ValueKey('safe$_group'), tools: safe, intro: intro),
+            _ToolList(key: ValueKey('danger$_group'), tools: danger, danger: true, intro: dangerIntro),
           ],
         ),
       ),
@@ -65,8 +133,50 @@ class ToolsScreen extends ConsumerWidget {
   }
 }
 
+/// Settings → Apps & web: the keys and connections behind the app and web
+/// tools, one tab per service (their tools are under Settings → Tools).
+class AppsWebScreen extends ConsumerWidget {
+  const AppsWebScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final connected = ref.watch(integrationsProvider).connected.length;
+    final ready = ref.watch(authStateProvider).value is td.AuthorizationStateReady;
+    return DefaultTabController(
+      length: 5,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Apps & web'),
+          actions: [
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const ToolsScreen(group: ToolGroup.apps)),
+              ),
+              icon: const Icon(Icons.handyman_outlined, size: 18),
+              label: const Text('Tools'),
+            ),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              Tab(text: ready ? 'Telegram ✓' : 'Telegram'),
+              Tab(text: s.hasComposioKey ? 'Composio · $connected' : 'Composio'),
+              Tab(text: s.hasExaKey ? 'Exa ✓' : 'Exa'),
+              Tab(text: s.hasCloudflare ? 'Cloudflare ✓' : 'Cloudflare'),
+              Tab(text: s.hasE2bKey ? 'E2B ✓' : 'E2B'),
+            ],
+          ),
+        ),
+        body: const TabBarView(children: [TelegramTab(), AppsTab(), ExaTab(), CloudflareTab(), E2bTab()]),
+      ),
+    );
+  }
+}
+
 class _ToolList extends ConsumerStatefulWidget {
-  const _ToolList({required this.tools, required this.intro, this.danger = false});
+  const _ToolList({super.key, required this.tools, required this.intro, this.danger = false});
   final List<TelegramTool> tools;
   final String intro;
   final bool danger;
@@ -78,9 +188,21 @@ class _ToolList extends ConsumerStatefulWidget {
 class _ToolListState extends ConsumerState<_ToolList> {
   String _q = '';
 
+  /// What an app tool still needs before the assistant gets it.
+  static String? _needs(TelegramTool t, AppSettings s, Set<String> connected) {
+    if (cloudToolNeeds(t, s) case final needs?) return needs;
+    if (!deviceToolReady(t)) return 'Android only';
+    if (!isAppTool(t.name)) return null;
+    if (!s.hasComposioKey) return 'Needs a Composio key';
+    final app = appToolkitOf(t.name);
+    if (app != null && !connected.contains(app)) return 'Connect ${appLabel(app)} first';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(settingsProvider);
+    final connected = ref.watch(integrationsProvider).connected;
     final danger = widget.danger;
     final intro = widget.intro;
     final q = _q.toLowerCase().trim();
@@ -191,7 +313,7 @@ class _ToolListState extends ConsumerState<_ToolList> {
                 padding: const EdgeInsets.all(Space.xl),
                 child: Center(child: Text('No tool matches', style: context.text.bodySmall)),
               ),
-            for (final category in ToolCategory.values)
+            for (final category in _categoryOrder)
               if (tools.any((t) => t.category == category)) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Space.xs, Space.xxl, Space.xs, Space.s),
@@ -217,6 +339,7 @@ class _ToolListState extends ConsumerState<_ToolList> {
                             tool: t,
                             enabled: s.toolChosen(t.name, destructive: t.destructive),
                             blocked: s.readOnlyMode && (t.requiresApproval || t.destructive),
+                            needs: _needs(t, s, connected),
                           ),
                         ],
                       ],
@@ -231,10 +354,23 @@ class _ToolListState extends ConsumerState<_ToolList> {
   }
 }
 
+/// Apps first, then the web tools; Telegram's in their own order.
+final _categoryOrder = [
+  for (final c in ToolCategory.values)
+    if (c.onAppsScreen && !_webCategories.contains(c)) c,
+  for (final c in ToolCategory.values)
+    if (!c.onAppsScreen || _webCategories.contains(c)) c,
+];
+
+const _webCategories = {ToolCategory.web, ToolCategory.developer, ToolCategory.discover};
+
 class _ToolRow extends ConsumerWidget {
-  const _ToolRow({required this.tool, required this.enabled, this.blocked = false});
+  const _ToolRow({required this.tool, required this.enabled, this.blocked = false, this.needs});
   final TelegramTool tool;
   final bool enabled;
+
+  /// An app tool's missing connection, e.g. "Connect Gmail first".
+  final String? needs;
 
   /// Read-only mode keeps it from the assistant whatever its switch says.
   final bool blocked;
@@ -278,6 +414,7 @@ class _ToolRow extends ConsumerWidget {
                     children: [
                       _Tag(tool.cost.label, color: tool.cost == ToolCost.local ? AppColors.success : AppColors.text2),
                       if (blocked) const _Tag('Off in read-only mode', color: AppColors.text3),
+                      if (needs != null) _Tag(needs!, color: AppColors.text3),
                       if (tool.destructive)
                         const _Tag('Destructive · always asks', color: AppColors.danger)
                       else if (tool.requiresApproval)

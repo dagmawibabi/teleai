@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,8 +9,13 @@ import 'package:path_provider/path_provider.dart';
 import '../assistant/notifications.dart';
 import '../chat/data/chat_controller.dart';
 import '../chat/domain/chat_models.dart';
+import '../auth/data/auth_controller.dart';
+import '../integrations/integrations_store.dart';
+import '../telegram/data/telegram_store.dart';
 import '../settings/data/settings.dart';
 import '../voice/speaker.dart';
+import 'brief_prefs.dart';
+import 'brief_widget.dart';
 
 enum BriefKind {
   morning('Morning brief', '☀️'),
@@ -79,26 +85,78 @@ class BriefState {
       BriefState(briefs: briefs ?? this.briefs, running: idle ? null : (running ?? this.running));
 }
 
-String _briefPrompt(BriefKind kind, DateTime since, DateTime now) {
+String _briefPrompt(
+  BriefKind kind,
+  DateTime since,
+  DateTime now,
+  BriefPrefs p, {
+  required String Function(int id) titleOf,
+  required Set<String> apps,
+  bool telegram = true,
+}) {
   final hours = now.difference(since).inMinutes / 60;
+  String chats(Iterable<int> ids) => ids.map((id) => '${titleOf(id)} (chat_id $id)').join(', ');
+  final kinds = p.kinds;
+  final skipped = [
+    if (!p.privateChats) 'private chats',
+    if (!p.groups) 'groups',
+    if (!p.channels) 'channels',
+    if (!p.bots) 'bots',
+  ];
+  final mail = apps.contains('gmail') || apps.contains('outlook');
+  final calendar = apps.contains('googlecalendar') || apps.contains('outlook');
+  final work = [
+    if (apps.contains('slack')) 'Slack (slack_search_messages or unread channel messages)',
+    if (apps.contains('todoist')) 'Todoist (tasks due today or overdue)',
+    if (apps.contains('linear')) 'Linear (issues assigned to me that changed)',
+    if (apps.contains('github')) 'GitHub (github_list_notifications)',
+    if (apps.contains('notion')) 'Notion (pages edited since then, only if quick)',
+  ];
+  // Without Telegram the brief is about the apps, whatever the setting.
+  final useApps = (p.apps || !telegram) && (mail || calendar || work.isNotEmpty);
+  var step = 0;
+  String n() => '${++step}.';
+  final research = [
+    if (!telegram)
+      '${n()} Telegram isn\'t connected: skip it and use no Telegram tools.${useApps ? '' : ' No apps are connected either, so say briefly that there is nothing to brief on yet and that Telegram or apps (Gmail, Calendar, Slack…) can be connected under Settings → Apps & web.'}'
+    else if (p.scope == BriefScope.chosen)
+      '${n()} Cover only these chats: ${p.chosen.isEmpty ? '(none chosen: say so and stop)' : chats(p.chosen)}. read_messages on each with since_hours ${hours.ceil()}.'
+    else ...[
+      '${n()} get_account_overview, then get_recent_activity with since_hours ${hours.ceil()} for ${kinds.isEmpty ? 'all chats' : kinds.join(', ')}.',
+      '${n()} read_messages on the chats that matter (people waiting on me first), and on the busiest ${p.channels ? 'channels' : 'groups'}.',
+    ],
+    if (telegram) ...[
+      if (p.mentions) '${n()} get_unread_mentions for anything addressed to me.',
+      if (p.missedCalls) '${n()} list_calls with only_missed for missed calls in the window.',
+      if (p.mutedChats)
+        '${n()} Include muted chats like any other.'
+      else
+        '${n()} Skip muted chats unless something there is clearly important.',
+      if (skipped.isNotEmpty && p.scope == BriefScope.all) '${n()} Leave out ${skipped.join(', ')} entirely.',
+      if (p.excluded.isNotEmpty) '${n()} Never read, cite or mention these chats: ${chats(p.excluded)}.',
+    ],
+    if (useApps) ...[
+      if (mail) '${n()} Email (read-only): unread and important messages since then, e.g. gmail_fetch_emails with query "is:unread after:${since.toIso8601String().substring(0, 10).replaceAll('-', '/')}" and max_results 20.',
+      if (calendar) '${n()} Calendar: ${kind == BriefKind.night ? 'tomorrow' : 'today'}\'s events (googlecalendar_events_list with timeMin/timeMax, singleEvents true).',
+      if (work.isNotEmpty) '${n()} Also check ${work.join('; ')}.',
+    ],
+  ];
+  final custom = p.instructions.trim();
   return '''
-Write my ${kind == BriefKind.morning ? 'morning' : kind == BriefKind.night ? 'end-of-day' : ''} brief: an extensive, detailed briefing on everything that happened across my Telegram since ${since.toIso8601String().substring(0, 16)} (the last ${hours.toStringAsFixed(1)} hours).
+Write my ${kind == BriefKind.morning ? 'morning' : kind == BriefKind.night ? 'end-of-day' : ''} brief: a briefing on everything that happened ${!telegram ? 'in my connected apps' : p.scope == BriefScope.chosen ? 'in the chats below' : 'across my Telegram'}${useApps && telegram ? ' and my connected apps' : ''} since ${since.toIso8601String().substring(0, 16)} (the last ${hours.toStringAsFixed(1)} hours).
 
-How to research it (stay within Telegram's rate limits; this is read-only, change nothing and mark nothing read):
-1. get_account_overview, then get_recent_activity with since_hours ${hours.ceil()} for DMs, groups and channels.
-2. get_unread_mentions for anything addressed to me.
-3. read_messages on the DMs and groups that matter (people waiting on me first), and on the busiest channels.
-4. list_calls with only_missed for missed calls in the window.
-5. Skip muted chats unless something there is clearly important.
+How to research it (stay within Telegram's rate limits; this is read-only, change nothing, send nothing and mark nothing read):
+${research.join('\n')}
 
 How to write it (markdown):
+- ${p.length.instruction}
+- Tone: ${p.tone.instruction}.${p.language.trim().isEmpty ? '' : '\n- Write it in ${p.language.trim()}.'}
 - Start with a 2-3 line **TL;DR**.
-- **🔴 Needs you now**: questions or requests waiting on my reply, mentions, missed calls, deadlines. Say who, what they want, and since when.
+- **🔴 Needs you now**: questions or requests waiting on my reply, mentions, ${p.missedCalls ? 'missed calls, ' : ''}deadlines${useApps && mail ? ', emails that need an answer' : ''}. Say who, what they want, and since when.
 - **🟠 Important**: significant news, decisions and updates in groups and from people.
-- **🟡 Worth knowing**: notable channel posts, grouped by topic, a sentence or two each.
-- **⚪ Low priority**: one line per chat for the rest, or "nothing else notable".
-- ${kind == BriefKind.morning ? 'End with **Today**: what I should do first today.' : kind == BriefKind.night ? 'End with **Tomorrow**: open loops to pick up tomorrow.' : 'End with **Next steps**: what I should do next.'}
-Cite every message you mention with its post ref link so I can open it. Be specific (names, numbers, times); no filler.
+- **🟡 Worth knowing**: notable ${p.channels ? 'channel posts' : 'messages'}, grouped by topic, a sentence or two each.${useApps ? '\n- **📬 Other apps**: email, calendar${work.isNotEmpty ? ', Slack, tasks and issues' : ''}, briefly, most important first.' : ''}
+${p.length == BriefLength.short ? '' : '- **⚪ Low priority**: one line per chat for the rest, or "nothing else notable".\n'}- ${kind == BriefKind.morning ? 'End with **Today**: what I should do first today.' : kind == BriefKind.night ? 'End with **Tomorrow**: open loops to pick up tomorrow.' : 'End with **Next steps**: what I should do next.'}
+Cite every message you mention with its post ref link so I can open it. Be specific (names, numbers, times); no filler.${custom.isEmpty ? '' : '\n\nMy own instructions for briefs (follow them; they win over the above):\n$custom'}
 ''';
 }
 
@@ -129,6 +187,7 @@ class BriefStore extends Notifier<BriefState> {
       }
       list.sort((a, b) => b.at.compareTo(a.at));
       state = state.copyWith(briefs: list);
+      unawaited(BriefHomeWidget.publish(list));
     } catch (e) {
       debugPrint('[Brief] load: $e');
     }
@@ -142,6 +201,7 @@ class BriefStore extends Notifier<BriefState> {
 
   Future<void> delete(String id) async {
     state = state.copyWith(briefs: state.briefs.where((b) => b.id != id).toList());
+    unawaited(BriefHomeWidget.publish(state.briefs));
     try {
       final f = File('${(await _dir()).path}/$id.json');
       if (await f.exists()) await f.delete();
@@ -163,7 +223,19 @@ class BriefStore extends Notifier<BriefState> {
     try {
       final c = await ref
           .read(chatControllerProvider.notifier)
-          .runHidden('${kind.label} · ${now.toIso8601String().substring(0, 10)}', _briefPrompt(kind, since, now));
+          .runHidden(
+            '${kind.label} · ${now.toIso8601String().substring(0, 10)}',
+            _briefPrompt(
+              kind,
+              since,
+              now,
+              ref.read(briefPrefsProvider),
+              titleOf: (id) =>
+                  ref.read(telegramStoreProvider).chat(id)?.title ?? ref.read(briefPrefsProvider).chatTitles[id] ?? 'chat $id',
+              apps: ref.read(settingsProvider).hasComposioKey ? ref.read(integrationsProvider).connected : const {},
+              telegram: ref.read(telegramConnectedProvider),
+            ),
+          );
       final answer = c.entries.whereType<AssistantEntry>().lastOrNull;
       final b = Brief(
         id: '${now.millisecondsSinceEpoch}',
@@ -175,6 +247,7 @@ class BriefStore extends Notifier<BriefState> {
       );
       await File('${(await _dir()).path}/${b.id}.json').writeAsString(jsonEncode(b.toJson()));
       state = state.copyWith(briefs: [b, ...state.briefs], idle: true);
+      unawaited(BriefHomeWidget.publish(state.briefs));
       if (settings.notifications && kind != BriefKind.manual) {
         final text = Speaker.clean(b.text);
         await ref

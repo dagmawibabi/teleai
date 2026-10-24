@@ -11,6 +11,7 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../ai/data/model_catalog.dart';
 import '../../assistant/notifications.dart';
 import '../../assistant/watch_engine.dart';
+import '../../auth/data/auth_controller.dart';
 import '../../settings/data/settings.dart';
 import '../../settings/presentation/model_picker_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
@@ -227,6 +228,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       hasKey: settings.hasAnyKey || !settings.loaded,
                       onSettings: _openSettings,
                       seed: chat.conversation.id.hashCode,
+                      telegram: ref.watch(telegramConnectedProvider),
                     )
                   : Stack(
                       children: [
@@ -366,8 +368,12 @@ class _EmptyState extends StatelessWidget {
     required this.hasKey,
     required this.onSettings,
     required this.seed,
+    this.telegram = true,
   });
   final ValueChanged<String> onPick;
+
+  /// Telegram is connected: its ideas join the mix.
+  final bool telegram;
   final bool hasKey;
   final VoidCallback onSettings;
 
@@ -505,9 +511,35 @@ class _EmptyState extends StatelessWidget {
     (Icons.live_tv_rounded, 'When is the next episode of Severance?'),
   ];
 
+  /// Ideas that need no Telegram: apps, the cloud, code, the phone, the web.
+  static const _general = [
+    (Icons.mail_outline_rounded, 'Summarise my unread emails and tell me which need a reply.'),
+    (Icons.event_available_outlined, 'What\'s on my calendar tomorrow? Find me a free hour.'),
+    (Icons.tag_rounded, 'What did I miss in Slack today?'),
+    (Icons.sticky_note_2_outlined, 'Find my Notion notes about the launch and summarise them.'),
+    (Icons.task_alt_rounded, 'What tasks are due this week in Todoist?'),
+    (Icons.code_rounded, 'Which GitHub pull requests are waiting on my review?'),
+    (Icons.language_rounded, 'List my Cloudflare sites and their DNS records.'),
+    (Icons.inventory_2_outlined, 'What\'s in my R2 bucket? Make a share link for the newest file.'),
+    (Icons.terminal_rounded, 'Plot the last 30 days of BTC prices in E2B.'),
+    (Icons.sms_outlined, 'What\'s the latest verification code in my texts?'),
+    (Icons.call_missed_rounded, 'Who called me today that I missed?'),
+    (Icons.battery_charging_full_rounded, 'How\'s my battery and storage?'),
+    (Icons.flashlight_on_rounded, 'Turn on the flashlight.'),
+    (Icons.alarm_add_rounded, 'Set an alarm for 6:30 tomorrow.'),
+    (Icons.travel_explore_rounded, 'Search the web for this week\'s tech news and summarise it.'),
+    (Icons.menu_book_rounded, 'Find a free copy of Pride and Prejudice.'),
+    (Icons.record_voice_over_outlined, 'Read me a good-morning message in Amharic.'),
+    (Icons.brush_outlined, 'Make an image of a cosy reading nook at night.'),
+  ];
+
   List<(IconData, String)> get _suggestions {
-    final list = [..._pool]..shuffle(Random(seed));
-    return list.take(6).toList();
+    final rnd = Random(seed);
+    final general = [..._general]..shuffle(rnd);
+    if (!telegram) return general.take(6).toList();
+    final tg = [..._pool]..shuffle(rnd);
+    // Mostly Telegram, with a couple of the rest so they get noticed.
+    return [...tg.take(4), ...general.take(2)]..shuffle(rnd);
   }
 
   @override
@@ -533,7 +565,9 @@ class _EmptyState extends StatelessWidget {
                   ),
                   const SizedBox(height: Space.s),
                   Text(
-                    'Ask about your chats, channels and messages.',
+                    telegram
+                        ? 'Ask about your chats, channels, email, apps, cloud and phone.'
+                        : 'Ask about your email, calendar, apps, cloud, code and phone. Connect Telegram any time in Settings.',
                     style: context.text.bodyMedium?.copyWith(
                       color: AppColors.text2,
                     ),

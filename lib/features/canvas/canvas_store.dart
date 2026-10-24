@@ -58,9 +58,11 @@ class CanvasFolder {
   );
 }
 
-/// What an item is: a channel post, a DM or group message, a comment, or
-/// a note of the user's (or the assistant's) own.
-enum CanvasKind { post, message, comment, note }
+/// What an item is: a channel post, a DM or group message, a comment, a
+/// note of the user's (or the assistant's) own, or something from beyond
+/// Telegram: a web link, an email, a file on the phone, or an item from a
+/// connected app (a Notion page, a Slack message, an issue…).
+enum CanvasKind { post, message, comment, note, link, email, file, app }
 
 /// One thing saved into a folder. Messages keep a snapshot so the canvas
 /// reads without Telegram, and open the original when tapped.
@@ -74,10 +76,22 @@ class CanvasItem {
     this.note = '',
     this.tags = const [],
     required this.addedAt,
+    this.title = '',
+    this.url = '',
+    this.source = '',
+    this.path = '',
   });
   final String id;
   final String folderId;
   final CanvasKind kind;
+
+  /// For links, emails, files and app items: what it is called, where it
+  /// lives (a web address or a file on the phone), and where it came from
+  /// ("Gmail", "Slack", "The web"…).
+  final String title;
+  final String url;
+  final String source;
+  final String path;
   final PostSnapshot? post;
 
   /// A note's body (messages carry theirs in [post]).
@@ -99,6 +113,10 @@ class CanvasItem {
     note: note ?? this.note,
     tags: tags ?? this.tags,
     addedAt: addedAt,
+    title: title,
+    url: url,
+    source: source,
+    path: path,
   );
 
   Map<String, dynamic> toJson() => {
@@ -110,6 +128,10 @@ class CanvasItem {
     if (note.isNotEmpty) 'note': note,
     if (tags.isNotEmpty) 'tags': tags,
     'at': addedAt.toIso8601String(),
+    if (title.isNotEmpty) 'title': title,
+    if (url.isNotEmpty) 'url': url,
+    if (source.isNotEmpty) 'source': source,
+    if (path.isNotEmpty) 'path': path,
   };
 
   factory CanvasItem.fromJson(Map<String, dynamic> j) => CanvasItem(
@@ -121,6 +143,10 @@ class CanvasItem {
     note: j['note'] ?? '',
     tags: [for (final t in (j['tags'] as List? ?? const [])) '$t'],
     addedAt: DateTime.tryParse(j['at'] ?? '') ?? DateTime.now(),
+    title: j['title'] ?? '',
+    url: j['url'] ?? '',
+    source: j['source'] ?? '',
+    path: j['path'] ?? '',
   );
 }
 
@@ -305,6 +331,37 @@ class CanvasStore extends Notifier<CanvasState> {
       folderId: folderId,
       kind: CanvasKind.note,
       text: text,
+      tags: tags,
+      addedAt: DateTime.now(),
+    );
+    state = state.copyWith(items: [...state.items, i]);
+    await _save();
+    return i;
+  }
+
+  /// Saves something from beyond Telegram: a link, an email, a file or an
+  /// app item.
+  Future<CanvasItem> addSaved(
+    String folderId, {
+    required CanvasKind kind,
+    required String title,
+    String text = '',
+    String url = '',
+    String source = '',
+    String path = '',
+    String note = '',
+    List<String> tags = const [],
+  }) async {
+    final i = CanvasItem(
+      id: _uuid.v4().substring(0, 8),
+      folderId: folderId,
+      kind: kind,
+      title: title,
+      text: text,
+      url: url,
+      source: source,
+      path: path,
+      note: note,
       tags: tags,
       addedAt: DateTime.now(),
     );

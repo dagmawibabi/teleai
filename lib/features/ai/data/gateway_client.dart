@@ -17,12 +17,22 @@ class GatewayException implements Exception {
 
 /// A tool the model asked for, assembled from streamed fragments.
 class ToolCallRequest {
-  ToolCallRequest({required this.id, required this.name, required this.arguments});
+  ToolCallRequest({
+    required this.id,
+    required this.name,
+    required this.arguments,
+    this.extra,
+  });
   final String id;
   final String name;
 
   /// Raw JSON text, as the model wrote it.
   final String arguments;
+
+  /// Provider data that must go back with the call on the next turn:
+  /// Gemini's `extra_content.google.thought_signature`, without which
+  /// Gemini 3 refuses the follow-up request.
+  final Map<String, dynamic>? extra;
 }
 
 sealed class AiEvent {
@@ -48,7 +58,12 @@ class ToolCallStarted extends AiEvent {
 }
 
 class TurnEnd extends AiEvent {
-  const TurnEnd({required this.toolCalls, this.finishReason, this.reasoningDetails, this.usage});
+  const TurnEnd({
+    required this.toolCalls,
+    this.finishReason,
+    this.reasoningDetails,
+    this.usage,
+  });
   final List<ToolCallRequest> toolCalls;
   final String? finishReason;
 
@@ -68,6 +83,8 @@ class GatewayClient {
 
   static const vercelUrl = 'https://ai-gateway.vercel.sh/v1';
   static const openRouterUrl = 'https://openrouter.ai/api/v1';
+  static const geminiUrl =
+      'https://generativelanguage.googleapis.com/v1beta/openai';
 
   void cancel() {
     _cancelled = true;
@@ -77,12 +94,24 @@ class GatewayClient {
   String _keyFor(String model) {
     if (AiRoute.isOpenRouter(model)) {
       if (!settings.hasOpenRouterKey) {
-        throw GatewayException('Add an OpenRouter key in Settings to use ${AiRoute.bare(model)}.');
+        throw GatewayException(
+          'Add an OpenRouter key in Settings to use ${AiRoute.bare(model)}.',
+        );
       }
       return settings.openRouterKey.trim();
     }
+    if (AiRoute.isGemini(model)) {
+      if (!settings.hasGeminiKey) {
+        throw GatewayException(
+          'Add a Google AI Studio Gemini key in Settings to use ${AiRoute.bare(model)}.',
+        );
+      }
+      return settings.geminiKey.trim();
+    }
     if (!settings.hasVercelKey) {
-      throw GatewayException('Add a Vercel AI Gateway key in Settings to use $model.');
+      throw GatewayException(
+        'Add a Vercel AI Gateway key in Settings to use $model.',
+      );
     }
     return settings.vercelKey.trim();
   }
@@ -90,22 +119,39 @@ class GatewayClient {
   Map<String, String> _headers(String model) => {
     'Authorization': 'Bearer ${_keyFor(model)}',
     'Content-Type': 'application/json',
-    'HTTP-Referer': 'https://github.com/teleai-app',
-    'X-Title': 'TeleAI',
+    if (!AiRoute.isGemini(model)) ...{
+      'HTTP-Referer': 'https://github.com/teleai-app',
+      'X-Title': 'TeleAI',
+    },
   };
 
   Map<String, dynamic> _reasoningOptions(String model) {
     final t = settings.thinking;
     return switch (t) {
-      Thinking.off => const {'reasoning': {'enabled': false}},
-      Thinking.low || Thinking.medium || Thinking.high => {'reasoning': {'effort': t.name}},
-      Thinking.auto => AiRoute.isOpenRouter(model) ? const {'include_reasoning': true} : const {},
+      Thinking.off =>
+        AiRoute.isGemini(model)
+            ? const {'reasoning_effort': 'none'}
+            : const {
+                'reasoning': {'enabled': false},
+              },
+      Thinking.low || Thinking.medium || Thinking.high =>
+        AiRoute.isGemini(model)
+            ? {'reasoning_effort': t.name}
+            : {
+                'reasoning': {'effort': t.name},
+              },
+      Thinking.auto =>
+        AiRoute.isOpenRouter(model)
+            ? const {'include_reasoning': true}
+            : const {},
     };
   }
 
   static String errorText(String body) {
     try {
-      final j = jsonDecode(body);
+      var j = jsonDecode(body);
+      // Google AI Studio wraps its error in a one-item list.
+      if (j is List && j.isNotEmpty) j = j.first;
       final e = j['error'];
       if (e is Map && e['message'] != null) return '${e['message']}';
       if (e is String) return e;
@@ -123,14 +169,24 @@ class GatewayClient {
   }) async* {
     // `await for`, not `yield*`, so the retry signal is caught here.
     try {
-      await for (final e in _stream(model: model, messages: messages, tools: tools, plain: false)) {
+      await for (final e in _stream(
+        model: model,
+        messages: messages,
+        tools: tools,
+        plain: false,
+      )) {
         yield e;
       }
     } on _RetryPlain {
       final stripped = [
         for (final m in messages) {...m}..remove('reasoning_details'),
       ];
-      await for (final e in _stream(model: model, messages: stripped, tools: tools, plain: true)) {
+      await for (final e in _stream(
+        model: model,
+        messages: stripped,
+        tools: tools,
+        plain: true,
+      )) {
         yield e;
       }
     }
@@ -142,20 +198,25 @@ class GatewayClient {
     required List<Map<String, dynamic>> tools,
     required bool plain,
   }) async* {
-    final reasoning = plain ? const <String, dynamic>{} : _reasoningOptions(model);
-    final base = AiRoute.isOpenRouter(model) ? openRouterUrl : vercelUrl;
+    final reasoning = plain
+        ? const <String, dynamic>{}
+        : _reasoningOptions(model);
+    final base = AiRoute.isOpenRouter(model)
+        ? openRouterUrl
+        : (AiRoute.isGemini(model) ? geminiUrl : vercelUrl);
     final req = http.Request('POST', Uri.parse('$base/chat/completions'))
       ..headers.addAll(_headers(model))
       ..body = jsonEncode({
         'model': AiRoute.bare(model),
         'messages': messages,
-        if (tools.isNotEmpty) 'tools': tools,
+        if (tools.isNotEmpty)
+          'tools': AiRoute.isGemini(model) ? geminiTools(tools) : tools,
         if (tools.isNotEmpty) 'tool_choice': 'auto',
         'stream': true,
         'stream_options': {'include_usage': true},
         // OpenRouter reports each request's cost when asked.
         if (AiRoute.isOpenRouter(model)) 'usage': {'include': true},
-        if (!AiRoute.isOpenRouter(model))
+        if (!AiRoute.isOpenRouter(model) && !AiRoute.isGemini(model))
           'providerOptions': {
             'gateway': {'caching': 'auto'},
           },
@@ -167,24 +228,43 @@ class GatewayClient {
       res = await _http.send(req).timeout(const Duration(seconds: 90));
     } catch (e) {
       if (_cancelled) throw GatewayException('Stopped.');
-      throw GatewayException('Could not reach ${AiRoute.routerName(model)}: $e');
+      throw GatewayException(
+        'Could not reach ${AiRoute.routerName(model)}: $e',
+      );
     }
     if (res.statusCode != 200) {
       final body = await res.stream.bytesToString();
-      final hasDetails = messages.any((m) => m.containsKey('reasoning_details'));
-      if (res.statusCode == 400 && !plain && (reasoning.isNotEmpty || hasDetails)) throw _RetryPlain();
+      final hasDetails = messages.any(
+        (m) => m.containsKey('reasoning_details'),
+      );
+      if (res.statusCode == 400 &&
+          !plain &&
+          (reasoning.isNotEmpty || hasDetails))
+        throw _RetryPlain();
       throw GatewayException(errorText(body), status: res.statusCode);
     }
 
-    final calls = <int, ({String id, String name, StringBuffer args})>{};
+    final calls =
+        <
+          int,
+          ({
+            String id,
+            String name,
+            StringBuffer args,
+            Map<String, dynamic> extra,
+          })
+        >{};
     final details = <dynamic>[];
     String? finish;
     Map<String, dynamic>? usage;
     var buffer = '';
-    final chunks = res.stream.timeout(const Duration(seconds: 180)).transform(utf8.decoder).handleError((Object e) {
-      if (_cancelled) throw GatewayException('Stopped.');
-      throw e;
-    });
+    final chunks = res.stream
+        .timeout(const Duration(seconds: 180))
+        .transform(utf8.decoder)
+        .handleError((Object e) {
+          if (_cancelled) throw GatewayException('Stopped.');
+          throw e;
+        });
 
     await for (final chunk in chunks) {
       buffer += chunk;
@@ -207,23 +287,30 @@ class GatewayClient {
         final choices = j['choices'];
         if (choices is! List || choices.isEmpty) continue;
         final first = choices.first as Map;
-        if (first['finish_reason'] != null) finish = '${first['finish_reason']}';
+        if (first['finish_reason'] != null)
+          finish = '${first['finish_reason']}';
         final d = first['delta'] ?? first['message'];
         if (d is! Map) continue;
 
         final thinking = d['reasoning'] ?? d['reasoning_content'];
-        if (thinking is String && thinking.isNotEmpty) yield ReasoningDelta(thinking);
+        if (thinking is String && thinking.isNotEmpty)
+          yield ReasoningDelta(thinking);
         if (d['reasoning_details'] is List) {
           for (final r in d['reasoning_details'] as List) {
             _mergeDetail(details, r);
-            if (thinking == null && r is Map && r['text'] is String && (r['text'] as String).isNotEmpty) {
+            if (thinking == null &&
+                r is Map &&
+                r['text'] is String &&
+                (r['text'] as String).isNotEmpty) {
               yield ReasoningDelta(r['text'] as String);
             }
           }
         }
 
         final content = d['content'];
-        final text = content is List ? content.map((p) => p is Map ? (p['text'] ?? '') : '$p').join() : content;
+        final text = content is List
+            ? content.map((p) => p is Map ? (p['text'] ?? '') : '$p').join()
+            : content;
         if (text is String && text.isNotEmpty) yield ContentDelta(text);
 
         final toolCalls = d['tool_calls'];
@@ -233,10 +320,21 @@ class GatewayClient {
             final fn = (tc['function'] as Map?) ?? const {};
             var call = calls[index];
             if (call == null) {
-              final id = '${tc['id'] ?? 'call_${DateTime.now().microsecondsSinceEpoch}_$index'}';
+              final id =
+                  '${tc['id'] ?? 'call_${DateTime.now().microsecondsSinceEpoch}_$index'}';
               final name = '${fn['name'] ?? ''}';
-              call = calls[index] = (id: id, name: name, args: StringBuffer());
+              call = calls[index] = (
+                id: id,
+                name: name,
+                args: StringBuffer(),
+                extra: <String, dynamic>{},
+              );
               yield ToolCallStarted(index, id, name);
+            }
+            if (tc['extra_content'] is Map) {
+              call.extra.addAll(
+                Map<String, dynamic>.from(tc['extra_content'] as Map),
+              );
             }
             final args = fn['arguments'];
             if (args is String) call.args.write(args);
@@ -250,7 +348,12 @@ class GatewayClient {
     yield TurnEnd(
       toolCalls: [
         for (final i in ordered)
-          ToolCallRequest(id: calls[i]!.id, name: calls[i]!.name, arguments: calls[i]!.args.toString()),
+          ToolCallRequest(
+            id: calls[i]!.id,
+            name: calls[i]!.name,
+            arguments: calls[i]!.args.toString(),
+            extra: calls[i]!.extra.isEmpty ? null : calls[i]!.extra,
+          ),
       ],
       finishReason: finish,
       reasoningDetails: details.isEmpty ? null : details,
@@ -258,12 +361,73 @@ class GatewayClient {
     );
   }
 
+  /// Tool schemas Google AI Studio accepts. Its OpenAI-compatible endpoint
+  /// turns them into Gemini function declarations, which refuse
+  /// `additionalProperties` and an object with no properties ("should be
+  /// non-empty for OBJECT type"). Such objects become JSON text, which the
+  /// app tools open again before running.
+  static List<Map<String, dynamic>> geminiTools(
+    List<Map<String, dynamic>> tools,
+  ) => [
+    for (final t in tools)
+      {
+        ...t,
+        if (t['function'] is Map)
+          'function': {
+            ...(t['function'] as Map).cast<String, dynamic>(),
+            if ((t['function'] as Map)['parameters'] is Map)
+              'parameters': _geminiSchema(
+                (t['function'] as Map)['parameters'],
+                top: true,
+              ),
+          },
+      },
+  ];
+
+  static dynamic _geminiSchema(dynamic node, {bool top = false}) {
+    if (node is! Map) return node;
+    final m = <String, dynamic>{};
+    node.forEach((k, v) {
+      if (k == 'additionalProperties' || k == r'$schema' || k == 'title') {
+        return;
+      }
+      m['$k'] = v;
+    });
+    final type = m['type'];
+    if (type == 'object') {
+      final props = (m['properties'] as Map?) ?? const {};
+      if (props.isEmpty && !top) {
+        return {
+          'type': 'string',
+          'description':
+              '${m['description'] ?? ''} A JSON object, written as text.'
+                  .trim(),
+        };
+      }
+      m['properties'] = {
+        for (final e in props.entries) '${e.key}': _geminiSchema(e.value),
+      };
+      if (props.isEmpty) m.remove('required');
+    } else if (type == 'array') {
+      final items = m['items'];
+      m['items'] = items is Map && items.isNotEmpty
+          ? _geminiSchema(items)
+          : const {'type': 'string'};
+    }
+    return m;
+  }
+
   /// Reasoning details arrive in fragments sharing an index; text and
   /// signatures are concatenated per index, as OpenRouter expects them back.
   static void _mergeDetail(List<dynamic> details, dynamic r) {
     if (r is! Map) return;
     final index = r['index'];
-    final existing = index == null ? null : details.whereType<Map>().where((d) => d['index'] == index).firstOrNull;
+    final existing = index == null
+        ? null
+        : details
+              .whereType<Map>()
+              .where((d) => d['index'] == index)
+              .firstOrNull;
     if (existing == null) {
       details.add(Map<String, dynamic>.from(r));
       return;
@@ -276,18 +440,36 @@ class GatewayClient {
   }
 
   /// Checks a key against the router's model list endpoint or a tiny call.
-  static Future<String?> verifyKey({required AiRouter router, required String key}) async {
+  static Future<String?> verifyKey({
+    required AiRouter router,
+    required String key,
+  }) async {
     try {
       if (router == AiRouter.openRouter) {
         final r = await http
-            .get(Uri.parse('$openRouterUrl/key'), headers: {'Authorization': 'Bearer $key'})
+            .get(
+              Uri.parse('$openRouterUrl/key'),
+              headers: {'Authorization': 'Bearer $key'},
+            )
+            .timeout(const Duration(seconds: 20));
+        return r.statusCode == 200 ? null : GatewayClient.errorText(r.body);
+      }
+      if (router == AiRouter.gemini) {
+        final r = await http
+            .get(
+              Uri.parse('$geminiUrl/models'),
+              headers: {'Authorization': 'Bearer $key'},
+            )
             .timeout(const Duration(seconds: 20));
         return r.statusCode == 200 ? null : GatewayClient.errorText(r.body);
       }
       final r = await http
           .post(
             Uri.parse('$vercelUrl/chat/completions'),
-            headers: {'Authorization': 'Bearer $key', 'Content-Type': 'application/json'},
+            headers: {
+              'Authorization': 'Bearer $key',
+              'Content-Type': 'application/json',
+            },
             body: jsonEncode({
               'model': 'openai/gpt-4o-mini',
               'messages': [
@@ -297,7 +479,8 @@ class GatewayClient {
             }),
           )
           .timeout(const Duration(seconds: 30));
-      if (r.statusCode == 401 || r.statusCode == 403) return GatewayClient.errorText(r.body);
+      if (r.statusCode == 401 || r.statusCode == 403)
+        return GatewayClient.errorText(r.body);
       return null;
     } catch (e) {
       return 'Could not check the key: $e';

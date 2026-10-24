@@ -22,6 +22,8 @@ object MainEngine {
         val cache = FlutterEngineCache.getInstance()
         cache.get(ENGINE_ID)?.let { return it }
         val engine = FlutterEngine(context.applicationContext)
+        BriefWidget.attach(context, engine)
+        DeviceChannel.attach(context, engine)
         engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         cache.put(ENGINE_ID, engine)
         return engine

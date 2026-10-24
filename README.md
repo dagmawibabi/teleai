@@ -24,6 +24,17 @@ The app is designed around reviewable actions: whenever the assistant wants to s
 - Search the web with Exa when a search key is configured.
 - Use approval-gated Telegram actions, including messages, voice notes, live activity states, and other enabled tools.
 
+### Apps, cloud and code
+
+- Connect Gmail, Outlook, Google Calendar, Drive, Docs and Sheets, Slack, Notion, GitHub, Linear, Todoist, or any other Composio toolkit (**Settings → Apps & web**). Emails, events, messages, pages, files, issues and tasks show as cards; anything that sends or changes asks first.
+- Manage Cloudflare zones, DNS, cache, Workers, Pages, KV and R2 storage (browse, download, share links, upload).
+- Run Python, JavaScript, bash, R or Java in an E2B cloud sandbox, from the assistant or the built-in code editor (syntax highlighting, auto-indent, live output and charts). Start, restart and shut down the sandbox and see its history under the E2B tab.
+- Briefs: choose the chats, content, tone, length and language under **Settings → Brief settings**, and add the **Brief** widget to the Android home screen.
+- Device tools (Android): read texts, the call log and contacts; see installed apps, specs, battery and network; call, text, flashlight, volume, ringer, alarms, timers, media keys and more. Listed under **Settings → Tools → Device**; Android permissions are asked the first time a tool needs one.
+- Telegram is optional: use TeleAI with your apps, cloud and phone alone, and connect Telegram later under **Settings → Apps & web → Telegram**. Watches can follow apps ("tell me about new emails from my manager") as well as chats.
+- Search everything (conversations, canvas, files, email, the web, Telegram), and save emails, links and files to the Content Canvas.
+- Customize the home-screen widget (text size, colours, opacity, what it shows) under **Settings → Home-screen widget**.
+
 ### Personalization and background work
 
 - Choose theme, accent color, code-highlight theme, font, and chat font size with an in-app appearance preview.
@@ -80,6 +91,11 @@ These are added from the app’s Settings UI and remain local to the device.
 | OpenRouter | Optional alternative model provider. |
 | Exa | Enables the assistant’s web-search tool. |
 | ElevenLabs | Optional voices and voice transcription. |
+| Google AI Studio (Gemini) | Gemini models with your own key. |
+| Addis AI | Amharic, Afaan Oromo and Tigrinya voices. |
+| Composio | Your Gmail, Slack, Notion and other app accounts (project key, `ak_…`). |
+| Cloudflare | API token for zones, DNS, Workers, Pages, KV and R2; an R2 access key for files. |
+| E2B | Cloud code sandboxes. |
 
 ## Safety and privacy
 

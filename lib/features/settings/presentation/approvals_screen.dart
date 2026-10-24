@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../telegram/data/telegram_tools.dart';
+import '../../auth/data/auth_controller.dart';
 import '../data/settings.dart';
 
 /// When the assistant must wait for a tap before acting, and which of its
@@ -14,8 +15,11 @@ class ApprovalsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final ctl = ref.read(settingsProvider.notifier);
-    final asking = [for (final t in telegramTools) if (t.requiresApproval && !t.destructive && !t.alwaysAsk) t];
-    final always = [for (final t in telegramTools) if (t.destructive || t.alwaysAsk) t];
+    // Telegram's tools only matter once it is connected.
+    final telegram = ref.watch(telegramConnectedProvider);
+    bool shown(TelegramTool t) => telegram || !t.category.needsTelegram;
+    final asking = [for (final t in telegramTools) if (shown(t) && t.requiresApproval && !t.destructive && !t.alwaysAsk) t];
+    final always = [for (final t in telegramTools) if (shown(t) && (t.destructive || t.alwaysAsk)) t];
     final byCategory = <ToolCategory, List<TelegramTool>>{};
     for (final t in asking) {
       (byCategory[t.category] ??= []).add(t);
@@ -27,17 +31,18 @@ class ApprovalsScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(Space.l, Space.s, Space.l, Space.x4),
         children: [
           Text(
-            'Reading never asks. Anything that sends, changes or spends can wait for your tap first. '
+            'Reading never asks. Anything that sends, changes or spends can wait for your tap first: Telegram messages, '
+            'emails and Slack posts, calendar and Notion changes, Cloudflare changes, calls and texts from your phone. '
             'Pick how much the assistant may do on its own.',
             style: context.text.bodySmall?.copyWith(height: 1.4),
           ),
           const SizedBox(height: Space.l),
           for (final (mode, icon, example) in [
-            (ApprovalMode.ask, Icons.front_hand_outlined, 'You approve every message, edit, reaction and change, in chats and in watches.'),
+            (ApprovalMode.ask, Icons.front_hand_outlined, 'You approve every message, email, edit, reaction and change, in chats and in watches.'),
             (
               ApprovalMode.watches,
               Icons.visibility_outlined,
-              'A watch that replies to DMs for you does it straight away; asking in chat still shows an approval card.',
+              'A watch or routine (answering DMs, filing emails, posting a daily update) acts straight away; asking in chat still shows an approval card.',
             ),
             (ApprovalMode.never, Icons.bolt_rounded, 'The assistant acts the moment it decides to. Good for power users.'),
           ])
@@ -68,7 +73,7 @@ class ApprovalsScreen extends ConsumerWidget {
           const SizedBox(height: Space.xl),
           _Section(
             title: 'ALWAYS ASK',
-            subtitle: 'Deleting, leaving, blocking and spending Stars wait for you in every mode.',
+            subtitle: 'Deleting anything, leaving, blocking, spending Stars, texting from your phone, and running any app action wait for you in every mode.',
             color: AppColors.danger,
             tools: always,
           ),

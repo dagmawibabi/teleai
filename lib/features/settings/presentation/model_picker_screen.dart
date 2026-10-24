@@ -10,7 +10,11 @@ enum _Sort { recommended, cheapest, newest, context, name }
 /// Browse chat models from the Vercel AI Gateway and OpenRouter, with
 /// models.dev details, the way the dnd app does it.
 class ModelPickerScreen extends ConsumerStatefulWidget {
-  const ModelPickerScreen({super.key, required this.current, this.kind = ModelKind.text});
+  const ModelPickerScreen({
+    super.key,
+    required this.current,
+    this.kind = ModelKind.text,
+  });
   final String current;
   final ModelKind kind;
 
@@ -61,7 +65,11 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     // Start on the router there is a key for.
     if (s.hasOpenRouterKey && !s.hasVercelKey) _router = AiRouter.openRouter;
     if (s.hasVercelKey && !s.hasOpenRouterKey) _router = AiRouter.vercel;
-    WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(modelCatalogProvider.notifier).ensureLoaded());
+    if (s.hasGeminiKey && !s.hasVercelKey && !s.hasOpenRouterKey)
+      _router = AiRouter.gemini;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ref.read(modelCatalogProvider.notifier).ensureLoaded(),
+    );
   }
 
   Future<void> _manual() async {
@@ -77,15 +85,26 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
             TextField(
               controller: ctrl,
               autofocus: true,
-              decoration: const InputDecoration(hintText: 'provider/model or or:provider/model'),
+              decoration: const InputDecoration(
+                hintText: 'provider/model or or:provider/model',
+              ),
             ),
             const SizedBox(height: Space.s),
-            Text('Prefix with "or:" to use OpenRouter.', style: context.text.bodySmall),
+            Text(
+              'Prefix with "or:" for OpenRouter or "g:" for Google AI Studio.',
+              style: context.text.bodySmall,
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Use')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Use'),
+          ),
         ],
       ),
     );
@@ -97,10 +116,19 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     final cat = ref.watch(modelCatalogProvider);
     final settings = ref.watch(settingsProvider);
     final all = cat.ofKind(widget.kind);
-    final textKind = widget.kind == ModelKind.text || widget.kind == ModelKind.transcription;
-    final counts = {for (final r in AiRouter.values) r: all.where((m) => m.router == r).length};
-    final providers = all.where((m) => _router == null || m.router == _router).map((m) => m.provider).toSet().toList()
-      ..sort();
+    final textKind =
+        widget.kind == ModelKind.text || widget.kind == ModelKind.transcription;
+    final counts = {
+      for (final r in AiRouter.values)
+        r: all.where((m) => m.router == r).length,
+    };
+    final providers =
+        all
+            .where((m) => _router == null || m.router == _router)
+            .map((m) => m.provider)
+            .toSet()
+            .toList()
+          ..sort();
     final q = _q.toLowerCase().trim();
     final list = all.where((m) {
       if (_router != null && m.router != _router) return false;
@@ -122,23 +150,33 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
           return i < 0 ? 99 : i;
         }
         list.sort(
-          (a, b) => rank(a) != rank(b) ? rank(a).compareTo(rank(b)) : (b.releaseDate ?? '').compareTo(a.releaseDate ?? ''),
+          (a, b) => rank(a) != rank(b)
+              ? rank(a).compareTo(rank(b))
+              : (b.releaseDate ?? '').compareTo(a.releaseDate ?? ''),
         );
       case _Sort.cheapest:
         list.sort((a, b) {
           final c = a.sortPrice.compareTo(b.sortPrice);
-          return c != 0 ? c : (b.releaseDate ?? '').compareTo(a.releaseDate ?? '');
+          return c != 0
+              ? c
+              : (b.releaseDate ?? '').compareTo(a.releaseDate ?? '');
         });
       case _Sort.newest:
-        list.sort((a, b) => (b.releaseDate ?? '').compareTo(a.releaseDate ?? ''));
+        list.sort(
+          (a, b) => (b.releaseDate ?? '').compareTo(a.releaseDate ?? ''),
+        );
       case _Sort.context:
-        list.sort((a, b) => (b.contextWindow ?? 0).compareTo(a.contextWindow ?? 0));
+        list.sort(
+          (a, b) => (b.contextWindow ?? 0).compareTo(a.contextWindow ?? 0),
+        );
       case _Sort.name:
         list.sort((a, b) => a.name.compareTo(b.name));
     }
-    final missingKey = _router != null &&
+    final missingKey =
+        _router != null &&
         !switch (_router!) {
           AiRouter.openRouter => settings.hasOpenRouterKey,
+          AiRouter.gemini => settings.hasGeminiKey,
           AiRouter.vercel => settings.hasVercelKey,
         };
 
@@ -146,12 +184,21 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
       appBar: AppBar(
         title: Text(widget.kind.title),
         actions: [
-          IconButton(tooltip: 'Enter an ID', icon: const Icon(Icons.edit_outlined), onPressed: _manual),
+          IconButton(
+            tooltip: 'Enter an ID',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: _manual,
+          ),
           IconButton(
             tooltip: 'Refresh',
-            onPressed: cat.loading ? null : () => ref.read(modelCatalogProvider.notifier).refresh(),
+            onPressed: cat.loading
+                ? null
+                : () => ref.read(modelCatalogProvider.notifier).refresh(),
             icon: cat.loading
-                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -162,14 +209,28 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(Space.l, Space.xs, Space.l, Space.s),
+                padding: const EdgeInsets.fromLTRB(
+                  Space.l,
+                  Space.xs,
+                  Space.l,
+                  Space.s,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: SegmentedButton<AiRouter?>(
                     showSelectedIcon: false,
                     segments: [
-                      ButtonSegment(value: null, label: Text('All · ${all.length}', maxLines: 1)),
-                      ButtonSegment(value: AiRouter.vercel, label: Text('Vercel · ${counts[AiRouter.vercel]}', maxLines: 1)),
+                      ButtonSegment(
+                        value: null,
+                        label: Text('All · ${all.length}', maxLines: 1),
+                      ),
+                      ButtonSegment(
+                        value: AiRouter.vercel,
+                        label: Text(
+                          'Vercel · ${counts[AiRouter.vercel]}',
+                          maxLines: 1,
+                        ),
+                      ),
                       ButtonSegment(
                         value: AiRouter.openRouter,
                         label: Text(
@@ -177,6 +238,13 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.fade,
                           softWrap: false,
+                        ),
+                      ),
+                      ButtonSegment(
+                        value: AiRouter.gemini,
+                        label: Text(
+                          'Gemini · ${counts[AiRouter.gemini]}',
+                          maxLines: 1,
                         ),
                       ),
                     ],
@@ -189,11 +257,20 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.m),
+                padding: const EdgeInsets.fromLTRB(
+                  Space.l,
+                  0,
+                  Space.l,
+                  Space.m,
+                ),
                 child: TextField(
                   decoration: const InputDecoration(
                     hintText: 'Search models',
-                    prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 20,
+                      color: AppColors.text3,
+                    ),
                   ),
                   onChanged: (v) => setState(() => _q = v),
                 ),
@@ -204,41 +281,82 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: Space.l),
                   children: [
-                    _menuChip<_Sort>(
-                      Icons.sort_rounded,
-                      _sortLabels[_sort]!,
-                      [for (final s in _Sort.values) (s, _sortLabels[s]!)],
-                      (s) => setState(() => _sort = s),
-                    ),
+                    _menuChip<_Sort>(Icons.sort_rounded, _sortLabels[_sort]!, [
+                      for (final s in _Sort.values) (s, _sortLabels[s]!),
+                    ], (s) => setState(() => _sort = s)),
                     const SizedBox(width: 6),
                     _menuChip<String>(
                       Icons.business_outlined,
                       _provider ?? 'All providers',
-                      [('', 'All providers'), for (final p in providers) (p, p)],
+                      [
+                        ('', 'All providers'),
+                        for (final p in providers) (p, p),
+                      ],
                       (p) => setState(() => _provider = p.isEmpty ? null : p),
                     ),
                     const SizedBox(width: 6),
                     if (textKind) ...[
-                      _filter('Tool use', _tools, (v) => _tools = v, icon: Icons.build_outlined),
-                      _filter('Reasoning', _reasoning, (v) => _reasoning = v, icon: Icons.psychology_alt_outlined),
-                      _filter('Vision', _vision, (v) => _vision = v, icon: Icons.image_outlined),
+                      _filter(
+                        'Tool use',
+                        _tools,
+                        (v) => _tools = v,
+                        icon: Icons.build_outlined,
+                      ),
+                      _filter(
+                        'Reasoning',
+                        _reasoning,
+                        (v) => _reasoning = v,
+                        icon: Icons.psychology_alt_outlined,
+                      ),
+                      _filter(
+                        'Vision',
+                        _vision,
+                        (v) => _vision = v,
+                        icon: Icons.image_outlined,
+                      ),
                     ],
-                    _filter('Free', _free, (v) => _free = v, icon: Icons.money_off_rounded),
-                    _filter('Open weights', _openWeights, (v) => _openWeights = v, icon: Icons.lock_open_rounded),
+                    _filter(
+                      'Free',
+                      _free,
+                      (v) => _free = v,
+                      icon: Icons.money_off_rounded,
+                    ),
+                    _filter(
+                      'Open weights',
+                      _openWeights,
+                      (v) => _openWeights = v,
+                      icon: Icons.lock_open_rounded,
+                    ),
                   ],
                 ),
               ),
               if (missingKey)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.l,
+                    Space.m,
+                    Space.l,
+                    0,
+                  ),
                   child: Text(
-                    'Add your ${_router == AiRouter.openRouter ? 'OpenRouter' : 'Vercel AI Gateway'} key in Settings to use these models.',
-                    style: context.text.bodySmall?.copyWith(color: AppColors.warning),
+                    'Add your ${switch (_router) {
+                      AiRouter.openRouter => 'OpenRouter',
+                      AiRouter.gemini => 'Google AI Studio Gemini',
+                      _ => 'Vercel AI Gateway',
+                    }} key in Settings to use these models.',
+                    style: context.text.bodySmall?.copyWith(
+                      color: AppColors.warning,
+                    ),
                   ),
                 ),
               if (_tools || widget.kind != ModelKind.text)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.l,
+                    Space.m,
+                    Space.l,
+                    0,
+                  ),
                   child: Text(
                     switch (widget.kind) {
                       ModelKind.text => 'Showing models that can call tools, which TeleAI needs to read your Telegram.',
@@ -246,17 +364,29 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                       ModelKind.speech => 'Voices that read answers aloud.',
                       ModelKind.transcription => 'Chat models that accept audio, used to turn speech into text.',
                     },
-                    style: context.text.bodySmall?.copyWith(color: AppColors.text3),
+                    style: context.text.bodySmall?.copyWith(
+                      color: AppColors.text3,
+                    ),
                   ),
                 ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(Space.xl, Space.m, Space.xl, Space.xs + 2),
+                padding: const EdgeInsets.fromLTRB(
+                  Space.xl,
+                  Space.m,
+                  Space.xl,
+                  Space.xs + 2,
+                ),
                 child: Row(
                   children: [
-                    Text('${list.length} models', style: context.text.labelSmall),
+                    Text(
+                      '${list.length} models',
+                      style: context.text.labelSmall,
+                    ),
                     const Spacer(),
                     Text(
-                      widget.kind == ModelKind.image ? 'Price per image' : 'Input / output per 1M tokens',
+                      widget.kind == ModelKind.image
+                          ? 'Price per image'
+                          : 'Input / output per 1M tokens',
                       style: context.text.labelSmall,
                     ),
                   ],
@@ -267,23 +397,38 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                   padding: const EdgeInsets.all(Space.xl),
                   child: Text(
                     'Couldn\'t load models: ${cat.error}',
-                    style: context.text.bodySmall?.copyWith(color: AppColors.danger),
+                    style: context.text.bodySmall?.copyWith(
+                      color: AppColors.danger,
+                    ),
                   ),
                 ),
               Expanded(
                 child: cat.loading && all.isEmpty
-                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : RefreshIndicator(
-                        onRefresh: () => ref.read(modelCatalogProvider.notifier).refresh(),
+                        onRefresh: () =>
+                            ref.read(modelCatalogProvider.notifier).refresh(),
                         child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(Space.l, Space.xs, Space.l, Space.x4),
+                          padding: const EdgeInsets.fromLTRB(
+                            Space.l,
+                            Space.xs,
+                            Space.l,
+                            Space.x4,
+                          ),
                           itemCount: list.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: Space.s),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: Space.s),
                           itemBuilder: (ctx, i) => _ModelTile(
                             model: list[i],
                             selected: list[i].id == widget.current,
                             onTap: () => Navigator.pop(context, list[i].id),
-                            onInfo: () => showModelDetails(context, list[i], onUse: () => Navigator.pop(context, list[i].id)),
+                            onInfo: () => showModelDetails(
+                              context,
+                              list[i],
+                              onUse: () => Navigator.pop(context, list[i].id),
+                            ),
                           ),
                         ),
                       ),
@@ -295,25 +440,50 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     );
   }
 
-  Widget _filter(String label, bool value, void Function(bool) set, {IconData? icon}) => Padding(
+  Widget _filter(
+    String label,
+    bool value,
+    void Function(bool) set, {
+    IconData? icon,
+  }) => Padding(
     padding: const EdgeInsets.only(right: 6),
     child: FilterChip(
-      avatar: icon == null ? null : Icon(icon, size: 15, color: value ? AppColors.accent : AppColors.text3),
+      avatar: icon == null
+          ? null
+          : Icon(
+              icon,
+              size: 15,
+              color: value ? AppColors.accent : AppColors.text3,
+            ),
       label: Text(label),
       selected: value,
       onSelected: (v) => setState(() => set(v)),
     ),
   );
 
-  Widget _menuChip<V>(IconData icon, String label, List<(V, String)> items, ValueChanged<V> onSelect) {
+  Widget _menuChip<V>(
+    IconData icon,
+    String label,
+    List<(V, String)> items,
+    ValueChanged<V> onSelect,
+  ) {
     return PopupMenuButton<V>(
       onSelected: onSelect,
-      itemBuilder: (_) => [for (final i in items) PopupMenuItem(value: i.$1, child: Text(i.$2))],
+      itemBuilder: (_) => [
+        for (final i in items) PopupMenuItem(value: i.$1, child: Text(i.$2)),
+      ],
       child: Chip(
         avatar: Icon(icon, size: 15, color: AppColors.text3),
         label: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [Text(label), const Icon(Icons.arrow_drop_down_rounded, size: 18, color: AppColors.text3)],
+          children: [
+            Text(label),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 18,
+              color: AppColors.text3,
+            ),
+          ],
         ),
       ),
     );
@@ -321,7 +491,13 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
 }
 
 class Tag extends StatelessWidget {
-  const Tag(this.text, {super.key, this.icon, this.color = AppColors.text2, this.filled = false});
+  const Tag(
+    this.text, {
+    super.key,
+    this.icon,
+    this.color = AppColors.text2,
+    this.filled = false,
+  });
   final String text;
   final IconData? icon;
   final Color color;
@@ -338,15 +514,30 @@ class Tag extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (icon != null) ...[Icon(icon, size: 12, color: color), const SizedBox(width: 4)],
-        Text(text, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w500)),
+        if (icon != null) ...[
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 11.5,
+            color: color,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     ),
   );
 }
 
 class _ModelTile extends StatelessWidget {
-  const _ModelTile({required this.model, required this.selected, required this.onTap, required this.onInfo});
+  const _ModelTile({
+    required this.model,
+    required this.selected,
+    required this.onTap,
+    required this.onInfo,
+  });
   final ModelInfo model;
   final bool selected;
   final VoidCallback onTap;
@@ -356,6 +547,7 @@ class _ModelTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = model;
     final or = m.router == AiRouter.openRouter;
+    final gemini = m.router == AiRouter.gemini;
     return Material(
       color: selected ? AppColors.accentDim : AppColors.surface,
       borderRadius: BorderRadius.circular(Radii.l),
@@ -364,10 +556,19 @@ class _ModelTile extends StatelessWidget {
         onTap: onTap,
         onLongPress: onInfo,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.xs, Space.m),
+          padding: const EdgeInsets.fromLTRB(
+            Space.l,
+            Space.m,
+            Space.xs,
+            Space.m,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(Radii.l),
-            border: Border.all(color: selected ? AppColors.accent.withValues(alpha: 0.6) : AppColors.line),
+            border: Border.all(
+              color: selected
+                  ? AppColors.accent.withValues(alpha: 0.6)
+                  : AppColors.line,
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,32 +579,69 @@ class _ModelTile extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Flexible(child: Text(m.name, style: context.text.titleSmall?.copyWith(fontSize: 15))),
+                        Flexible(
+                          child: Text(
+                            m.name,
+                            style: context.text.titleSmall?.copyWith(
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
                         if (selected) ...[
                           const SizedBox(width: Space.s),
-                          Icon(Icons.check_circle_rounded, size: 16, color: AppColors.accent),
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: 16,
+                            color: AppColors.accent,
+                          ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(m.bareId, style: context.text.bodySmall?.copyWith(color: AppColors.text3, fontSize: 12)),
+                    Text(
+                      m.bareId,
+                      style: context.text.bodySmall?.copyWith(
+                        color: AppColors.text3,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: Space.s + 2),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        Tag(or ? 'OpenRouter' : 'Vercel', color: or ? const Color(0xFF7FB2FF) : AppColors.text2),
+                        Tag(
+                          gemini ? 'Gemini' : (or ? 'OpenRouter' : 'Vercel'),
+                          color: or
+                              ? const Color(0xFF7FB2FF)
+                              : (gemini
+                                    ? const Color(0xFF8AB4F8)
+                                    : AppColors.text2),
+                        ),
                         if (m.isFree)
-                          const Tag('Free', icon: Icons.money_off_rounded, color: AppColors.success, filled: true)
+                          const Tag(
+                            'Free',
+                            icon: Icons.money_off_rounded,
+                            color: AppColors.success,
+                            filled: true,
+                          )
                         else
                           Tag(m.priceLabel, icon: Icons.payments_outlined),
-                        if (m.contextWindow != null) Tag('${m.contextLabel} ctx'),
-                        if (m.toolCall) const Tag('Tools', icon: Icons.build_outlined),
-                        if (m.reasoning) Tag('Reasoning', color: AppColors.accent, filled: true),
+                        if (m.contextWindow != null)
+                          Tag('${m.contextLabel} ctx'),
+                        if (m.toolCall)
+                          const Tag('Tools', icon: Icons.build_outlined),
+                        if (m.reasoning)
+                          Tag(
+                            'Reasoning',
+                            color: AppColors.accent,
+                            filled: true,
+                          ),
                         if (m.vision) const Tag('Vision'),
                         if (m.audioIn) const Tag('Audio in'),
                         if (m.makesImages) const Tag('Makes images'),
-                        if (m.voices.isNotEmpty) Tag('${m.voices.length} voices'),
+                        if (m.voices.isNotEmpty)
+                          Tag('${m.voices.length} voices'),
                         if (m.openWeights) const Tag('Open weights'),
                         if (m.releaseDate != null) Tag(m.releaseDate!),
                       ],
@@ -422,7 +660,11 @@ class _ModelTile extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Details',
-                icon: const Icon(Icons.info_outline_rounded, size: 20, color: AppColors.text3),
+                icon: const Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: AppColors.text3,
+                ),
                 onPressed: onInfo,
               ),
             ],
@@ -434,8 +676,13 @@ class _ModelTile extends StatelessWidget {
 }
 
 /// Everything the catalogs and models.dev know about a model.
-Future<void> showModelDetails(BuildContext context, ModelInfo m, {VoidCallback? onUse}) {
-  String price(double? v) => v == null ? '—' : (v == 0 ? 'Free' : '${ModelInfo.usd(v)} / 1M');
+Future<void> showModelDetails(
+  BuildContext context,
+  ModelInfo m, {
+  VoidCallback? onUse,
+}) {
+  String price(double? v) =>
+      v == null ? '—' : (v == 0 ? 'Free' : '${ModelInfo.usd(v)} / 1M');
   final rows = <(String, String)>[
     ('Router', AiRoute.routerName(m.id)),
     ('Type', m.type),
@@ -443,8 +690,16 @@ Future<void> showModelDetails(BuildContext context, ModelInfo m, {VoidCallback? 
     if (m.voices.isNotEmpty) ('Voices', m.voices.join(', ')),
     ('Provider', m.provider),
     if (m.family != null) ('Family', m.family!),
-    ('Context window', m.contextWindow == null ? '—' : '${ModelInfo.tokens(m.contextWindow)} tokens'),
-    ('Max output', m.maxOutput == null ? '—' : '${ModelInfo.tokens(m.maxOutput)} tokens'),
+    (
+      'Context window',
+      m.contextWindow == null
+          ? '—'
+          : '${ModelInfo.tokens(m.contextWindow)} tokens',
+    ),
+    (
+      'Max output',
+      m.maxOutput == null ? '—' : '${ModelInfo.tokens(m.maxOutput)} tokens',
+    ),
     ('Input price', price(m.inputPrice)),
     ('Output price', price(m.outputPrice)),
     if (m.cacheReadPrice != null) ('Cached input', price(m.cacheReadPrice)),
@@ -479,10 +734,16 @@ Future<void> showModelDetails(BuildContext context, ModelInfo m, {VoidCallback? 
         children: [
           Text(m.name, style: context.text.headlineSmall),
           const SizedBox(height: Space.xs),
-          SelectableText(m.bareId, style: context.text.bodySmall?.copyWith(fontFamily: 'monospace')),
+          SelectableText(
+            m.bareId,
+            style: context.text.bodySmall?.copyWith(fontFamily: 'monospace'),
+          ),
           if (m.description.isNotEmpty) ...[
             const SizedBox(height: Space.l),
-            Text(m.description, style: context.text.bodyMedium?.copyWith(color: AppColors.text2)),
+            Text(
+              m.description,
+              style: context.text.bodyMedium?.copyWith(color: AppColors.text2),
+            ),
           ],
           const SizedBox(height: Space.xl),
           Container(
@@ -495,16 +756,26 @@ Future<void> showModelDetails(BuildContext context, ModelInfo m, {VoidCallback? 
                 for (final (i, (k, v)) in rows.indexed) ...[
                   if (i > 0) const Divider(indent: Space.l, endIndent: Space.l),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: Space.m),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Space.l,
+                      vertical: Space.m,
+                    ),
                     child: Row(
                       children: [
-                        Text(k, style: context.text.bodyMedium?.copyWith(color: AppColors.text2)),
+                        Text(
+                          k,
+                          style: context.text.bodyMedium?.copyWith(
+                            color: AppColors.text2,
+                          ),
+                        ),
                         const SizedBox(width: Space.l),
                         Expanded(
                           child: Text(
                             v,
                             textAlign: TextAlign.right,
-                            style: context.text.bodyMedium?.copyWith(fontFeatures: tabularFigures),
+                            style: context.text.bodyMedium?.copyWith(
+                              fontFeatures: tabularFigures,
+                            ),
                           ),
                         ),
                       ],

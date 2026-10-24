@@ -15,13 +15,18 @@ import '../../ai/data/media_client.dart';
 import '../../ai/data/model_catalog.dart';
 import '../../brief/brief_store.dart';
 import '../../canvas/canvas_tools.dart';
+import '../../integrations/app_toolkits.dart';
+import '../../integrations/integrations_store.dart';
 import '../../usage/usage.dart';
 import '../../assistant/memory.dart';
 import '../../assistant/notifications.dart';
 import '../../assistant/reminders.dart';
 import '../../assistant/online_alerts.dart';
 import '../../assistant/watches.dart';
+
 import 'package:handy_tdlib/api.dart' as td;
+
+import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/data/telegram_tools.dart';
@@ -426,7 +431,8 @@ class ChatController extends Notifier<ChatState> {
   }) async {
     text = text.trim();
     final c = state.conversation;
-    if ((text.isEmpty && attachments.isEmpty) || _live.containsKey(c.id)) return;
+    if ((text.isEmpty && attachments.isEmpty) || _live.containsKey(c.id))
+      return;
     final settings = ref.read(settingsProvider);
     if (settings.haptics) HapticFeedback.lightImpact();
     if (c.entries.isEmpty)
@@ -472,11 +478,7 @@ class ChatController extends Notifier<ChatState> {
     if (!settings.hasAnyKey) return null;
     final c = await _targetFor(watch);
     // One turn at a time per conversation: wait for one under way.
-    for (
-      var i = 0;
-      i < 120 && _live.containsKey(c.id);
-      i++
-    ) {
+    for (var i = 0; i < 120 && _live.containsKey(c.id); i++) {
       await Future<void>.delayed(const Duration(seconds: 1));
     }
     c.entries.add(UserEntry(id: _uuid.v4(), text: event, event: watch.name));
@@ -514,9 +516,16 @@ class ChatController extends Notifier<ChatState> {
     _stopping.remove(c.id);
     final gateway = _gateways[c.id] = GatewayClient(settings);
     final runner = ref.read(toolRunnerProvider);
+    final connected = ref.read(integrationsProvider).connected;
+    final telegram = ref.read(telegramClientProvider).authState is td.AuthorizationStateReady;
     final tools = [
       for (final t in telegramTools)
-        if (t.isOn(settings)) t.schema,
+        if (t.isOn(settings) &&
+            (telegram || !t.category.needsTelegram) &&
+            appToolReady(t, settings, connected) &&
+            cloudToolReady(t, settings) &&
+            deviceToolReady(t))
+          t.schema,
     ];
     bool stopped() => _stopping.contains(c.id);
 
@@ -595,10 +604,12 @@ class ChatController extends Notifier<ChatState> {
                 callId: call.id,
                 name: call.name,
                 arguments: call.arguments,
+                extra: call.extra,
               ),
             );
           } else {
             part.arguments = call.arguments;
+            part.extra = call.extra;
           }
         }
         _touch(c);
@@ -725,8 +736,11 @@ class ChatController extends Notifier<ChatState> {
     }
     _resolveFiles(part, c);
     Future<ToolOutput> work() async {
-      if (part.name == generateImageTool.name) return _generateImage(part.args, c);
+      if (part.name == generateImageTool.name)
+        return _generateImage(part.args, c);
       if (part.name == generateAudioTool.name) return _generateAudio(part.args);
+      if (part.name == generateAddisVoiceTool.name)
+        return _generateAddisAudio(part.args);
       if (_localTools.contains(part.name))
         return _runLocalTool(part.name, part.args, c);
       if (canvasToolNames.contains(part.name)) {
@@ -841,8 +855,17 @@ class ChatController extends Notifier<ChatState> {
           'mentions' => WatchScope.mentions,
           'folder' => WatchScope.folder,
           'schedule' => WatchScope.schedule,
+          'app' => WatchScope.app,
           _ => WatchScope.chats,
         };
+        if (scope.needsTelegram && ref.read(telegramClientProvider).authState is! td.AuthorizationStateReady) {
+          return const ToolOutput({
+            'error': 'That trigger needs Telegram, which isn\'t connected. Use a schedule or an app watch, or ask the user to connect Telegram (Settings → Apps & web → Telegram).',
+          });
+        }
+        if (scope == WatchScope.app && str('app').isEmpty) {
+          return const ToolOutput({'error': 'Give app (e.g. gmail) for an app watch.'});
+        }
         if (scope == WatchScope.chats &&
             (ids('chat_ids') ?? const []).isEmpty) {
           return const ToolOutput({
@@ -871,6 +894,8 @@ class ChatController extends Notifier<ChatState> {
             notify: a['notify'] != false,
             dailyAt: a['daily_at'] == null ? null : str('daily_at'),
             everyMinutes: integer('every_minutes')?.clamp(15, 100000),
+            app: scope == WatchScope.app ? str('app').toLowerCase() : null,
+            query: str('query'),
             // Updates come back to the conversation it was set up in.
             conversationId: c.entries.isEmpty ? null : c.id,
             createdAt: DateTime.now(),
@@ -916,12 +941,16 @@ class ChatController extends Notifier<ChatState> {
             : ToolOutput({'updated': true, ...w.describe()});
       case 'online_alert':
         final userId = integer('user_id');
-        if (userId == null) return const ToolOutput({'error': 'user_id is required'});
+        if (userId == null)
+          return const ToolOutput({'error': 'user_id is required'});
         final alerts = ref.read(onlineAlertStoreProvider.notifier);
         final store = ref.read(telegramStoreProvider);
         final name = store.userName(userId);
         if (a['remove'] == true) {
-          return ToolOutput({'removed': await alerts.remove(userId), 'who': name});
+          return ToolOutput({
+            'removed': await alerts.remove(userId),
+            'who': name,
+          });
         }
         await alerts.add(userId, name, once: a['once'] != false);
         final status = store.users[userId]?.status;
@@ -931,10 +960,13 @@ class ChatController extends Notifier<ChatState> {
           'who': name,
           'repeats': a['once'] == false,
           'online_now': status is td.UserStatusOnline,
-          if (status is td.UserStatusRecently || status is td.UserStatusLastWeek || status is td.UserStatusLastMonth || status is td.UserStatusEmpty)
-            'warning': '$name hides their exact last seen from the user, so Telegram may not report when they come online.',
-          if (!settings.keepAlive && !settings.backgroundAlways)
-            'note': '"Keep running in the background" is off, so alerts only work while the app is open.',
+          if (status is td.UserStatusRecently ||
+              status is td.UserStatusLastWeek ||
+              status is td.UserStatusLastMonth ||
+              status is td.UserStatusEmpty)
+            'warning':
+                '$name hides their exact last seen from the user, so Telegram may not report when they come online.',
+          if (!settings.keepAlive && !settings.backgroundAlways) 'note': '"Keep running in the background" is off, so alerts only work while the app is open.',
         });
       case 'list_online_alerts':
         final store = ref.read(telegramStoreProvider);
@@ -943,8 +975,11 @@ class ChatController extends Notifier<ChatState> {
             for (final x in ref.read(onlineAlertStoreProvider))
               {
                 'user_id': x.userId,
-                'who': store.users.containsKey(x.userId) ? store.userName(x.userId) : x.name,
-                'online_now': store.users[x.userId]?.status is td.UserStatusOnline,
+                'who': store.users.containsKey(x.userId)
+                    ? store.userName(x.userId)
+                    : x.name,
+                'online_now':
+                    store.users[x.userId]?.status is td.UserStatusOnline,
                 'repeats': !x.once,
                 if (x.fired > 0) 'times_alerted': x.fired,
               },
@@ -1256,7 +1291,10 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Creates an image with the model from Settings and keeps it on disk.
-  Future<ToolOutput> _generateImage(Map<String, dynamic> args, Conversation conversation) async {
+  Future<ToolOutput> _generateImage(
+    Map<String, dynamic> args,
+    Conversation conversation,
+  ) async {
     final settings = ref.read(settingsProvider);
     final prompt = '${args['prompt'] ?? ''}'.trim();
     if (prompt.isEmpty) return const ToolOutput({'error': 'prompt is empty'});
@@ -1318,11 +1356,31 @@ class ChatController extends Notifier<ChatState> {
     if (text.isEmpty) return const ToolOutput({'error': 'text is empty'});
     final media = MediaClient(settings);
     try {
+      final selectedVoice = '${args['voice'] ?? settings.aiVoice}';
+      if (settings.voiceEngine == VoiceEngine.addis) {
+        // The model may name a voice from another engine; Addis needs one
+        // of its own, and its language.
+        final addis = AddisAiClient(settings.addisKey);
+        final String language;
+        try {
+          language =
+              await addis.languageOf(selectedVoice) ??
+              await addis.languageOf(settings.aiVoice) ??
+              'am';
+        } finally {
+          addis.close();
+        }
+        return await _generateAddisAudio({
+          'text': text,
+          'voice_id': selectedVoice,
+          'language': language,
+        });
+      }
       final bytes = await media.speak(
-        model: settings.speechModel,
-        text: text,
-        voice: '${args['voice'] ?? settings.aiVoice}',
-      );
+              model: settings.speechModel,
+              text: text,
+              voice: selectedVoice,
+            );
       final dir = Directory(
         '${(await getApplicationSupportDirectory()).path}/generated',
       );
@@ -1333,7 +1391,7 @@ class ChatController extends Notifier<ChatState> {
         'kind': 'audio',
         'text': text,
         'model': settings.speechModel,
-        'voice': '${args['voice'] ?? settings.aiVoice}',
+        'voice': selectedVoice,
         'created_at': DateTime.now().toIso8601String(),
       });
       return ToolOutput({
@@ -1346,6 +1404,67 @@ class ChatController extends Notifier<ChatState> {
       return ToolOutput({'error': 'Audio generation failed: ${e.message}'});
     } finally {
       media.close();
+    }
+  }
+
+  Future<ToolOutput> _generateAddisAudio(Map<String, dynamic> args) async {
+    final settings = ref.read(settingsProvider);
+    final text = '${args['text'] ?? ''}'.trim();
+    final language = '${args['language'] ?? ''}'.trim();
+    if (!settings.hasAddisKey)
+      return const ToolOutput({
+        'error': 'Add an Addis AI key in Settings first.',
+      });
+    if (text.isEmpty || !const {'am', 'om', 'ti'}.contains(language)) {
+      return const ToolOutput({
+        'error': 'Give non-empty text and language am, om, or ti.',
+      });
+    }
+    final addis = AddisAiClient(settings.addisKey);
+    try {
+      final voices = await addis.voices(language: language);
+      final requested = '${args['voice_id'] ?? ''}'.trim();
+      // The catalog was asked for this language, so any voice in it fits.
+      final voice =
+          voices.where((v) => v.id == requested).firstOrNull ??
+          voices.where((v) => v.language == language).firstOrNull ??
+          voices.firstOrNull;
+      if (voice == null)
+        return ToolOutput({
+          'error': 'No currently available Addis AI voice for $language.',
+        });
+      final bytes = await addis.speak(
+        text: text,
+        voiceId: voice.id,
+        language: language,
+      );
+      final dir = Directory(
+        '${(await getApplicationSupportDirectory()).path}/generated',
+      );
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final file = await File('${dir.path}/${_uuid.v4()}.mp3')
+          .writeAsBytes(bytes);
+      await _writeGeneratedMeta(file, {
+        'kind': 'audio',
+        'provider': 'addis',
+        'text': text,
+        'language': language,
+        'voice': voice.id,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return ToolOutput({
+        'created': true,
+        'audio_path': file.path,
+        'voice_id': voice.id,
+        'language': language,
+        'note': 'The Addis AI audio is shown to the user and can be attached with send_message.',
+      });
+    } on GatewayException catch (e) {
+      return ToolOutput({
+        'error': 'Addis AI voice generation failed: ${e.message}',
+      });
+    } finally {
+      addis.close();
     }
   }
 
@@ -1454,6 +1573,33 @@ class ChatController extends Notifier<ChatState> {
     return line.length <= 48 ? line : '${line.substring(0, 47)}…';
   }
 
+  static const _deviceNote =
+      '- The phone itself (Device tools): device_info, device_battery, network_info, installed_apps, read_sms (verification codes, bank and delivery texts), call_log and phone_contacts read; make_call, send_sms, flashlight, vibrate, device_volume, ringer_mode, media_control, set_alarm, set_timer, open_app, open_device_settings, write_clipboard ask first. '
+      'Find a number with phone_contacts before calling or texting someone by name. Android asks the user for permission the first time a tool needs one; if it was refused, say how to allow it (Settings → Permissions).\n';
+
+  /// What the model should know about the user's Cloudflare and E2B.
+  String _cloudNote(AppSettings s) => [
+    if (s.hasE2bKey)
+      '- E2B cloud sandbox: e2b_run_code runs Python (and JS, bash, R, Java) on a Linux VM with internet ${s.e2bInternet ? 'on' : 'off'}${s.e2bKeepAlive ? ', kept between runs so state carries over' : ', fresh for every run'}. Prefer it over run_code for packages, network, large data or long jobs. e2b_upload_file / e2b_download_file move files; e2b_run_command runs shell commands.\n',
+    if (s.hasCloudflare)
+      '- Cloudflare (the user\'s own account): cloudflare_zones, cloudflare_dns_records, cloudflare_workers, cloudflare_pages, cloudflare_kv, cloudflare_api_get read; DNS changes, cache purges and KV writes ask first; deletions are destructive tools. R2 storage: r2_buckets, r2_list, r2_download, r2_share_link, r2_upload${s.r2Bucket.isEmpty ? '' : ' (default bucket ${s.r2Bucket})'}${s.hasR2Keys ? '' : ' (file tools need an R2 access key in Settings)'}.\n',
+  ].join();
+
+  /// What the model should know about the user's connected apps.
+  String _appsNote(AppSettings settings) {
+    if (!settings.hasComposioKey) {
+      return '- Email, Slack, Notion, calendars and other apps aren\'t set up. If asked, say the user can add a Composio key in Settings → AI & models and connect apps under Settings → Apps & web.\n';
+    }
+    final connected = ref.read(integrationsProvider).connected;
+    final names = [for (final slug in connected) '${appLabel(slug)} ($slug)'];
+    return '- Connected apps (through Composio, the user\'s own accounts): ${names.isEmpty ? 'none yet' : names.join(', ')}. '
+        'Use their tools (gmail_*, outlook_*, googlecalendar_*, googledrive_*, googledocs_*, googlesheets_*, slack_*, notion_*, github_*, linear_*, todoist_*) only for an app listed here; '
+        'for any other app, or one not connected, call connect_app first: it shows a Connect button, so never paste a link. '
+        'For an app action without its own tool, find_app_tools then run_app_tool. Answer only from what the tools return; never invent emails, events, files or messages. '
+        'Anything that sends, changes or deletes in an app waits for the user\'s approval like Telegram actions. '
+        'Email and app results are shown to the user as cards; summarize them instead of repeating every field.\n';
+  }
+
   String _systemPrompt({Watch? watch}) {
     final store = ref.read(telegramStoreProvider);
     final settings = ref.read(settingsProvider);
@@ -1510,7 +1656,7 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - Account: list_blocked (unblock with block_user when on), add_contact, get_stories, set_draft (leaves text in a chat's box without sending), start_bot.
 - Content Canvas (the user's own folders of saved posts, on the phone): canvas_overview first, then canvas_create_folder, canvas_add (refs from earlier results; one call per folder when classifying), canvas_add_note, canvas_move, canvas_remove, canvas_update_folder, canvas_delete_folder, canvas_export (a folder as JSON, Markdown, HTML or PDF; send the file with send_message). To "organise posts into folders", read them, decide the categories, then file each group.
 - Briefs: list_briefs and read_brief show the morning, night and on-demand briefs already written.
-- forward_message can send to several chats at once with to_chat_ids.
+${me == null ? '- Telegram is not connected, so there are no Telegram tools. If the user asks about their chats, say they can connect Telegram under Settings → Apps & web → Telegram; meanwhile help with everything else.\n' : ''}${_appsNote(settings)}${_cloudNote(settings)}${Platform.isAndroid ? _deviceNote : ''}- forward_message can send to several chats at once with to_chat_ids.
 - The user may send voice messages: you get a transcript or the audio itself. Act on what they say; the recording can also be sent on to a chat with send_voice_message.
 - The user may attach pictures, voice notes and files; read them directly. To look (again) at an attached picture from earlier, or at a photo, video thumbnail, sticker or link-preview image in a Telegram post, use view_image. To send one of them (or an image you generated) to a chat, pass its name in files. Use send_voice_message for a recorded voice-note attachment; use generate_image when they ask you to create a picture.
 - Reminders and scheduled jobs: "remind me to walk in 5 minutes" → create_reminder(text, in_minutes). Use at for a clock time and cron for repeats; add prompt when something should be done at that time (a job). list_reminders, update_reminder, delete_reminder manage them. Reminders are separate from watches, which react to new messages.
@@ -1562,6 +1708,7 @@ How to answer:
     AppSettings settings, {
     Watch? watch,
   }) async {
+    final geminiTurn = AiRoute.isGemini(settings.model);
     final out = <Map<String, dynamic>>[
       {'role': 'system', 'content': _systemPrompt(watch: watch)},
     ];
@@ -1602,6 +1749,9 @@ How to answer:
                         'name': t.name,
                         'arguments': t.arguments.isEmpty ? '{}' : t.arguments,
                       },
+                      // Gemini 3 wants its thought signature back; other
+                      // providers never send one and may refuse the field.
+                      if (t.extra != null && geminiTurn) 'extra_content': t.extra,
                     },
                 ],
               if (!old && s.reasoningDetails != null)

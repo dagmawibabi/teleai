@@ -11,6 +11,9 @@ import '../features/auth/presentation/phone_screen.dart';
 import '../features/auth/presentation/qr_screen.dart';
 import '../features/auth/presentation/unsupported_screen.dart';
 import '../features/auth/presentation/welcome_screen.dart';
+import '../features/brief/brief_screen.dart';
+import '../features/brief/brief_store.dart';
+import '../features/brief/brief_widget.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/settings/data/settings.dart';
 import '../infrastructure/telegram/telegram_client.dart';
@@ -80,6 +83,13 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     ref.listenManual(settingsProvider, (_, _) => _syncOnline());
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncOnline());
+    // Loads the briefs, which also refreshes the home-screen widget.
+    ref.read(briefStoreProvider);
+    BriefHomeWidget.listen(
+      () => appNavigatorKey.currentState?.push(
+        MaterialPageRoute<void>(builder: (_) => const BriefScreen()),
+      ),
+    );
     // TDLib itself was started with the process (see startRuntime).
   }
 
@@ -88,10 +98,17 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
     final auth = ref.watch(authStateProvider).value;
     final ui = ref.watch(authControllerProvider);
 
+    final skipped = ref.watch(settingsProvider.select((s) => s.telegramSkipped));
+    final loaded = ref.watch(settingsProvider.select((s) => s.loaded));
+
     final Widget screen;
     if (auth is td.AuthorizationStateReady) {
       screen = const ChatScreen(key: ValueKey('chat'));
-    } else if (!asksToSignIn(auth)) {
+    } else if (skipped && loaded) {
+      // Using the app without Telegram: it can be connected later from
+      // Settings → Apps & web → Telegram (TelegramSignInScreen).
+      screen = const ChatScreen(key: ValueKey('chat'));
+    } else if (!loaded || !asksToSignIn(auth)) {
       screen = const SplashScreen(key: ValueKey('splash'));
     } else if (!ui.startedSignIn &&
         auth is td.AuthorizationStateWaitPhoneNumber) {

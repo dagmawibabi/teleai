@@ -21,7 +21,9 @@ import '../../brief/brief_store.dart';
 import '../../canvas/canvas_store.dart';
 import '../../telegram/presentation/content_canvas_screen.dart';
 import '../../web/browser_screen.dart';
-import '../../telegram/presentation/search_screen.dart';
+import '../../auth/data/auth_controller.dart';
+import '../../search/everywhere_search_screen.dart';
+import '../../settings/presentation/tools_screen.dart' show AppsWebScreen;
 
 /// Past conversations, grouped by when they were last used.
 class HistoryDrawer extends ConsumerStatefulWidget {
@@ -115,6 +117,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
     final me = store.me;
     final controller = ref.read(chatControllerProvider.notifier);
     final settings = ref.watch(settingsProvider);
+    final telegram = ref.watch(telegramConnectedProvider);
     final prefs = ref.read(settingsProvider.notifier);
     // Closes the drawer and opens a page.
     void go(WidgetBuilder page) {
@@ -162,7 +165,14 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: Space.s),
                 children: [
-                  if (settings.drawerChats)
+                  if (!telegram)
+                    _DrawerActionTile(
+                      icon: Icons.send_rounded,
+                      title: 'Connect Telegram',
+                      subtitle: 'Your chats, channels, briefs and watches',
+                      onTap: () => go((_) => const AppsWebScreen()),
+                    ),
+                  if (telegram && settings.drawerChats)
                     _DrawerSection(
                       title: 'Chats',
                       open: settings.drawerChatsOpen,
@@ -171,21 +181,38 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                         for (final section in BrowseSection.values)
                           _BrowseTile(
                             section: section,
-                            count: section == BrowseSection.contacts ? null : chatsIn(store, section).length,
+                            count: section == BrowseSection.contacts
+                                ? null
+                                : chatsIn(store, section).length,
                             unread: section == BrowseSection.contacts
                                 ? 0
-                                : chatsIn(store, section).where((c) => c.hasUnread && !c.isMuted).length,
-                            onTap: () => go((_) => ChatListScreen(section: section)),
+                                : chatsIn(store, section)
+                                      .where((c) => c.hasUnread && !c.isMuted)
+                                      .length,
+                            onTap: () =>
+                                go((_) => ChatListScreen(section: section)),
                           ),
                         InkWell(
                           borderRadius: BorderRadius.circular(Radii.s),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Space.m,
+                              vertical: 11,
+                            ),
                             child: Row(
                               children: [
-                                const Icon(Icons.call_outlined, size: 20, color: AppColors.text2),
+                                const Icon(
+                                  Icons.call_outlined,
+                                  size: 20,
+                                  color: AppColors.text2,
+                                ),
                                 const SizedBox(width: Space.m + 2),
-                                Expanded(child: Text('Calls', style: context.text.bodyMedium)),
+                                Expanded(
+                                  child: Text(
+                                    'Calls',
+                                    style: context.text.bodyMedium,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -193,7 +220,9 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                         ),
                       ],
                     ),
-                  if (settings.drawerFolders && store.folders.isNotEmpty)
+                  if (telegram &&
+                      settings.drawerFolders &&
+                      store.folders.isNotEmpty)
                     _DrawerSection(
                       title: 'Folders',
                       open: settings.drawerFoldersOpen,
@@ -216,13 +245,17 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                         _DrawerActionTile(
                           icon: Icons.folder_copy_outlined,
                           title: 'Files',
-                          subtitle: 'Generated, downloaded and sandbox files',
+                          subtitle: telegram
+                              ? 'Generated, downloaded, sandbox and Telegram files'
+                              : 'Generated, downloaded and sandbox files',
                           onTap: () => go((_) => const GeneratedFilesScreen()),
                         ),
                         _DrawerActionTile(
                           icon: Icons.wb_twilight_rounded,
                           title: 'Brief',
-                          subtitle: briefSubtitle(ref.watch(briefStoreProvider).briefs),
+                          subtitle: briefSubtitle(
+                            ref.watch(briefStoreProvider).briefs,
+                          ),
                           onTap: () => go((_) => const BriefScreen()),
                         ),
                         _DrawerActionTile(
@@ -234,9 +267,12 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                         ),
                         _DrawerActionTile(
                           icon: Icons.manage_search_rounded,
-                          title: 'Search all chats',
-                          subtitle: 'Every photo, file, link or voice message',
-                          onTap: () => go((_) => const SearchScreen()),
+                          title: 'Search',
+                          subtitle: telegram
+                              ? 'Conversations, canvas, files, email and every Telegram chat'
+                              : 'Conversations, canvas, files, email and the web',
+                          onTap: () =>
+                              go((_) => const EverywhereSearchScreen()),
                         ),
                         _DrawerActionTile(
                           icon: Icons.public_rounded,
@@ -292,10 +328,12 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
             ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: Space.l),
               leading: me == null
-                  ? const CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AppColors.surface3,
-                    )
+                  ? (telegram
+                        ? const CircleAvatar(
+                            radius: 16,
+                            backgroundColor: AppColors.surface3,
+                          )
+                        : const BrandMark(size: 32))
                   : TgAvatar(
                       userId: me.id,
                       title: '${me.firstName} ${me.lastName}',
@@ -303,13 +341,15 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                     ),
               title: Text(
                 me == null
-                    ? 'Telegram'
+                    ? (telegram ? 'Telegram' : 'TeleAI')
                     : '${me.firstName} ${me.lastName}'.trim(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                store.chatsLoaded
+                !telegram
+                    ? 'Telegram not connected'
+                    : store.chatsLoaded
                     ? '${store.chats.values.where((c) => c.isListed).length} chats'
                     : 'Loading chats…',
                 style: context.text.bodySmall,
@@ -327,7 +367,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                 },
               ),
               onTap: me == null
-                  ? null
+                  ? (telegram ? null : () => go((_) => const AppsWebScreen()))
                   : () async {
                       final nav = Navigator.of(context);
                       nav.pop();
@@ -360,7 +400,12 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
 
 /// A collapsible drawer section whose open state is remembered.
 class _DrawerSection extends StatelessWidget {
-  const _DrawerSection({required this.title, required this.open, required this.onOpen, required this.children});
+  const _DrawerSection({
+    required this.title,
+    required this.open,
+    required this.onOpen,
+    required this.children,
+  });
   final String title;
   final bool open;
   final ValueChanged<bool> onOpen;
@@ -375,7 +420,10 @@ class _DrawerSection extends StatelessWidget {
     shape: const Border(),
     collapsedShape: const Border(),
     title: Text(title, style: context.text.titleSmall),
-    trailing: Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppColors.text3),
+    trailing: Icon(
+      open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+      color: AppColors.text3,
+    ),
     children: children,
   );
 }
@@ -468,7 +516,10 @@ class _HistoryTile extends StatelessWidget {
               if (running)
                 const Padding(
                   padding: EdgeInsets.only(left: Space.s),
-                  child: SizedBox.square(dimension: 12, child: CircularProgressIndicator(strokeWidth: 1.6)),
+                  child: SizedBox.square(
+                    dimension: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.6),
+                  ),
                 )
               else if (summary.unread > 0 && !selected)
                 Container(

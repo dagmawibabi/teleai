@@ -50,6 +50,7 @@ class Speaker extends ChangeNotifier {
   String get engineLabel => switch (_settings.voiceEngine) {
     VoiceEngine.device => 'Device voice',
     VoiceEngine.ai => 'AI voice',
+    VoiceEngine.addis => 'Addis AI',
     VoiceEngine.elevenLabs => 'ElevenLabs',
   };
 
@@ -61,7 +62,11 @@ class Speaker extends ChangeNotifier {
     final voice = _settings.deviceVoice;
     if (voice.isNotEmpty) {
       final match = deviceVoices.where((v) => v['name'] == voice).firstOrNull;
-      if (match != null) await tts.setVoice({'name': match['name']!, 'locale': match['locale'] ?? ''});
+      if (match != null)
+        await tts.setVoice({
+          'name': match['name']!,
+          'locale': match['locale'] ?? '',
+        });
     }
     return tts;
   }
@@ -70,10 +75,16 @@ class Speaker extends ChangeNotifier {
     try {
       final tts = _tts ??= FlutterTts();
       final raw = await tts.getVoices;
-      deviceVoices = [
-        for (final v in (raw as List? ?? const []))
-          if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'},
-      ]..sort((a, b) => '${a['locale']}${a['name']}'.compareTo('${b['locale']}${b['name']}'));
+      deviceVoices =
+          [
+            for (final v in (raw as List? ?? const []))
+              if (v is Map)
+                {for (final e in v.entries) '${e.key}': '${e.value}'},
+          ]..sort(
+            (a, b) => '${a['locale']}${a['name']}'.compareTo(
+              '${b['locale']}${b['name']}',
+            ),
+          );
       notifyListeners();
     } catch (e) {
       debugPrint('[Speaker] voices: $e');
@@ -92,7 +103,10 @@ class Speaker extends ChangeNotifier {
 
   /// Sentences grouped into parts of about [size] characters.
   static List<String> chunk(String text, {int size = 380}) {
-    final sentences = RegExp(r'[^.!?\n]+[.!?]*\s*|\n').allMatches(text).map((m) => m[0]!.trim()).where((s) => s.isNotEmpty);
+    final sentences = RegExp(r'[^.!?\n]+[.!?]*\s*|\n')
+        .allMatches(text)
+        .map((m) => m[0]!.trim())
+        .where((s) => s.isNotEmpty);
     final out = <String>[];
     var current = StringBuffer();
     for (final s in sentences) {
@@ -106,7 +120,11 @@ class Speaker extends ChangeNotifier {
     return out;
   }
 
-  Future<void> play(String text, {String title = 'Answer', String? sourceId}) async {
+  Future<void> play(
+    String text, {
+    String title = 'Answer',
+    String? sourceId,
+  }) async {
     await stop();
     final words = clean(text);
     if (words.isEmpty) return;
@@ -157,23 +175,50 @@ class Speaker extends ChangeNotifier {
     final s = _settings;
     final text = parts[i];
     final eleven = s.voiceEngine == VoiceEngine.elevenLabs;
+    final addis = s.voiceEngine == VoiceEngine.addis;
     final Uint8List bytes;
-    if (eleven) {
-      if (!s.hasElevenKey) throw Exception('Add an ElevenLabs key in Settings.');
-      if (s.elevenVoiceId.isEmpty) throw Exception('Pick an ElevenLabs voice in Settings.');
-      bytes = await ElevenLabsClient(s.elevenKey).speak(voiceId: s.elevenVoiceId, text: text, model: s.elevenModel);
+    if (addis) {
+      if (!s.hasAddisKey) throw Exception('Add an Addis AI key in Settings.');
+      final addisClient = AddisAiClient(s.addisKey);
+      try {
+        // aiVoice is shared with the AI voice engine, so it may hold a
+        // gateway voice name rather than an Addis voice.
+        final language = await addisClient.languageOf(s.aiVoice);
+        if (language == null)
+          throw Exception('Pick an Addis AI voice in Settings.');
+        bytes = await addisClient.speak(
+          voiceId: s.aiVoice,
+          language: language,
+          text: text,
+          speed: speed,
+        );
+      } finally {
+        addisClient.close();
+      }
+    } else if (eleven) {
+      if (!s.hasElevenKey)
+        throw Exception('Add an ElevenLabs key in Settings.');
+      if (s.elevenVoiceId.isEmpty)
+        throw Exception('Pick an ElevenLabs voice in Settings.');
+      bytes = await ElevenLabsClient(s.elevenKey)
+          .speak(voiceId: s.elevenVoiceId, text: text, model: s.elevenModel);
     } else {
-      bytes = await MediaClient(s).speak(model: s.speechModel, text: text, voice: s.aiVoice);
+      bytes = await MediaClient(s)
+          .speak(model: s.speechModel, text: text, voice: s.aiVoice);
     }
     // List prices per character: ElevenLabs Flash about $0.05 and the
     // other models about $0.10 per 1,000; AI voices about $15 per million.
-    final perChar = eleven ? (s.elevenModel.contains('flash') ? 0.00005 : 0.0001) : 0.000015;
+    final perChar = eleven
+        ? (s.elevenModel.contains('flash') ? 0.00005 : 0.0001)
+        : (addis ? 0.00001 : 0.000015);
     _ref
         .read(usageProvider.notifier)
         .add(
           UsageEvent(
             at: DateTime.now(),
-            model: eleven ? 'elevenlabs/${s.elevenModel}' : s.speechModel,
+            model: eleven
+                ? 'elevenlabs/${s.elevenModel}'
+                : (addis ? 'addis/voices-2' : s.speechModel),
             modality: Modality.speech,
             conversationTitle: title,
             units: text.length,
@@ -189,10 +234,12 @@ class Speaker extends ChangeNotifier {
     notifyListeners();
     try {
       final bytes = await _fetch(i);
-      if (i + 1 < parts.length) unawaited(_fetch(i + 1).then((_) {}, onError: (_) {}));
+      if (i + 1 < parts.length)
+        unawaited(_fetch(i + 1).then((_) {}, onError: (_) {}));
       if (gen != _gen) return true;
       final dir = await getTemporaryDirectory();
-      final file = await File('${dir.path}/teleai_voice_$i.mp3').writeAsBytes(bytes);
+      final file = await File('${dir.path}/teleai_voice_$i.mp3')
+          .writeAsBytes(bytes);
       final player = _player ??= AudioPlayer();
       _done = Completer<void>();
       final sub = player.onPlayerComplete.listen((_) {
@@ -235,9 +282,11 @@ class Speaker extends ChangeNotifier {
       _done = Completer<void>();
       // awaitSpeakCompletion makes speak() return once the part is spoken
       // or stopped.
-      unawaited(tts.speak(parts[i]).whenComplete(() {
-        if (!(_done?.isCompleted ?? true)) _done!.complete();
-      }));
+      unawaited(
+        tts.speak(parts[i]).whenComplete(() {
+          if (!(_done?.isCompleted ?? true)) _done!.complete();
+        }),
+      );
       await _done!.future;
       // A pause stops the device voice mid-part; it replays the part.
       if (paused && gen == _gen) {

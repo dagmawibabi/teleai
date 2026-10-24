@@ -1,5 +1,9 @@
 import '../../assistant/presentation/watches_screen.dart';
+import '../../brief/brief_prefs.dart';
 import '../../brief/brief_screen.dart';
+import '../../brief/brief_settings_screen.dart';
+import '../../brief/brief_widget.dart';
+import '../../brief/widget_customizer_screen.dart';
 import '../../telegram/presentation/scheduled_screen.dart';
 
 import 'package:flutter/material.dart';
@@ -13,12 +17,12 @@ import '../../../core/config/app_config.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../ai/data/model_catalog.dart';
+import '../../integrations/integrations_store.dart';
 import '../../assistant/watch_engine.dart';
 import '../../assistant/watches.dart';
 import '../../auth/data/auth_controller.dart';
 import '../../auth/presentation/welcome_screen.dart';
 import '../../telegram/data/telegram_store.dart';
-import '../../telegram/data/telegram_tools.dart';
 import '../../telegram/presentation/chat_profile_screen.dart';
 import '../../telegram/presentation/tg_avatar.dart';
 import '../../usage/usage.dart';
@@ -391,8 +395,12 @@ class SettingsHub extends ConsumerWidget {
           (e) => e.at.isAfter(DateTime(today.year, today.month, today.day)),
         )
         .fold<double>(0, (n, e) => n + e.cost);
-    final toolsOn = telegramTools.where((t) => t.isOn(s)).length;
+    final allTools = [for (final g in ToolGroup.values) ...toolsIn(g)];
+    final toolsOn = allTools.where((t) => t.isOn(s)).length;
+    final services = [s.hasComposioKey, s.hasExaKey, s.hasCloudflare, s.hasE2bKey].where((x) => x).length;
+    final connectedApps = ref.watch(integrationsProvider).connected.length;
     final me = store.me;
+    final telegram = ref.watch(telegramConnectedProvider);
     final username = me == null ? null : store.username(me.usernames);
 
     Widget tile(
@@ -475,7 +483,7 @@ class SettingsHub extends ConsumerWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(Radii.xl),
                   onTap: me == null
-                      ? null
+                      ? (telegram ? null : () => _open(context, const AppsWebScreen()))
                       : () async {
                           final chat = await ref
                               .read(telegramClientProvider)
@@ -516,11 +524,13 @@ class SettingsHub extends ConsumerWidget {
                                 style: context.text.titleLarge,
                               ),
                               Text(
-                                [
-                                  if (username != null) '@$username',
-                                  if (me != null && me.phoneNumber.isNotEmpty)
-                                    '+${me.phoneNumber}',
-                                ].join(' · '),
+                                !telegram
+                                    ? 'Telegram not connected · tap to connect'
+                                    : [
+                                        if (username != null) '@$username',
+                                        if (me != null && me.phoneNumber.isNotEmpty)
+                                          '+${me.phoneNumber}',
+                                      ].join(' · '),
                                 style: context.text.bodySmall,
                               ),
                             ],
@@ -561,9 +571,17 @@ class SettingsHub extends ConsumerWidget {
                   Icons.handyman_outlined,
                   'Tools',
                   s.readOnlyMode
-                      ? 'Read-only mode · $toolsOn of ${telegramTools.length} on'
-                      : '$toolsOn of ${telegramTools.length} on',
+                      ? 'Read-only mode · $toolsOn of ${allTools.length} on'
+                      : 'Telegram, apps & web, device · $toolsOn of ${allTools.length} on',
                   () => _open(context, const ToolsScreen()),
+                ),
+                tile(
+                  Icons.hub_outlined,
+                  'Apps & web',
+                  services == 0
+                      ? 'Composio apps, Exa, Cloudflare, E2B'
+                      : '${s.hasComposioKey ? '$connectedApps apps connected · ' : ''}$services of 4 services set up',
+                  () => _open(context, const AppsWebScreen()),
                 ),
                 SwitchListTile(
                   secondary: Container(
@@ -598,68 +616,26 @@ class SettingsHub extends ConsumerWidget {
                   () => _open(context, const UsageScreen()),
                 ),
               ]),
-              group('Automation', [
-                tile(
-                  Icons.visibility_outlined,
-                  'Watches & routines',
-                  '$watches on',
-                  () => _open(context, const WatchesScreen()),
-                ),
-                tile(
-                  Icons.timer_outlined,
-                  'Response timing',
-                  _watchTimingLabel(s.watchResponseDelaySeconds),
-                  () => _open(context, const WatchTimingScreen()),
-                ),
+              group('Telegram', [
+                if (!telegram)
+                  tile(
+                    Icons.send_rounded,
+                    'Connect Telegram',
+                    'Ask about your chats, reply, run channels; briefs and watches follow your chats',
+                    () => _open(context, const AppsWebScreen()),
+                  )
+                else ...[
+                  tile(
+                    Icons.send_rounded,
+                    'Telegram account',
+                    'Connection, presence, read receipts, downloads',
+                    () => _open(context, const AppsWebScreen()),
+                  ),
                 tile(
                   Icons.schedule_send_outlined,
                   'Scheduled messages',
                   'Everything waiting to go out, by date or chat',
                   () => _open(context, const ScheduledScreen()),
-                ),
-                tile(
-                  Icons.wb_twilight_rounded,
-                  'Briefs',
-                  s.briefsScheduled
-                      ? 'Morning ${s.briefMorning} · night ${s.briefNight}'
-                      : 'On demand only',
-                  () => _open(context, const BriefScreen()),
-                ),
-                tile(
-                  Icons.front_hand_outlined,
-                  'Approvals',
-                  s.readOnlyMode
-                      ? 'Read-only: nothing is sent'
-                      : s.approvalMode.label,
-                  () => _open(context, const ApprovalsScreen()),
-                ),
-                tile(
-                  Icons.verified_user_outlined,
-                  'Permissions',
-                  'What Android lets TeleAI do in the background',
-                  () => _open(context, const PermissionsScreen()),
-                ),
-                tile(
-                  SettingsSection.proactivity.icon,
-                  SettingsSection.proactivity.title,
-                  !s.proactive
-                      ? 'Paused'
-                      : '${s.notifications ? 'Notifications on' : 'Notifications off'} · ${s.keepAlive || s.backgroundAlways ? 'runs in background' : 'only while open'}',
-                  () => _open(
-                    context,
-                    const SettingsScreen(section: SettingsSection.proactivity),
-                  ),
-                ),
-              ]),
-              group('Experience', [
-                tile(
-                  SettingsSection.voice.icon,
-                  SettingsSection.voice.title,
-                  '${s.voiceEngine.label} voice · ${s.dictationEngine.label} dictation',
-                  () => _open(
-                    context,
-                    const SettingsScreen(section: SettingsSection.voice),
-                  ),
                 ),
                 tile(
                   SettingsSection.media.icon,
@@ -676,17 +652,6 @@ class SettingsHub extends ConsumerWidget {
                     const SettingsScreen(section: SettingsSection.media),
                   ),
                 ),
-                tile(
-                  SettingsSection.appearance.icon,
-                  SettingsSection.appearance.title,
-                  '${s.accent.label} accent · ${s.chatFontSize.toStringAsFixed(0)} pt chat text',
-                  () => _open(
-                    context,
-                    const SettingsScreen(section: SettingsSection.appearance),
-                  ),
-                ),
-              ]),
-              group('Account & app', [
                 tile(
                   Icons.shield_outlined,
                   'Privacy & security',
@@ -714,6 +679,97 @@ class SettingsHub extends ConsumerWidget {
                     const SettingsScreen(section: SettingsSection.account),
                   ),
                 ),
+                ],
+              ]),
+              group('Automation', [
+                tile(
+                  Icons.visibility_outlined,
+                  'Watches & routines',
+                  telegram ? '$watches on · Telegram, schedules and apps' : '$watches on · schedules and apps',
+                  () => _open(context, const WatchesScreen()),
+                ),
+                tile(
+                  Icons.timer_outlined,
+                  'Response timing',
+                  _watchTimingLabel(s.watchResponseDelaySeconds),
+                  () => _open(context, const WatchTimingScreen()),
+                ),
+                tile(
+                  Icons.wb_twilight_rounded,
+                  'Briefs',
+                  s.briefsScheduled
+                      ? 'Morning ${s.briefMorning} · night ${s.briefNight}'
+                      : 'On demand only',
+                  () => _open(context, const BriefScreen()),
+                ),
+                tile(
+                  Icons.tune_rounded,
+                  'Brief settings',
+                  () {
+                    final p = ref.watch(briefPrefsProvider);
+                    final chats = p.scope == BriefScope.chosen
+                        ? '${p.chosen.length} chosen chats'
+                        : 'All chats${p.excluded.isEmpty ? '' : ' but ${p.excluded.length}'}';
+                    return '$chats · ${p.tone.label.toLowerCase()} · ${p.length.label.toLowerCase()}';
+                  }(),
+                  () => _open(context, const BriefSettingsScreen()),
+                ),
+                tile(
+                  Icons.front_hand_outlined,
+                  'Approvals',
+                  s.readOnlyMode
+                      ? 'Read-only: nothing is sent'
+                      : s.approvalMode.label,
+                  () => _open(context, const ApprovalsScreen()),
+                ),
+                tile(
+                  Icons.verified_user_outlined,
+                  'Permissions',
+                  'Background, notifications, and the phone\'s texts, calls and contacts',
+                  () => _open(context, const PermissionsScreen()),
+                ),
+                tile(
+                  SettingsSection.proactivity.icon,
+                  SettingsSection.proactivity.title,
+                  !s.proactive
+                      ? 'Paused'
+                      : '${s.notifications ? 'Notifications on' : 'Notifications off'} · ${s.keepAlive || s.backgroundAlways ? 'runs in background' : 'only while open'}',
+                  () => _open(
+                    context,
+                    const SettingsScreen(section: SettingsSection.proactivity),
+                  ),
+                ),
+              ]),
+              group('Experience', [
+                tile(
+                  SettingsSection.voice.icon,
+                  SettingsSection.voice.title,
+                  '${s.voiceEngine.label} voice · ${s.dictationEngine.label} dictation',
+                  () => _open(
+                    context,
+                    const SettingsScreen(section: SettingsSection.voice),
+                  ),
+                ),
+                tile(
+                  SettingsSection.appearance.icon,
+                  SettingsSection.appearance.title,
+                  '${s.accent.label} accent · ${s.chatFontSize.toStringAsFixed(0)} pt chat text',
+                  () => _open(
+                    context,
+                    const SettingsScreen(section: SettingsSection.appearance),
+                  ),
+                ),
+                tile(
+                  Icons.widgets_outlined,
+                  'Home-screen widget',
+                  () {
+                    final l = ref.watch(widgetLookProvider);
+                    return '${l.theme.label} · ${l.fontSize.toStringAsFixed(1)} sp text · ${l.content.label}';
+                  }(),
+                  () => _open(context, const WidgetCustomizerScreen()),
+                ),
+              ]),
+              group('Account & app', [
                 tile(
                   Icons.auto_stories_outlined,
                   'Show the introduction again',
@@ -722,12 +778,13 @@ class SettingsHub extends ConsumerWidget {
                 ),
               ]),
               const SizedBox(height: Space.l),
+              if (telegram)
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _signOut(context, ref),
                   icon: const Icon(Icons.logout_rounded),
-                  label: const Text('Sign out'),
+                  label: const Text('Sign out of Telegram'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.danger,
                     side: const BorderSide(color: AppColors.danger),

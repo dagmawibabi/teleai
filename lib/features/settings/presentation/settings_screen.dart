@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
 import '../../brief/brief_store.dart';
 import '../../canvas/canvas_store.dart';
 import '../../chat/data/chat_controller.dart';
-import '../../telegram/presentation/translate_sheet.dart' show translateLanguages;
+import '../../telegram/presentation/translate_sheet.dart'
+    show translateLanguages;
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +19,6 @@ import '../../ai/data/media_client.dart';
 import '../../ai/data/model_catalog.dart';
 import '../../auth/data/auth_controller.dart';
 import '../../telegram/data/telegram_store.dart';
-import '../../telegram/data/telegram_tools.dart';
 import '../../telegram/presentation/tg_avatar.dart';
 import '../../voice/player_sheet.dart';
 import '../../voice/speaker.dart';
@@ -24,10 +27,8 @@ import 'model_picker_screen.dart';
 import 'approvals_screen.dart';
 import 'permissions_screen.dart';
 import 'settings_hub.dart';
-import 'tools_screen.dart';
 import '../../assistant/memory.dart';
 import '../../assistant/presentation/memory_screen.dart';
-import '../../usage/usage_screen.dart';
 
 /// The pages Settings opens into.
 enum SettingsSection {
@@ -126,9 +127,6 @@ class SettingsScreen extends ConsumerWidget {
     final me = store.me;
     final limiter = ref.watch(telegramClientProvider).limiter;
     final model = cat.byId(s.model);
-    final enabledTools = telegramTools
-        .where((t) => t.isOn(s))
-        .length;
     final section = this.section;
     if (section == null) return const SettingsHub();
 
@@ -162,16 +160,6 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _KeyTile(
-                      title: 'Exa web search',
-                      subtitle: 'Exa → API keys. Lets the assistant search the web when you ask.',
-                      value: s.exaKey,
-                      onSave: ctl.setExaKey,
-                      verify: (k) async =>
-                          k.trim().isEmpty ? 'Paste an Exa key first.' : null,
-                      help: Uri.parse('https://dashboard.exa.ai/api-keys'),
-                    ),
-                    const Divider(indent: Space.l, endIndent: Space.l),
-                    _KeyTile(
                       title: 'OpenRouter (optional)',
                       subtitle: 'openrouter.ai → Keys',
                       value: s.openRouterKey,
@@ -184,21 +172,15 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _KeyTile(
-                      title: 'ElevenLabs (optional)',
-                      subtitle: 'For ElevenLabs voices and dictation',
-                      value: s.elevenKey,
-                      onSave: ctl.setElevenKey,
-                      verify: (k) async {
-                        try {
-                          await ElevenLabsClient(k).voices();
-                          return null;
-                        } catch (e) {
-                          return '$e';
-                        }
-                      },
-                      help: Uri.parse(
-                        'https://elevenlabs.io/app/settings/api-keys',
+                      title: 'Google AI Studio Gemini (optional)',
+                      subtitle: 'AI Studio → API keys. Lists the models available to your key.',
+                      value: s.geminiKey,
+                      onSave: ctl.setGeminiKey,
+                      verify: (k) => GatewayClient.verifyKey(
+                        router: AiRouter.gemini,
+                        key: k,
                       ),
+                      help: Uri.parse('https://aistudio.google.com/app/apikey'),
                     ),
                   ],
                 ),
@@ -291,42 +273,6 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.handyman_outlined),
-                      title: const Text('Tools'),
-                      subtitle: Text(
-                        '$enabledTools of ${telegramTools.length} on',
-                        style: context.text.bodySmall,
-                      ),
-                      trailing: const Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.text3,
-                      ),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const ToolsScreen(),
-                        ),
-                      ),
-                    ),
-                    const Divider(indent: 56),
-                    ListTile(
-                      leading: const Icon(Icons.insights_outlined),
-                      title: const Text('Usage & cost'),
-                      subtitle: Text(
-                        'Tokens and spend by chat, model and modality',
-                        style: context.text.bodySmall,
-                      ),
-                      trailing: const Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.text3,
-                      ),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const UsageScreen(),
-                        ),
-                      ),
-                    ),
-                    const Divider(indent: 56),
-                    ListTile(
                       leading: const Icon(Icons.bookmarks_outlined),
                       title: const Text('Memory'),
                       subtitle: Text(
@@ -347,18 +293,124 @@ class SettingsScreen extends ConsumerWidget {
                     const _InstructionsField(),
                   ],
                 ),
+                const _Header('What it may do'),
+                _Card(
+                  children: [
+                    SwitchListTile(
+                      secondary: const Icon(Icons.lock_outline_rounded),
+                      title: const Text('Read-only mode'),
+                      subtitle: Text(
+                        'Only tools that read: nothing is sent, changed or deleted',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.readOnlyMode,
+                      onChanged: ctl.setReadOnlyMode,
+                    ),
+                    const Divider(indent: 56),
+                    ListTile(
+                      leading: const Icon(Icons.front_hand_outlined),
+                      title: const Text('Approvals'),
+                      subtitle: Text(
+                        s.approvalMode.explanation,
+                        style: context.text.bodySmall,
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.text3,
+                      ),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ApprovalsScreen(),
+                        ),
+                      ),
+                    ),
+                    const Divider(indent: 56),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.mark_chat_read_outlined),
+                      title: const Text('Mark chats read when it reads them'),
+                      subtitle: Text(
+                        'Off: the assistant reads without touching your unread counts',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.aiReadOnView,
+                      onChanged: ctl.setAiReadOnView,
+                    ),
+                    const Divider(indent: 56),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.reply_rounded),
+                      title: const Text('Mark chats read when it replies'),
+                      subtitle: Text(
+                        'Like Telegram does when you answer',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.aiReadOnReply,
+                      onChanged: ctl.setAiReadOnReply,
+                    ),
+                  ],
+                ),
+                const _Header('Model'),
+                _Card(
+                  children: [
+                    _ModelTile(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      title: 'Chat model',
+                      model: cat.byId(s.model),
+                      id: s.model,
+                      onTap: () => _pick(
+                        context,
+                        ref,
+                        ModelKind.text,
+                        s.model,
+                        ctl.setModel,
+                      ),
+                    ),
+                    const Divider(indent: Space.l, endIndent: Space.l),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        Space.l,
+                        Space.m,
+                        Space.l,
+                        Space.l,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Thinking', style: context.text.titleSmall),
+                          const SizedBox(height: Space.m),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<Thinking>(
+                              showSelectedIcon: false,
+                              segments: [
+                                for (final t in Thinking.values)
+                                  ButtonSegment(value: t, label: Text(t.label)),
+                              ],
+                              selected: {s.thinking},
+                              onSelectionChanged: (v) =>
+                                  ctl.setThinking(v.first),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
                 const _Header('Answers'),
                 _Card(
                   children: [
                     ListTile(
                       leading: const Icon(Icons.short_text_rounded),
                       title: const Text('Answer length'),
-                      subtitle: Text(s.answerStyle.explanation, style: context.text.bodySmall),
+                      subtitle: Text(
+                        s.answerStyle.explanation,
+                        style: context.text.bodySmall,
+                      ),
                       trailing: DropdownButton<AnswerStyle>(
                         value: s.answerStyle,
                         underline: const SizedBox(),
                         items: [
-                          for (final v in AnswerStyle.values) DropdownMenuItem(value: v, child: Text(v.label)),
+                          for (final v in AnswerStyle.values)
+                            DropdownMenuItem(value: v, child: Text(v.label)),
                         ],
                         onChanged: (v) {
                           if (v != null) ctl.setAnswerStyle(v);
@@ -369,13 +421,20 @@ class SettingsScreen extends ConsumerWidget {
                     ListTile(
                       leading: const Icon(Icons.language_rounded),
                       title: const Text('Answer language'),
-                      subtitle: Text('The language the assistant writes in', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'The language the assistant writes in',
+                        style: context.text.bodySmall,
+                      ),
                       trailing: DropdownButton<String>(
                         value: s.answerLanguage,
                         underline: const SizedBox(),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Same as mine')),
-                          for (final v in translateLanguages.values) DropdownMenuItem(value: v, child: Text(v)),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Same as mine'),
+                          ),
+                          for (final v in translateLanguages.values)
+                            DropdownMenuItem(value: v, child: Text(v)),
                         ],
                         onChanged: (v) {
                           if (v != null) ctl.setAnswerLanguage(v);
@@ -403,7 +462,10 @@ class SettingsScreen extends ConsumerWidget {
                     SwitchListTile(
                       secondary: const Icon(Icons.psychology_outlined),
                       title: const Text('Show thinking'),
-                      subtitle: Text('The model\'s reasoning above its answer', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'The model\'s reasoning above its answer',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.showThinking,
                       onChanged: ctl.setShowThinking,
                     ),
@@ -430,8 +492,8 @@ class SettingsScreen extends ConsumerWidget {
                       title: const Text('Proactive assistant'),
                       subtitle: Text(
                         s.proactive
-                            ? 'Watches and routines run on their own'
-                            : 'All watches and routines are paused',
+                            ? 'Watches, app watches, routines, jobs and briefs run on their own'
+                            : 'All watches, routines and scheduled briefs are paused',
                         style: context.text.bodySmall,
                       ),
                       value: s.proactive,
@@ -441,7 +503,7 @@ class SettingsScreen extends ConsumerWidget {
                       secondary: const Icon(Icons.notifications_none_rounded),
                       title: const Text('Notifications'),
                       subtitle: Text(
-                        'What watches find, and approvals they wait for',
+                        'What watches and routines find, reminders, briefs, and approvals they wait for',
                         style: context.text.bodySmall,
                       ),
                       value: s.notifications,
@@ -462,7 +524,12 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       if (s.quietHours)
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.m),
+                          padding: const EdgeInsets.fromLTRB(
+                            Space.l,
+                            0,
+                            Space.l,
+                            Space.m,
+                          ),
                           child: Row(
                             children: [
                               for (final (start, label, value) in [
@@ -483,7 +550,9 @@ class SettingsScreen extends ConsumerWidget {
                                       if (t == null) return;
                                       final v =
                                           '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-                                      start ? ctl.setQuietStart(v) : ctl.setQuietEnd(v);
+                                      start
+                                          ? ctl.setQuietStart(v)
+                                          : ctl.setQuietEnd(v);
                                     },
                                     child: Text('$label $value'),
                                   ),
@@ -494,6 +563,7 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                     ],
+                    if (ref.watch(telegramConnectedProvider))
                     SwitchListTile(
                       secondary: const Icon(Icons.alternate_email_rounded),
                       title: const Text('When I\'m mentioned'),
@@ -508,7 +578,7 @@ class SettingsScreen extends ConsumerWidget {
                       secondary: const Icon(Icons.nightlight_outlined),
                       title: const Text('Keep running in the background'),
                       subtitle: Text(
-                        'A quiet ongoing notification keeps watches listening after you leave the app',
+                        'A quiet ongoing notification keeps watches, app watches and routines running after you leave the app',
                         style: context.text.bodySmall,
                       ),
                       value: s.keepAlive,
@@ -542,21 +612,73 @@ class SettingsScreen extends ConsumerWidget {
                     ListTile(
                       leading: const Icon(Icons.front_hand_outlined),
                       title: const Text('Approvals'),
-                      subtitle: Text(s.approvalMode.label, style: context.text.bodySmall),
+                      subtitle: Text(
+                        s.approvalMode.label,
+                        style: context.text.bodySmall,
+                      ),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ApprovalsScreen())),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ApprovalsScreen(),
+                        ),
+                      ),
                     ),
                     ListTile(
                       leading: const Icon(Icons.verified_user_outlined),
                       title: const Text('Permissions'),
-                      subtitle: Text('Battery, notifications, alarms, microphone, location', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'Battery, notifications, alarms, microphone, location, texts, calls, contacts',
+                        style: context.text.bodySmall,
+                      ),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PermissionsScreen())),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const PermissionsScreen(),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
               if (section == SettingsSection.voice) ...[
+                const _Header('Voice keys'),
+                _Card(
+                  children: [
+                    _KeyTile(
+                      title: 'Addis AI',
+                      subtitle: 'Addis Voices 2 for Amharic, Afaan Oromo and Tigrinya.',
+                      value: s.addisKey,
+                      onSave: ctl.setAddisKey,
+                      verify: (k) async {
+                        try {
+                          await AddisAiClient(k).voices();
+                          return null;
+                        } catch (e) {
+                          return '$e';
+                        }
+                      },
+                      help: Uri.parse('https://addisassistant.com/api-keys'),
+                    ),
+                    const Divider(indent: Space.l, endIndent: Space.l),
+                    _KeyTile(
+                      title: 'ElevenLabs',
+                      subtitle: 'For ElevenLabs voices and dictation',
+                      value: s.elevenKey,
+                      onSave: ctl.setElevenKey,
+                      verify: (k) async {
+                        try {
+                          await ElevenLabsClient(k).voices();
+                          return null;
+                        } catch (e) {
+                          return '$e';
+                        }
+                      },
+                      help: Uri.parse(
+                        'https://elevenlabs.io/app/settings/api-keys',
+                      ),
+                    ),
+                  ],
+                ),
                 const _Header('Read aloud'),
                 _Card(
                   children: [
@@ -664,6 +786,43 @@ class SettingsScreen extends ConsumerWidget {
                             context,
                             ref,
                             cat.byId(s.speechModel)?.voices ?? const [],
+                          ),
+                        ),
+                      ],
+                      VoiceEngine.addis => [
+                        if (!s.hasAddisKey)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              Space.l,
+                              0,
+                              Space.l,
+                              Space.m,
+                            ),
+                            child: Text(
+                              'Add your Addis AI key above to use Addis Voices 2.',
+                              style: context.text.bodySmall?.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          ),
+                        ListTile(
+                          leading: const Icon(Icons.record_voice_over_outlined),
+                          title: const Text('Addis AI voice'),
+                          subtitle: Text(
+                            s.aiVoice.isEmpty
+                                ? 'Choose a live catalog voice'
+                                : s.aiVoice,
+                            style: context.text.bodySmall,
+                          ),
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppColors.text3,
+                          ),
+                          enabled: s.hasAddisKey,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const _AddisVoicesScreen(),
+                            ),
                           ),
                         ),
                       ],
@@ -849,21 +1008,30 @@ class SettingsScreen extends ConsumerWidget {
                     SwitchListTile(
                       secondary: const Icon(Icons.forum_outlined),
                       title: const Text('Chats'),
-                      subtitle: Text('DMs, groups, channels, bots, contacts and calls', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'DMs, groups, channels, bots, contacts and calls',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.drawerChats,
                       onChanged: ctl.setDrawerChats,
                     ),
                     SwitchListTile(
                       secondary: const Icon(Icons.folder_outlined),
                       title: const Text('Folders'),
-                      subtitle: Text('Your Telegram chat folders', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'Your Telegram chat folders',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.drawerFolders,
                       onChanged: ctl.setDrawerFolders,
                     ),
                     SwitchListTile(
                       secondary: const Icon(Icons.widgets_outlined),
                       title: const Text('Tools'),
-                      subtitle: Text('Files, Brief, Content Canvas, Search all chats and Browser', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'Files, Brief, Content Canvas, Search all chats and Browser',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.drawerTools,
                       onChanged: ctl.setDrawerTools,
                     ),
@@ -962,7 +1130,10 @@ class SettingsScreen extends ConsumerWidget {
                     SwitchListTile(
                       secondary: const Icon(Icons.web_asset_outlined),
                       title: const Text('Link previews'),
-                      subtitle: Text('The site card under messages with links', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'The site card under messages with links',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.showLinkPreviews,
                       onChanged: ctl.setShowLinkPreviews,
                     ),
@@ -970,14 +1141,23 @@ class SettingsScreen extends ConsumerWidget {
                     ListTile(
                       leading: const Icon(Icons.translate_rounded),
                       title: const Text('Translate into'),
-                      subtitle: Text('For the Translate button on messages', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'For the Translate button on messages',
+                        style: context.text.bodySmall,
+                      ),
                       trailing: DropdownButton<String>(
                         value: s.translateTo,
                         underline: const SizedBox(),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Phone language')),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Phone language'),
+                          ),
                           for (final e in translateLanguages.entries)
-                            DropdownMenuItem(value: e.key, child: Text(e.value)),
+                            DropdownMenuItem(
+                              value: e.key,
+                              child: Text(e.value),
+                            ),
                         ],
                         onChanged: (v) {
                           if (v != null) ctl.setTranslateTo(v);
@@ -992,7 +1172,10 @@ class SettingsScreen extends ConsumerWidget {
                     SwitchListTile(
                       secondary: const Icon(Icons.schedule_rounded),
                       title: const Text('24-hour clock'),
-                      subtitle: Text(s.use24h ? '14:05' : '2:05 PM', style: context.text.bodySmall),
+                      subtitle: Text(
+                        s.use24h ? '14:05' : '2:05 PM',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.use24h,
                       onChanged: ctl.setUse24h,
                     ),
@@ -1000,7 +1183,10 @@ class SettingsScreen extends ConsumerWidget {
                     SwitchListTile(
                       secondary: const Icon(Icons.account_circle_outlined),
                       title: const Text('Avatars in groups'),
-                      subtitle: Text('Who wrote each message, at a glance', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'Who wrote each message, at a glance',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.groupAvatars,
                       onChanged: ctl.setGroupAvatars,
                     ),
@@ -1008,7 +1194,10 @@ class SettingsScreen extends ConsumerWidget {
                     SwitchListTile(
                       secondary: const Icon(Icons.view_headline_rounded),
                       title: const Text('Compact chat lists'),
-                      subtitle: Text('Smaller rows, more chats on screen', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'Smaller rows, more chats on screen',
+                        style: context.text.bodySmall,
+                      ),
                       value: s.compactList,
                       onChanged: ctl.setCompactList,
                     ),
@@ -1075,7 +1264,11 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(Icons.circle, size: 14, color: AppColors.success),
+                      secondary: const Icon(
+                        Icons.circle,
+                        size: 14,
+                        color: AppColors.success,
+                      ),
                       title: const Text('Appear online while using the app'),
                       subtitle: Text(
                         'Needed to see who is typing and live online status. You go offline as soon as you leave the app.',
@@ -1109,7 +1302,9 @@ class SettingsScreen extends ConsumerWidget {
                     const Divider(indent: 56),
                     SwitchListTile(
                       secondary: const Icon(Icons.visibility_outlined),
-                      title: const Text('Mark read when the assistant opens a chat'),
+                      title: const Text(
+                        'Mark read when the assistant opens a chat',
+                      ),
                       subtitle: Text(
                         'When it reads a chat\'s messages (summaries, watches, searches). Off: the assistant reads '
                         'invisibly and chats stay unread.',
@@ -1124,9 +1319,15 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.delete_sweep_outlined, color: AppColors.danger),
+                      leading: const Icon(
+                        Icons.delete_sweep_outlined,
+                        color: AppColors.danger,
+                      ),
                       title: const Text('Delete all AI conversations'),
-                      subtitle: Text('Your Telegram is not touched', style: context.text.bodySmall),
+                      subtitle: Text(
+                        'Your Telegram is not touched',
+                        style: context.text.bodySmall,
+                      ),
                       onTap: () async {
                         if (!await confirmAction(
                           context,
@@ -1136,25 +1337,40 @@ class SettingsScreen extends ConsumerWidget {
                         )) {
                           return;
                         }
-                        await ref.read(chatControllerProvider.notifier).deleteAll();
-                        if (context.mounted) showSnack(context, 'Conversations deleted');
+                        await ref
+                            .read(chatControllerProvider.notifier)
+                            .deleteAll();
+                        if (context.mounted)
+                          showSnack(context, 'Conversations deleted');
                       },
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.wb_twilight_rounded, color: AppColors.danger),
+                      leading: const Icon(
+                        Icons.wb_twilight_rounded,
+                        color: AppColors.danger,
+                      ),
                       title: const Text('Delete all briefs'),
                       onTap: () async {
-                        if (!await confirmAction(context, title: 'Delete every brief?', message: 'Saved briefs go.', action: 'Delete')) {
+                        if (!await confirmAction(
+                          context,
+                          title: 'Delete every brief?',
+                          message: 'Saved briefs go.',
+                          action: 'Delete',
+                        )) {
                           return;
                         }
                         await ref.read(briefStoreProvider.notifier).deleteAll();
-                        if (context.mounted) showSnack(context, 'Briefs deleted');
+                        if (context.mounted)
+                          showSnack(context, 'Briefs deleted');
                       },
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.dashboard_customize_outlined, color: AppColors.danger),
+                      leading: const Icon(
+                        Icons.dashboard_customize_outlined,
+                        color: AppColors.danger,
+                      ),
                       title: const Text('Empty the Content Canvas'),
                       onTap: () async {
                         if (!await confirmAction(
@@ -1166,7 +1382,8 @@ class SettingsScreen extends ConsumerWidget {
                           return;
                         }
                         await ref.read(canvasProvider.notifier).clear();
-                        if (context.mounted) showSnack(context, 'Canvas emptied');
+                        if (context.mounted)
+                          showSnack(context, 'Canvas emptied');
                       },
                     ),
                     const Divider(indent: 56),
@@ -1187,7 +1404,8 @@ class SettingsScreen extends ConsumerWidget {
                           return;
                         }
                         await ctl.resetPreferences();
-                        if (context.mounted) showSnack(context, 'Preferences reset');
+                        if (context.mounted)
+                          showSnack(context, 'Preferences reset');
                       },
                     ),
                   ],
@@ -1546,15 +1764,176 @@ class _ElevenVoicesScreenState extends ConsumerState<_ElevenVoicesScreen> {
                           style: context.text.bodySmall,
                         ),
                         trailing: selected
-                            ? Icon(
-                                Icons.check_rounded,
-                                color: AppColors.accent,
-                              )
+                            ? Icon(Icons.check_rounded, color: AppColors.accent)
                             : null,
                         onTap: () async {
                           await ref
                               .read(settingsProvider.notifier)
                               .setElevenVoice(v.id, v.name);
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Addis Voices 2 catalog. It is fetched each time so unavailable voices are
+/// never offered as durable settings.
+class _AddisVoicesScreen extends ConsumerStatefulWidget {
+  const _AddisVoicesScreen();
+  @override
+  ConsumerState<_AddisVoicesScreen> createState() => _AddisVoicesScreenState();
+}
+
+class _AddisVoicesScreenState extends ConsumerState<_AddisVoicesScreen> {
+  List<AddisVoice>? _voices;
+  String? _error;
+  String _q = '';
+  final _player = AudioPlayer();
+  String? _playing;
+
+  @override
+  void initState() {
+    super.initState();
+    AddisAiClient(ref.read(settingsProvider).addisKey).voices().then(
+      (v) {
+        if (mounted) setState(() => _voices = v);
+      },
+      onError: (Object e) {
+        if (mounted) setState(() => _error = '$e');
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  /// Samples made by speaking a line, kept for the screen's life.
+  final _made = <String, Uint8List>{};
+  String? _loading;
+
+  /// Plays the catalog's preview, Addis's preview, or (when there is
+  /// neither) a short line spoken by the voice in its own language.
+  Future<void> _sample(AddisVoice voice) async {
+    if (_playing == voice.id || _loading == voice.id) {
+      await _player.stop();
+      setState(() => _playing = _loading = null);
+      return;
+    }
+    await _player.stop();
+    setState(() {
+      _playing = null;
+      _loading = voice.id;
+    });
+    final addis = AddisAiClient(ref.read(settingsProvider).addisKey);
+    try {
+      var url = voice.previewUrl;
+      if (url == null || url.isEmpty) url = await addis.previewUrl(voice.id);
+      final Source source;
+      if (url != null && url.isNotEmpty) {
+        source = UrlSource(url);
+      } else {
+        final lang = AddisAiClient.languages.contains(voice.language) ? voice.language : (await addis.languageOf(voice.id) ?? 'am');
+        final bytes = _made[voice.id] ??= await addis.speak(
+          text: AddisAiClient.sampleText(lang),
+          voiceId: voice.id,
+          language: lang,
+        );
+        source = BytesSource(bytes, mimeType: 'audio/mpeg');
+      }
+      if (!mounted || _loading != voice.id) return;
+      setState(() {
+        _loading = null;
+        _playing = voice.id;
+      });
+      await _player.play(source);
+      _player.onPlayerComplete.first.then((_) {
+        if (mounted && _playing == voice.id) setState(() => _playing = null);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = null);
+      showSnack(context, 'Could not play ${voice.name}: $e', icon: Icons.error_outline_rounded);
+    } finally {
+      addis.close();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = ref.watch(settingsProvider).aiVoice;
+    final q = _q.toLowerCase();
+    final voices = (_voices ?? const <AddisVoice>[])
+        .where(
+          (v) =>
+              q.isEmpty ||
+              '${v.name} ${v.id} ${v.traits}'.toLowerCase().contains(q),
+        )
+        .toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Addis AI voices')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
+            child: TextField(
+              onChanged: (v) => setState(() => _q = v),
+              decoration: const InputDecoration(
+                isDense: true,
+                hintText: 'Search Amharic, Afaan Oromo or Tigrinya voices',
+                prefixIcon: Icon(Icons.search_rounded, size: 20),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _error != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(Space.xl),
+                      child: Text(_error!),
+                    ),
+                  )
+                : _voices == null
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                : ListView.builder(
+                    itemCount: voices.length,
+                    itemBuilder: (_, i) {
+                      final v = voices[i];
+                      return ListTile(
+                        leading: IconButton(
+                          tooltip: 'Listen',
+                          icon: _loading == v.id
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Icon(
+                                  _playing == v.id
+                                      ? Icons.stop_circle_outlined
+                                      : Icons.play_circle_outline_rounded,
+                                ),
+                          onPressed: () => _sample(v),
+                        ),
+                        title: Text(v.name),
+                        subtitle: Text(
+                          '${v.id} · ${v.traits}',
+                          style: context.text.bodySmall,
+                        ),
+                        trailing: selected == v.id
+                            ? Icon(Icons.check_rounded, color: AppColors.accent)
+                            : null,
+                        onTap: () async {
+                          await ref
+                              .read(settingsProvider.notifier)
+                              .setAiVoice(v.id);
                           if (context.mounted) Navigator.pop(context);
                         },
                       );

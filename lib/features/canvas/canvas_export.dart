@@ -65,10 +65,11 @@ final _when = DateFormat('d MMM y, HH:mm');
 
 String _itemTitle(CanvasItem i) => switch (i.post) {
   final p? => [p.chatTitle, if (p.sender != null && p.sender!.isNotEmpty) p.sender!].join(' · '),
+  null when i.title.isNotEmpty => [i.title, if (i.source.isNotEmpty) i.source].join(' · '),
   null => 'Note',
 };
 
-String _itemBody(CanvasItem i) => i.post?.text ?? i.text;
+String _itemBody(CanvasItem i) => i.post?.text ?? [i.text, if (i.url.isNotEmpty) i.url].where((x) => x.isNotEmpty).join('\n');
 
 String _itemDate(CanvasItem i) => _when.format(i.post?.date ?? i.addedAt);
 
@@ -120,6 +121,9 @@ Map<String, dynamic> _json(List<_Section> sections) => {
                 'text': p.text,
               } else
                 'text': i.text,
+              if (i.title.isNotEmpty) 'title': i.title,
+              if (i.url.isNotEmpty) 'url': i.url,
+              if (i.source.isNotEmpty) 'source': i.source,
               if (i.note.isNotEmpty) 'note': i.note,
               if (i.tags.isNotEmpty) 'tags': i.tags,
               'saved': i.addedAt.toIso8601String(),

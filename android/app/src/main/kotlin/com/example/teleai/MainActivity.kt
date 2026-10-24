@@ -1,6 +1,8 @@
 package com.example.teleai
 
 import android.content.Context
+import android.content.Intent
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 
@@ -13,4 +15,33 @@ class MainActivity : FlutterActivity() {
     override fun provideFlutterEngine(context: Context): FlutterEngine = MainEngine.ensure(context)
 
     override fun shouldDestroyEngineWithHost(): Boolean = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        DeviceChannel.activity = this
+        BriefWidget.handle(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        DeviceChannel.activity = this
+    }
+
+    override fun onDestroy() {
+        if (DeviceChannel.activity === this) DeviceChannel.activity = null
+        super.onDestroy()
+    }
+
+    /// Answers to the device tools' permission requests.
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (!DeviceChannel.onPermissionResult(requestCode, permissions, grantResults)) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
+    }
+
+    /// The brief widget was tapped while the app was open.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        BriefWidget.handle(intent)
+    }
 }

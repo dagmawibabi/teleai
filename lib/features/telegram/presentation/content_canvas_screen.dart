@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
 import '../../canvas/canvas_export.dart';
@@ -370,6 +371,12 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
                     onTap: () => Navigator.pop(c, 'note'),
                   ),
                   ListTile(
+                    leading: const Icon(Icons.link_rounded),
+                    title: const Text('Link'),
+                    subtitle: const Text('A web page to keep'),
+                    onTap: () => Navigator.pop(c, 'link'),
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.auto_awesome_outlined),
                     title: const Text('Ask AI to fill it'),
                     subtitle: const Text('e.g. "the last 10 posts from a channel about this"'),
@@ -387,6 +394,12 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
             case 'note':
               final text = await _askName(context, 'New note', hint: 'Write something');
               if (text != null) await store.addNote(folder.id, text);
+            case 'link':
+              final url = await _askName(context, 'Add a link', hint: 'https://…');
+              if (url == null || !context.mounted) return;
+              final link = url.startsWith('http') ? url : 'https://$url';
+              final title = await _askName(context, 'Its title', initial: Uri.tryParse(link)?.host ?? link);
+              await store.addSaved(folder.id, kind: CanvasKind.link, title: title ?? link, url: link, source: 'The web');
             case 'ai':
               final ask = await _askName(context, 'What should go in ${folder.name}?', hint: 'Describe it');
               if (ask == null || !context.mounted) return;
@@ -425,8 +438,9 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
                   Text('Nothing on the canvas yet', style: context.text.titleMedium),
                   const SizedBox(height: Space.s),
                   Text(
-                    'Make folders and save posts, DMs and comments into them (long-press a message → Save to Content '
-                    'Canvas), or ask the assistant: "organise the last 10 posts from this channel into folders".',
+                    'Make folders and save anything into them: notes, links, emails, files, app items, and Telegram posts '
+                    'and messages (long-press one → Save to Content Canvas). Or ask the assistant: "save my unread '
+                    'newsletters here" or "organise the last 10 posts from this channel into folders".',
                     textAlign: TextAlign.center,
                     style: context.text.bodySmall,
                   ),
@@ -475,6 +489,9 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
 
   static bool _matches(CanvasItem i, String q) =>
       i.text.toLowerCase().contains(q) ||
+      i.title.toLowerCase().contains(q) ||
+      i.source.toLowerCase().contains(q) ||
+      i.url.toLowerCase().contains(q) ||
       i.note.toLowerCase().contains(q) ||
       i.tags.any((t) => t.toLowerCase().contains(q)) ||
       (i.post?.text.toLowerCase().contains(q) ?? false) ||
@@ -537,6 +554,16 @@ class _ItemCard extends ConsumerWidget {
     final i = item;
     final p = i.post;
     final body = p?.text ?? i.text;
+    final saved = const {CanvasKind.link, CanvasKind.email, CanvasKind.file, CanvasKind.app}.contains(i.kind);
+    void openSaved() {
+      if (i.path.isNotEmpty && File(i.path).existsSync()) {
+        OpenFilex.open(i.path);
+      } else if (i.url.isNotEmpty) {
+        launchUrl(Uri.parse(i.url), mode: LaunchMode.externalApplication);
+      } else {
+        _editNote(context, ref);
+      }
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: Space.s),
       child: Material(
@@ -544,7 +571,7 @@ class _ItemCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(Radii.l),
         child: InkWell(
           borderRadius: BorderRadius.circular(Radii.l),
-          onTap: picking ? onPick : (p == null ? () => _editNote(context, ref) : () => showPost(context, p)),
+          onTap: picking ? onPick : (saved ? openSaved : (p == null ? () => _editNote(context, ref) : () => showPost(context, p))),
           onLongPress: onPick,
           child: Container(
             padding: const EdgeInsets.all(Space.m),
@@ -560,11 +587,25 @@ class _ItemCard extends ConsumerWidget {
                     if (p != null)
                       TgAvatar(chatId: p.chatId, title: p.chatTitle, size: 26)
                     else
-                      const Icon(Icons.sticky_note_2_outlined, size: 22, color: AppColors.warning),
+                      Icon(
+                        switch (i.kind) {
+                          CanvasKind.link => Icons.link_rounded,
+                          CanvasKind.email => Icons.mail_outline_rounded,
+                          CanvasKind.file => Icons.insert_drive_file_outlined,
+                          CanvasKind.app => Icons.apps_rounded,
+                          _ => Icons.sticky_note_2_outlined,
+                        },
+                        size: 22,
+                        color: saved ? AppColors.accent : AppColors.warning,
+                      ),
                     const SizedBox(width: Space.s),
                     Expanded(
                       child: Text(
-                        p == null ? 'Note' : [p.chatTitle, ?p.sender].join(' · '),
+                        p != null
+                            ? [p.chatTitle, ?p.sender].join(' · ')
+                            : saved
+                            ? [i.title, if (i.source.isNotEmpty) i.source].join(' · ')
+                            : 'Note',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: context.text.titleSmall,
@@ -632,7 +673,7 @@ class _ItemCard extends ConsumerWidget {
   }
 
   Future<void> _editNote(BuildContext context, WidgetRef ref) async {
-    final isNote = item.post == null;
+    final isNote = item.kind == CanvasKind.note;
     final v = await _askName(
       context,
       isNote ? 'Edit note' : 'Note on this item',

@@ -15,7 +15,9 @@ class Track {
   const Track({
     required this.chatId,
     required this.messageId,
-    required this.file,
+    this.file,
+    this.localPath,
+    this.identifier,
     required this.title,
     required this.subtitle,
     required this.seconds,
@@ -25,14 +27,35 @@ class Track {
 
   final int chatId;
   final int messageId;
-  final td.File file;
+
+  /// Telegram media is downloaded through [file]; Files-screen audio has
+  /// already been saved locally and uses [localPath] instead.
+  final td.File? file;
+  final String? localPath;
+  final String? identifier;
   final String title;
   final String subtitle;
   final int seconds;
   final bool voice;
   final td.Minithumbnail? cover;
 
-  String get key => '$chatId:$messageId';
+  String get key => identifier ?? '$chatId:$messageId';
+
+  factory Track.localFile({
+    required String path,
+    required String title,
+    required String subtitle,
+    bool voice = false,
+  }) => Track(
+    chatId: 0,
+    messageId: 0,
+    localPath: path,
+    identifier: 'file:$path',
+    title: title,
+    subtitle: subtitle,
+    seconds: 0,
+    voice: voice,
+  );
 
   static Track? of(td.Message m, TelegramStore store) {
     switch (m.content) {
@@ -52,7 +75,9 @@ class Track {
           messageId: m.id,
           file: audio.audio,
           title: audio.title.isNotEmpty ? audio.title : audio.fileName,
-          subtitle: audio.performer.isNotEmpty ? audio.performer : (store.chat(m.chatId)?.title ?? ''),
+          subtitle: audio.performer.isNotEmpty
+              ? audio.performer
+              : (store.chat(m.chatId)?.title ?? ''),
           seconds: audio.duration,
           voice: false,
           cover: audio.albumCoverMinithumbnail,
@@ -90,9 +115,11 @@ class AudioCenter extends ChangeNotifier {
   double speed = 1;
   String? error;
 
-  bool isCurrent(int chatId, int messageId) => current?.chatId == chatId && current?.messageId == messageId;
+  bool isCurrent(int chatId, int messageId) =>
+      current?.chatId == chatId && current?.messageId == messageId;
 
-  int get _index => current == null ? -1 : queue.indexWhere((t) => t.key == current!.key);
+  int get _index =>
+      current == null ? -1 : queue.indexWhere((t) => t.key == current!.key);
   bool get hasNext => _index >= 0 && _index < queue.length - 1;
   bool get hasPrevious => _index > 0;
 
@@ -109,7 +136,9 @@ class AudioCenter extends ChangeNotifier {
     error = null;
     playing = true;
     notifyListeners();
-    final path = await _ref.read(fileLoaderProvider).download(track.file, priority: 32);
+    final path =
+        track.localPath ??
+        await _ref.read(fileLoaderProvider).download(track.file!, priority: 32);
     if (current?.key != track.key) return;
     loading = false;
     if (path == null) {
@@ -192,4 +221,6 @@ class AudioCenter extends ChangeNotifier {
   }
 }
 
-final audioCenterProvider = ChangeNotifierProvider<AudioCenter>((ref) => AudioCenter(ref));
+final audioCenterProvider = ChangeNotifierProvider<AudioCenter>(
+  (ref) => AudioCenter(ref),
+);

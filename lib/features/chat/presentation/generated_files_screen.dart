@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../app/theme.dart';
+import '../../media/audio_center.dart';
+import '../../media/audio_player_ui.dart';
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
 
 /// Where a file came from.
@@ -54,7 +58,9 @@ class _Entry {
   final Map<String, dynamic> meta;
 
   String get name => file.path.split(RegExp(r'[\\/]')).last;
-  String get ext => name.contains('.') ? name.substring(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  String get ext => name.contains('.')
+      ? name.substring(name.lastIndexOf('.') + 1).toLowerCase()
+      : '';
   _Kind get kind => _imageExt.contains(ext)
       ? _Kind.images
       : _videoExt.contains(ext)
@@ -69,15 +75,20 @@ class _Entry {
 /// Every file the app made or saved: images and audio the assistant
 /// generated, the code sandbox's output, web, GitHub and book downloads,
 /// screenshots, canvas exports, and media downloaded from Telegram chats.
-class GeneratedFilesScreen extends StatefulWidget {
+class GeneratedFilesScreen extends ConsumerStatefulWidget {
   const GeneratedFilesScreen({super.key});
 
   @override
-  State<GeneratedFilesScreen> createState() => _GeneratedFilesScreenState();
+  ConsumerState<GeneratedFilesScreen> createState() =>
+      _GeneratedFilesScreenState();
 }
 
-class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: _Kind.values.length, vsync: this);
+class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+    length: _Kind.values.length,
+    vsync: this,
+  );
   List<_Entry> _all = const [];
   bool _loading = true;
   final Set<FileSource> _sources = {...FileSource.values};
@@ -97,14 +108,23 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
   Future<void> _load() async {
     final root = (await getApplicationSupportDirectory()).path;
     // Telegram's downloaded media, not its thumbnails, stickers or avatars.
-    const telegramDirs = ['photos', 'videos', 'documents', 'music', 'voice', 'video_notes', 'animations'];
+    const telegramDirs = [
+      'photos',
+      'videos',
+      'documents',
+      'music',
+      'voice',
+      'video_notes',
+      'animations',
+    ];
     final roots = <(String, FileSource, bool)>[
       ('$root/generated', FileSource.generated, false),
       ('$root/sandbox', FileSource.sandbox, true),
       ('$root/downloads', FileSource.downloads, true),
       ('$root/exports', FileSource.exports, false),
       ('$root/screenshots', FileSource.screenshots, false),
-      for (final d in telegramDirs) ('$root/tdlib/files/$d', FileSource.telegram, false),
+      for (final d in telegramDirs)
+        ('$root/tdlib/files/$d', FileSource.telegram, false),
     ];
     final out = <_Entry>[];
     for (final (path, source, deep) in roots) {
@@ -115,14 +135,21 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
           if (e is! File) continue;
           final n = e.path.toLowerCase();
           // Sidecars, the sandbox's own scaffolding, and partial downloads.
-          if (n.endsWith('.meta.json') || n.endsWith('.tmp') || n.endsWith('.part')) continue;
-          if (source == FileSource.sandbox && (n.endsWith('.html') && n.contains('runner'))) continue;
+          if (n.endsWith('.meta.json') ||
+              n.endsWith('.tmp') ||
+              n.endsWith('.part'))
+            continue;
+          if (source == FileSource.sandbox &&
+              (n.endsWith('.html') && n.contains('runner')))
+            continue;
           final stat = await e.stat();
           if (stat.size == 0) continue;
           var meta = const <String, dynamic>{};
           if (source == FileSource.generated) {
             final dot = e.path.lastIndexOf('.');
-            final side = File('${e.path.substring(0, dot < 0 ? e.path.length : dot)}.meta.json');
+            final side = File(
+              '${e.path.substring(0, dot < 0 ? e.path.length : dot)}.meta.json',
+            );
             if (await side.exists()) {
               try {
                 final j = jsonDecode(await side.readAsString());
@@ -145,8 +172,13 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
     }
   }
 
-  List<_Entry> _of(_Kind kind) =>
-      _all.where((e) => _sources.contains(e.source) && (kind == _Kind.all || e.kind == kind)).toList();
+  List<_Entry> _of(_Kind kind) => _all
+      .where(
+        (e) =>
+            _sources.contains(e.source) &&
+            (kind == _Kind.all || e.kind == kind),
+      )
+      .toList();
 
   Future<void> _actions(_Entry e) async {
     final choice = await showModalBottomSheet<String>(
@@ -158,15 +190,31 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
           children: [
             ListTile(
               title: Text(e.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-              subtitle: Text('${e.source.label} · ${_formatBytes(e.bytes)} · ${_relativeTime(e.modified)}'),
+              subtitle: Text(
+                '${e.source.label} · ${_formatBytes(e.bytes)} · ${_relativeTime(e.modified)}',
+              ),
             ),
             const Divider(height: 1),
-            ListTile(leading: const Icon(Icons.open_in_new_rounded), title: const Text('Open'), onTap: () => Navigator.pop(c, 'open')),
-            ListTile(leading: const Icon(Icons.copy_rounded), title: const Text('Copy path'), onTap: () => Navigator.pop(c, 'copy')),
+            ListTile(
+              leading: const Icon(Icons.open_in_new_rounded),
+              title: const Text('Open'),
+              onTap: () => Navigator.pop(c, 'open'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('Copy path'),
+              onTap: () => Navigator.pop(c, 'copy'),
+            ),
             if (e.source.deletable)
               ListTile(
-                leading: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
-                title: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppColors.danger,
+                ),
+                title: const Text(
+                  'Delete',
+                  style: TextStyle(color: AppColors.danger),
+                ),
                 onTap: () => Navigator.pop(c, 'delete'),
               ),
           ],
@@ -176,12 +224,19 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
     if (!mounted) return;
     switch (choice) {
       case 'open':
-        await OpenFilex.open(e.file.path);
+        _open(e);
+        break;
       case 'copy':
         await Clipboard.setData(ClipboardData(text: e.file.path));
         if (mounted) showSnack(context, 'Path copied');
+        break;
       case 'delete':
-        if (!await confirmAction(context, title: 'Delete ${e.name}?', message: 'It is removed from this phone.', action: 'Delete')) {
+        if (!await confirmAction(
+          context,
+          title: 'Delete ${e.name}?',
+          message: 'It is removed from this phone.',
+          action: 'Delete',
+        )) {
           return;
         }
         try {
@@ -192,9 +247,15 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
             if (await side.exists()) await side.delete();
           }
         } catch (err) {
-          if (mounted) showSnack(context, 'Couldn\'t delete: $err', icon: Icons.error_outline_rounded);
+          if (mounted)
+            showSnack(
+              context,
+              'Couldn\'t delete: $err',
+              icon: Icons.error_outline_rounded,
+            );
         }
         await _load();
+        break;
     }
   }
 
@@ -228,7 +289,9 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
                   children: [
                     Icon(k.icon, size: 16),
                     const SizedBox(width: 6),
-                    Text('${k.label}${_loading || _of(k).isEmpty ? '' : ' ${_of(k).length}'}'),
+                    Text(
+                      '${k.label}${_loading || _of(k).isEmpty ? '' : ' ${_of(k).length}'}',
+                    ),
                   ],
                 ),
               ),
@@ -241,40 +304,75 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
             height: 50,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(Space.m, Space.s, Space.m, Space.xs),
+              padding: const EdgeInsets.fromLTRB(
+                Space.m,
+                Space.s,
+                Space.m,
+                Space.xs,
+              ),
               children: [
+                // Only kinds there are files of: without Telegram, no Telegram chip.
                 for (final s in FileSource.values)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: FilterChip(
-                      avatar: Icon(s.icon, size: 15),
-                      label: Text('${s.label} ${_all.where((e) => e.source == s).length}'),
-                      selected: _sources.contains(s),
-                      showCheckmark: false,
-                      onSelected: (on) => setState(() => on ? _sources.add(s) : _sources.remove(s)),
+                  if (_all.any((e) => e.source == s))
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: FilterChip(
+                        // FilterChip's default avatar colour is black on some
+                        // Material states, which disappears against this dark UI.
+                        avatar: Icon(s.icon, size: 15, color: AppColors.text2),
+                        label: Text(
+                          '${s.label} ${_all.where((e) => e.source == s).length}',
+                        ),
+                        selected: _sources.contains(s),
+                        showCheckmark: false,
+                        onSelected: (on) => setState(
+                          () => on ? _sources.add(s) : _sources.remove(s),
+                        ),
+                      ),
                     ),
-                  ),
               ],
             ),
           ),
           if (!_loading)
             Padding(
-              padding: const EdgeInsets.fromLTRB(Space.l, Space.xs, Space.l, Space.xs),
+              padding: const EdgeInsets.fromLTRB(
+                Space.l,
+                Space.xs,
+                Space.l,
+                Space.xs,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text('${_of(_Kind.all).length} files · ${_formatBytes(total)}', style: context.text.labelSmall),
+                child: Text(
+                  '${_of(_Kind.all).length} files · ${_formatBytes(total)}',
+                  style: context.text.labelSmall,
+                ),
               ),
             ),
           Expanded(
             child: _loading
-                ? const Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2)))
+                ? const Center(
+                    child: SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
                 : TabBarView(
                     controller: _tabs,
                     children: [
                       for (final k in _Kind.values)
                         k == _Kind.images
-                            ? _Grid(entries: _of(k), onTap: _open, onLongPress: _actions)
-                            : _List(entries: _of(k), kind: k, onTap: _open, onLongPress: _actions),
+                            ? _Grid(
+                                entries: _of(k),
+                                onTap: _open,
+                                onLongPress: _actions,
+                              )
+                            : _List(
+                                entries: _of(k),
+                                kind: k,
+                                onTap: _open,
+                                onLongPress: _actions,
+                              ),
                     ],
                   ),
           ),
@@ -292,12 +390,35 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
             appBar: AppBar(
               backgroundColor: Colors.black,
               title: Text(e.name, overflow: TextOverflow.ellipsis),
-              actions: [IconButton(icon: const Icon(Icons.more_vert_rounded), onPressed: () => _actions(e))],
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onPressed: () => _actions(e),
+                ),
+              ],
             ),
-            body: Center(child: InteractiveViewer(maxScale: 6, child: Image.file(e.file))),
+            body: Center(
+              child: InteractiveViewer(maxScale: 6, child: Image.file(e.file)),
+            ),
           ),
         ),
       );
+      return;
+    }
+    if (e.kind == _Kind.audio) {
+      unawaited(
+        ref
+            .read(audioCenterProvider)
+            .play(
+              Track.localFile(
+                path: e.file.path,
+                title: e.name,
+                subtitle: e.source.label,
+                voice: e.meta['voice'] == true,
+              ),
+            ),
+      );
+      showAudioPlayer(context);
       return;
     }
     OpenFilex.open(e.file.path);
@@ -305,14 +426,22 @@ class _GeneratedFilesScreenState extends State<GeneratedFilesScreen> with Single
 }
 
 class _Grid extends StatelessWidget {
-  const _Grid({required this.entries, required this.onTap, required this.onLongPress});
+  const _Grid({
+    required this.entries,
+    required this.onTap,
+    required this.onLongPress,
+  });
   final List<_Entry> entries;
   final void Function(_Entry) onTap;
   final void Function(_Entry) onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    if (entries.isEmpty) return const _FilesEmpty(icon: Icons.image_outlined, text: 'No images yet.');
+    if (entries.isEmpty)
+      return const _FilesEmpty(
+        icon: Icons.image_outlined,
+        text: 'No images yet.',
+      );
     return GridView.builder(
       padding: const EdgeInsets.all(Space.m),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -337,7 +466,10 @@ class _Grid extends StatelessWidget {
                   cacheWidth: 360,
                   errorBuilder: (_, _, _) => Container(
                     color: AppColors.surface2,
-                    child: const Icon(Icons.broken_image_outlined, color: AppColors.text3),
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: AppColors.text3,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -345,11 +477,18 @@ class _Grid extends StatelessWidget {
                   bottom: 6,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      shape: BoxShape.circle,
+                    ),
                     child: Icon(e.source.icon, size: 12, color: Colors.white),
                   ),
                 ),
-                Positioned(right: 6, bottom: 6, child: _DatePill(date: e.modified)),
+                Positioned(
+                  right: 6,
+                  bottom: 6,
+                  child: _DatePill(date: e.modified),
+                ),
               ],
             ),
           ),
@@ -360,7 +499,12 @@ class _Grid extends StatelessWidget {
 }
 
 class _List extends StatelessWidget {
-  const _List({required this.entries, required this.kind, required this.onTap, required this.onLongPress});
+  const _List({
+    required this.entries,
+    required this.kind,
+    required this.onTap,
+    required this.onLongPress,
+  });
   final List<_Entry> entries;
   final _Kind kind;
   final void Function(_Entry) onTap;
@@ -407,7 +551,10 @@ class _List extends StatelessWidget {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(color: AppColors.surface3, borderRadius: BorderRadius.circular(Radii.s)),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface3,
+                      borderRadius: BorderRadius.circular(Radii.s),
+                    ),
                     clipBehavior: Clip.antiAlias,
                     child: e.kind == _Kind.images
                         ? Image.file(e.file, fit: BoxFit.cover, cacheWidth: 120)
@@ -418,11 +565,20 @@ class _List extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.text.titleSmall),
+                        Text(
+                          e.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.titleSmall,
+                        ),
                         const SizedBox(height: 3),
                         Row(
                           children: [
-                            Icon(e.source.icon, size: 12, color: AppColors.text3),
+                            Icon(
+                              e.source.icon,
+                              size: 12,
+                              color: AppColors.text3,
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
@@ -439,7 +595,11 @@ class _List extends StatelessWidget {
                   ),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.text3),
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: AppColors.text3,
+                    ),
                     onPressed: () => onLongPress(e),
                   ),
                 ],
@@ -459,8 +619,14 @@ class _DatePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-    decoration: BoxDecoration(color: Colors.black.withValues(alpha: .60), borderRadius: BorderRadius.circular(999)),
-    child: Text(_relativeTime(date), style: const TextStyle(fontSize: 10.5, color: Colors.white)),
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: .60),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      _relativeTime(date),
+      style: const TextStyle(fontSize: 10.5, color: Colors.white),
+    ),
   );
 }
 
@@ -478,7 +644,11 @@ class _FilesEmpty extends StatelessWidget {
         children: [
           Icon(icon, size: 40, color: AppColors.text3),
           const SizedBox(height: Space.m),
-          Text(text, style: context.text.bodyMedium, textAlign: TextAlign.center),
+          Text(
+            text,
+            style: context.text.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: Space.xs),
           Text(
             'Generated images and audio, code output, downloads, exports and media saved from chats appear here.',
@@ -503,6 +673,7 @@ String _relativeTime(DateTime date) {
 String _formatBytes(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-  if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  if (bytes < 1024 * 1024 * 1024)
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }

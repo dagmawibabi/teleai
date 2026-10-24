@@ -65,7 +65,7 @@ final _localPhoneTools = <TelegramTool>[
   TelegramTool(
     name: 'zip_files',
     label: 'Zipping files',
-    category: ToolCategory.media,
+    category: ToolCategory.creative,
     cost: ToolCost.device,
     description:
         'Packs files of this conversation (attachments, generated or downloaded files) into one .zip, which then is '

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/widgets/brand_mark.dart';
+import '../../settings/data/settings.dart';
 import '../data/auth_controller.dart';
 
 class _Page {
@@ -138,13 +139,63 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
+      title: 'Your email, calendar and work apps.',
+      body: 'Connect Gmail, Outlook, Google Calendar, Drive, Docs, Sheets, Slack, Notion, GitHub, Linear and Todoist, or any of '
+          '500+ apps, through Composio. Read and triage your inbox, find a free slot, post to Slack, add a task. Emails open '
+          'as they were designed.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.mail_outline_rounded, 'Gmail'),
+          (Icons.event_outlined, 'Calendar'),
+          (Icons.tag_rounded, 'Slack'),
+          (Icons.sticky_note_2_outlined, 'Notion'),
+          (Icons.add_to_drive_outlined, 'Drive'),
+          (Icons.task_alt_rounded, 'Todoist'),
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Your cloud, by asking.',
+      body: 'Manage Cloudflare: sites, DNS, cache, Workers, Pages and R2 storage you can browse, download and share. Run real '
+          'Python, Node, R or bash in an E2B cloud sandbox, or write and run code yourself in the built-in editor.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.language_rounded, 'DNS'),
+          (Icons.inventory_2_outlined, 'R2 files'),
+          (Icons.bolt_rounded, 'Workers'),
+          (Icons.terminal_rounded, 'E2B'),
+          (Icons.code_rounded, 'Editor'),
+          (Icons.bar_chart_rounded, 'Charts'),
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Knows your phone.',
+      body: 'Find a verification code in your texts, check missed calls, call or text a contact, see battery, storage and '
+          'Wi-Fi, turn on the flashlight, set an alarm or a timer, control what is playing. Each action asks you first.',
+      art: _Bubbles(
+        showMark: false,
+        lines: [
+          'What\'s my bank\'s latest SMS code?',
+          'Call Mom',
+          'Set an alarm for 6:30',
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Your brief, on your home screen.',
+      body: 'Choose the chats and apps a brief covers, its tone, length and language, and add the Brief widget to your home '
+          'screen in the colours and size you like.',
+      art: _Glyph(icon: Icons.widgets_outlined),
+    ),
+    const _Page(
       title: 'Careful by design.',
       body: 'Reading never marks messages as read. Sending, replying and reacting wait for your OK. Deleting and leaving are off until you turn them on, and read-only mode locks everything else.',
       art: _Glyph(icon: Icons.verified_user_outlined),
     ),
     const _Page(
       title: 'Your keys. Your phone.',
-      body: 'No TeleAI servers. Conversations stay on this phone; AI runs through your own Vercel AI Gateway or OpenRouter key, with tokens and cost shown under every answer.',
+      body: 'No TeleAI servers. Conversations stay on this phone; AI runs through your own Vercel AI Gateway, OpenRouter or Google AI Studio key, with tokens and cost shown under every answer. Telegram is optional: connect it now, or later under Settings → Apps & web.',
       art: _Glyph(icon: Icons.key_rounded),
     ),
   ];
@@ -292,6 +343,16 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                           ),
                         ),
                       ),
+                      if (_last && !widget.replay) ...[
+                        const SizedBox(height: Space.s),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () => ref.read(settingsProvider.notifier).setTelegramSkipped(true),
+                            child: const Text('Continue without Telegram'),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: Space.m),
                       Text(
                         'Independent app, not affiliated with Telegram.',

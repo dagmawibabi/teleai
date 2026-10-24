@@ -13,10 +13,15 @@ enum WatchScope {
   allChannels('All channels'),
   mentions('Mentions of me'),
   folder('A folder'),
-  schedule('On a schedule');
+  schedule('On a schedule'),
+  app('New in an app');
 
   const WatchScope(this.label);
   final String label;
+
+  /// Fires on Telegram messages, so it needs Telegram connected. Schedules
+  /// and app watches work without it.
+  bool get needsTelegram => this != schedule && this != app;
 }
 
 /// What a watch does when it fires.
@@ -51,7 +56,15 @@ class Watch {
     this.lastRunAt,
     this.runs = 0,
     required this.createdAt,
+    this.app,
+    this.query = '',
   });
+
+  /// For [WatchScope.app]: the app to check (a Composio toolkit such as
+  /// gmail, slack, github, or "any" for every connected app) and what to
+  /// look for, e.g. "emails from my manager" or "messages mentioning me".
+  final String? app;
+  final String query;
 
   final String id;
   final String name;
@@ -94,6 +107,8 @@ class Watch {
     String? conversationId,
     DateTime? lastRunAt,
     int? runs,
+    String? app,
+    String? query,
   }) => Watch(
     id: id,
     name: name ?? this.name,
@@ -111,6 +126,8 @@ class Watch {
     lastRunAt: lastRunAt ?? this.lastRunAt,
     runs: runs ?? this.runs,
     createdAt: createdAt,
+    app: app ?? this.app,
+    query: query ?? this.query,
   );
 
   Map<String, dynamic> toJson() => {
@@ -130,6 +147,8 @@ class Watch {
     'last_run': lastRunAt?.toIso8601String(),
     'runs': runs,
     'created': createdAt.toIso8601String(),
+    'app': ?app,
+    if (query.isNotEmpty) 'query': query,
   };
 
   factory Watch.fromJson(Map<String, dynamic> j) => Watch(
@@ -149,6 +168,8 @@ class Watch {
     lastRunAt: DateTime.tryParse(j['last_run'] ?? ''),
     runs: (j['runs'] as num?)?.toInt() ?? 0,
     createdAt: DateTime.tryParse(j['created'] ?? '') ?? DateTime.now(),
+    app: j['app'],
+    query: j['query'] ?? '',
   );
 
   /// For the assistant and the Watches screen.
@@ -161,6 +182,8 @@ class Watch {
     'folder_id': ?folderId,
     'daily_at': ?dailyAt,
     'every_minutes': ?everyMinutes,
+    'app': ?app,
+    if (query.isNotEmpty) 'query': query,
     'mode': mode.name,
     if (instructions.isNotEmpty) 'instructions': instructions,
     if (!includeMuted) 'include_muted': false,

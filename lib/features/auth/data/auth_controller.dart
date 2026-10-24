@@ -108,3 +108,9 @@ class AuthController extends Notifier<AuthUiState> {
 final authControllerProvider = NotifierProvider<AuthController, AuthUiState>(
   AuthController.new,
 );
+
+/// Whether a Telegram account is signed in. TeleAI works without one; the
+/// drawer, settings, suggestions and tools follow this.
+final telegramConnectedProvider = Provider<bool>(
+  (ref) => ref.watch(authStateProvider).value is td.AuthorizationStateReady,
+);

@@ -14,6 +14,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../../app/theme.dart';
 import '../../../telegram/data/telegram_tools.dart';
 import '../../domain/chat_models.dart';
+import 'app_result_cards.dart';
+import 'cloud_result_cards.dart';
+import 'device_result_cards.dart';
 
 /// Cards for results that are things you'd want to look at: books, YouTube
 /// videos and channels, posts and profiles on X, GitHub repos, releases,
@@ -139,7 +142,7 @@ Widget? richResultFor(ToolPart part) {
     'browser_click' when (j['page'] as Map?)?['url'] is String => _PageCard(
       page: Map<String, dynamic>.from(j['page'] as Map),
     ),
-    _ => null,
+    _ => appResultFor(part, j) ?? cloudResultFor(part, j) ?? deviceResultFor(part, j),
   };
 }
 

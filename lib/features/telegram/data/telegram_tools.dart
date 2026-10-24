@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -11,12 +13,21 @@ import 'package:geolocator/geolocator.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show NumberFormat;
+import 'package:mime/mime.dart' show lookupMimeType;
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../../infrastructure/telegram/telegram_exception.dart';
 import '../../chat/domain/chat_models.dart';
+import '../../device/device.dart';
+import '../../integrations/app_results.dart';
+import '../../integrations/app_toolkits.dart';
+import '../../integrations/cloudflare_client.dart';
+import '../../integrations/composio_client.dart';
+import '../../integrations/e2b_client.dart';
+import '../../integrations/e2b_session.dart';
+import '../../integrations/integrations_store.dart';
 import '../../settings/data/settings.dart';
 import '../../web/browser_session.dart';
 import '../../web/inapp_engine.dart';
@@ -31,11 +42,15 @@ import '../../../infrastructure/telegram/td_compat.dart';
 part 'telegram_account_tools.dart';
 part 'telegram_activity_tools.dart';
 part 'telegram_analytics_tools.dart';
+part 'telegram_app_catalog.dart';
+part 'telegram_app_tools.dart';
 part 'telegram_admin_tools.dart';
 part 'telegram_background_tools.dart';
 part 'telegram_canvas_tools.dart';
 part 'telegram_chat_tools.dart';
+part 'telegram_cloud_tools.dart';
 part 'telegram_destructive_tools.dart';
+part 'telegram_device_tools.dart';
 part 'telegram_dev_tools.dart';
 part 'telegram_discover_tools.dart';
 part 'telegram_extra_tools.dart';
@@ -81,10 +96,39 @@ enum ToolCategory {
   developer('Code & GitHub'),
   discover('Books, YouTube & X'),
   stars('Stars'),
-  creative('Creative');
+  creative('Creative'),
+  device('Device'),
+  gmail('Gmail'),
+  outlook('Outlook'),
+  calendar('Google Calendar'),
+  googleDocs('Drive, Docs & Sheets'),
+  slack('Slack'),
+  notion('Notion'),
+  githubAccount('Your GitHub'),
+  linear('Linear'),
+  todoist('Todoist'),
+  apps('Any connected app'),
+  cloudflare('Cloudflare'),
+  r2('Cloudflare R2 storage'),
+  e2b('E2B code sandbox');
 
   const ToolCategory(this.label);
   final String label;
+
+  /// Reaches the Telegram account, so it is offered only once signed in.
+  bool get needsTelegram => switch (this) {
+    account || chats || messages || media || actions || stories || folders || stars => true,
+    _ => false,
+  };
+
+  /// Listed under Settings → Apps & web rather than the Telegram tools:
+  /// connected apps, and the tools that reach the web.
+  bool get onAppsScreen => switch (this) {
+    web || developer || discover => true,
+    gmail || outlook || calendar || googleDocs || slack || notion || githubAccount || linear || todoist || apps => true,
+    cloudflare || r2 || e2b => true,
+    _ => false,
+  };
 }
 
 /// What running a tool costs.
@@ -105,6 +149,14 @@ enum ToolCost {
   web(
     'The web',
     'Reaches websites and APIs on the internet straight from this phone.',
+  ),
+  cloud(
+    'Your cloud account',
+    'Runs on your own Cloudflare or E2B account with the key you added; usage counts against that account.',
+  ),
+  apps(
+    'Connected app',
+    'Runs through Composio on an account you connected; counts against your Composio plan.',
   );
 
   const ToolCost(this.label, this.explanation);
@@ -693,7 +745,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'web_search',
     label: 'Searching the web',
-    category: ToolCategory.messages,
+    category: ToolCategory.web,
     description: 'Searches the web with the user\'s Exa key and returns source titles, URLs and highlights. Use only when the user asks for web research or current information.',
     parameters: _obj(
       {
@@ -1066,8 +1118,9 @@ final _tools = <TelegramTool>[
     cost: ToolCost.device,
     description:
         'Creates a watch that runs on its own. Triggers: new messages in specific chats (chat_ids), all_dms, '
-        'all_groups, all_channels, mentions of the user, a folder, or a schedule (daily_at "HH:MM" or '
-        'every_minutes). Modes: notify (a phone notification with the new messages), summarize (you write a short '
+        'all_groups, all_channels, mentions of the user, a folder (these need Telegram), a schedule (daily_at "HH:MM" or '
+        'every_minutes), or app: something new in a connected app (app = a toolkit like gmail, slack, github, notion, '
+        'todoist, or "any"; query = what to look for, e.g. "emails from my bank"), checked every_minutes (default 15). Modes: notify (a phone notification with the new messages), summarize (you write a short '
         'note and the user is notified), act (you follow the instructions on every trigger, e.g. reply to each new '
         'DM, and may use any tool). Use for "tell me when X posts", "watch my DMs and answer them", "every morning '
         'summarise my channels".',
@@ -1087,7 +1140,16 @@ final _tools = <TelegramTool>[
             'mentions',
             'folder',
             'schedule',
+            'app',
           ],
+        },
+        'app': {
+          'type': 'string',
+          'description': 'For app: the toolkit to check, e.g. gmail, slack, github, or any.',
+        },
+        'query': {
+          'type': 'string',
+          'description': 'For app: what to look for, e.g. "emails from Liya" or "PRs assigned to me".',
         },
         'chat_ids': {
           'type': 'array',
@@ -1188,7 +1250,10 @@ final _tools = <TelegramTool>[
     parameters: _obj(
       {
         'user_id': {'type': 'integer'},
-        'once': {'type': 'boolean', 'description': 'Default true: alert the first time, then stop.'},
+        'once': {
+          'type': 'boolean',
+          'description': 'Default true: alert the first time, then stop.',
+        },
         'remove': {'type': 'boolean'},
       },
       ['user_id'],
@@ -1220,6 +1285,7 @@ final _tools = <TelegramTool>[
   ),
   generateImageTool,
   generateAudioTool,
+  generateAddisVoiceTool,
   sendVoiceMessageTool,
   listAttachmentsTool,
   ..._moreTools,
@@ -1244,6 +1310,9 @@ final _tools = <TelegramTool>[
   ..._discoverTools,
   ..._newTools,
   ..._mediaMetaTools,
+  ..._appTools,
+  ..._cloudTools,
+  ..._deviceTools,
 ];
 
 const generateImageTool = TelegramTool(
@@ -1277,13 +1346,39 @@ final generateAudioTool = TelegramTool(
   label: 'Creating audio',
   category: ToolCategory.creative,
   cost: ToolCost.ai,
-  description: 'Creates an MP3 spoken by the AI voice selected in Settings. The audio is shown in the chat and can be sent to Telegram like a generated image.',
+  description: 'Creates an MP3 spoken by the voice selected in Settings. When Addis AI is selected, use an available Addis voice ID (am-, om-, or ti-) to create Amharic, Afaan Oromo, or Tigrinya speech. The audio is shown in the chat and can be sent to Telegram like a generated image.',
   parameters: _obj(
     {
       'text': {'type': 'string'},
       'voice': {'type': 'string'},
     },
     ['text'],
+  ),
+);
+
+final generateAddisVoiceTool = TelegramTool(
+  name: 'generate_addis_voice',
+  label: 'Creating an Addis AI voice',
+  category: ToolCategory.creative,
+  cost: ToolCost.ai,
+  description: 'Creates an MP3 with Addis Voices 2. Use for Amharic (am), Afaan Oromo (om), or Tigrinya (ti). Choose a voice ID from the live Addis AI catalog when the user names one; otherwise an available default voice for the requested language is selected. Requires the user to add an Addis AI key in Settings.',
+  parameters: _obj(
+    {
+      'text': {
+        'type': 'string',
+        'description': 'Text in the requested language.',
+      },
+      'language': {
+        'type': 'string',
+        'enum': ['am', 'om', 'ti'],
+        'description': 'am Amharic, om Afaan Oromo, ti Tigrinya.',
+      },
+      'voice_id': {
+        'type': 'string',
+        'description': 'Optional currently available Addis voice ID.',
+      },
+    },
+    ['text', 'language'],
   ),
 );
 
@@ -1386,7 +1481,11 @@ class TelegramToolRunner {
     BrowserSession? browser,
     InAppEngine? engine,
     Sandbox? sandbox,
-  }) : _web = web ?? WebFetcher(),
+    Future<ComposioClient?> Function()? composio,
+    E2bSession? e2b,
+  }) : _composio = composio,
+       _e2bSession = e2b,
+       _web = web ?? WebFetcher(),
        _browser = browser ?? BrowserSession(),
        _engine = engine ?? InAppEngine(),
        _sandbox = sandbox ?? Sandbox();
@@ -1398,6 +1497,12 @@ class TelegramToolRunner {
   final BrowserSession _browser;
   final InAppEngine _engine;
   final Sandbox _sandbox;
+
+  /// A Composio client for the user's connected apps, or null without a key.
+  final Future<ComposioClient?> Function()? _composio;
+
+  /// The user's E2B sandbox, kept between runs.
+  final E2bSession? _e2bSession;
   final Map<String, StreamSubscription<Position>> _liveLocationStreams = {};
 
   static const _maxText = 1200;
@@ -1542,6 +1647,9 @@ class TelegramToolRunner {
   /// Tools defined in the part files, each answering null for names it
   /// doesn't own.
   Future<ToolOutput>? _runExtra(String name, Map<String, dynamic> args) =>
+      _runApps(name, args) ??
+      _runCloud(name, args) ??
+      _runDevice(name, args) ??
       _runMore(name, args) ??
       _runMedia(name, args) ??
       _runBackgrounds(name, args) ??
@@ -1560,13 +1668,17 @@ class TelegramToolRunner {
       _runAccount(name, args) ??
       _runMoreTd(name, args) ??
       _runDiscover(name, args) ??
-      _runNew(name, args) ?? _runMediaMeta(name, args);
+      _runNew(name, args) ??
+      _runMediaMeta(name, args);
 
   String? _describeExtra(
     String name,
     Map<String, dynamic> args,
     String title,
   ) =>
+      _describeApps(name, args) ??
+      _describeCloud(name, args) ??
+      _describeDevice(name, args) ??
       _describeMore(name, args, title) ??
       _describeBackgrounds(name, args, title) ??
       _describeBots(name, args, title) ??
@@ -1659,7 +1771,8 @@ class TelegramToolRunner {
       if (m.replyTo case td.MessageReplyToMessage(:final messageId)
           when messageId != 0)
         'reply_to': messageId,
-      if (m.replyTo case final td.MessageReplyToMessage r when r.messageId != 0 || r.content != null)
+      if (m.replyTo case final td.MessageReplyToMessage r
+          when r.messageId != 0 || r.content != null)
         'replying_to': ?_replyContext(m, r),
       if (m.isTopicMessage) 'topic_id': m.messageThreadId,
       if (m.directMessagesTopicId case final t?) 'direct_messages_topic_id': t,
@@ -1865,7 +1978,8 @@ class TelegramToolRunner {
     }
     // Plenty for a few conversations; oldest go first.
     if (_seenMessages.length > 3000) {
-      for (final k in _seenMessages.keys.take(_seenMessages.length - 2500).toList()) {
+      for (final k
+          in _seenMessages.keys.take(_seenMessages.length - 2500).toList()) {
         _seenMessages.remove(k);
       }
     }
@@ -1873,18 +1987,29 @@ class TelegramToolRunner {
 
   /// Fetches the originals of replies in [messages] that aren't known yet
   /// (at most [max] requests), so the model sees what each reply answers.
-  Future<void> loadRepliedMessages(Iterable<td.Message> messages, {int max = 15}) async {
+  Future<void> loadRepliedMessages(
+    Iterable<td.Message> messages, {
+    int max = 15,
+  }) async {
     _remember(messages);
     var fetched = 0;
     for (final m in messages) {
       if (fetched >= max) break;
       final r = m.replyTo;
-      if (r is! td.MessageReplyToMessage || r.messageId == 0 || r.content != null) continue;
+      if (r is! td.MessageReplyToMessage ||
+          r.messageId == 0 ||
+          r.content != null)
+        continue;
       final chat = r.chatId == 0 ? m.chatId : r.chatId;
       if (_seenMessages.containsKey('$chat:${r.messageId}')) continue;
       fetched++;
       try {
-        _remember([await _client.send<td.Message>(td.GetRepliedMessage(chatId: m.chatId, messageId: m.id), limited: true)]);
+        _remember([
+          await _client.send<td.Message>(
+            td.GetRepliedMessage(chatId: m.chatId, messageId: m.id),
+            limited: true,
+          ),
+        ]);
       } catch (_) {
         // Deleted, or in a chat this account can't read.
       }
@@ -1893,21 +2018,30 @@ class TelegramToolRunner {
 
   /// Who and what a reply answers, as far as it's known: the quoted part
   /// always, the original's sender and text when it was seen or fetched.
-  Map<String, dynamic>? _replyContext(td.Message m, td.MessageReplyToMessage r) {
+  Map<String, dynamic>? _replyContext(
+    td.Message m,
+    td.MessageReplyToMessage r,
+  ) {
     final chat = r.chatId == 0 ? m.chatId : r.chatId;
     final original = _seenMessages['$chat:${r.messageId}'];
     final content = original?.content ?? r.content;
     final quote = r.quote?.text.text ?? '';
     if (original == null && content == null && quote.isEmpty) return null;
     final g = content == null ? null : gistOf(content);
-    final text = g == null ? '' : (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind));
+    final text = g == null
+        ? ''
+        : (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind));
     return {
-      if (original != null) 'from': original.isOutgoing ? 'you (the user)' : _store.senderName(original.senderId),
+      if (original != null)
+        'from': original.isOutgoing
+            ? 'you (the user)'
+            : _store.senderName(original.senderId),
       if (r.origin != null && original == null) 'from': _origin(r.origin!),
       if (text.isNotEmpty) 'text': _clip(text, 240),
       if (g != null && g.kind != 'text') 'media': g.kind,
       if (quote.isNotEmpty) 'quoted_part': _clip(quote, 240),
-      if (chat != m.chatId) 'in_chat': _store.chat(chat)?.title ?? 'another chat',
+      if (chat != m.chatId)
+        'in_chat': _store.chat(chat)?.title ?? 'another chat',
       if (original != null) 'ref': 'post:${original.chatId}:${original.id}',
     };
   }
@@ -1956,7 +2090,9 @@ class TelegramToolRunner {
       from = messages.last.id;
     }
     await loadRepliedMessages(out);
-    if (_settings.aiReadOnView && out.isNotEmpty && (c.hasUnread || c.unreadMentionCount > 0)) {
+    if (_settings.aiReadOnView &&
+        out.isNotEmpty &&
+        (c.hasUnread || c.unreadMentionCount > 0)) {
       await markRead(c, seen: out).catchError((Object _) {});
     }
     return out;
@@ -2224,11 +2360,23 @@ class TelegramToolRunner {
     if (!RegExp(r'[*_~|`\[#<-]').hasMatch(text)) return plain;
     var md = text
         // Headings and bullets the way chat apps show them.
-        .replaceAllMapped(RegExp(r'^#{1,6}\s+(.+?)\s*#*$', multiLine: true), (m) => '**${m[1]}**')
-        .replaceAllMapped(RegExp(r'^(\s*)[-*+]\s+(?!\[)', multiLine: true), (m) => '${m[1]}• ')
+        .replaceAllMapped(
+          RegExp(r'^#{1,6}\s+(.+?)\s*#*$', multiLine: true),
+          (m) => '**${m[1]}**',
+        )
+        .replaceAllMapped(
+          RegExp(r'^(\s*)[-*+]\s+(?!\[)', multiLine: true),
+          (m) => '${m[1]}• ',
+        )
         // Single-star and single-underscore italics, as most writers use.
-        .replaceAllMapped(RegExp(r'(?<![*\w])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?![*\w])'), (m) => '__${m[1]}__')
-        .replaceAllMapped(RegExp(r'(?<![_\w])_(?![\s_])([^_\n]+?)(?<!\s)_(?![_\w])'), (m) => '__${m[1]}__');
+        .replaceAllMapped(
+          RegExp(r'(?<![*\w])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?![*\w])'),
+          (m) => '__${m[1]}__',
+        )
+        .replaceAllMapped(
+          RegExp(r'(?<![_\w])_(?![\s_])([^_\n]+?)(?<!\s)_(?![_\w])'),
+          (m) => '__${m[1]}__',
+        );
     // Underline has no Markdown; pull <u>…</u> out and mark it afterwards.
     final underlined = <String>[];
     md = md.replaceAllMapped(RegExp(r'<u>(.+?)</u>', dotAll: true), (m) {
@@ -2237,7 +2385,11 @@ class TelegramToolRunner {
     });
     td.FormattedText f;
     try {
-      f = await _client.send<td.FormattedText>(td.ParseMarkdown(text: td.FormattedText(text: md, entities: const [])));
+      f = await _client.send<td.FormattedText>(
+        td.ParseMarkdown(
+          text: td.FormattedText(text: md, entities: const []),
+        ),
+      );
     } catch (_) {
       return plain;
     }
@@ -2255,11 +2407,23 @@ class TelegramToolRunner {
       entities = [
         for (final e in entities)
           e.offset >= at + marker.length
-              ? td.TextEntity(offset: e.offset + delta, length: e.length, type: e.type)
+              ? td.TextEntity(
+                  offset: e.offset + delta,
+                  length: e.length,
+                  type: e.type,
+                )
               : (e.offset <= at && e.offset + e.length >= at + marker.length)
-              ? td.TextEntity(offset: e.offset, length: e.length + delta, type: e.type)
+              ? td.TextEntity(
+                  offset: e.offset,
+                  length: e.length + delta,
+                  type: e.type,
+                )
               : e,
-        td.TextEntity(offset: at, length: piece.length, type: const td.TextEntityTypeUnderline()),
+        td.TextEntity(
+          offset: at,
+          length: piece.length,
+          type: const td.TextEntityTypeUnderline(),
+        ),
       ];
     }
     return td.FormattedText(text: out, entities: entities);
@@ -2279,7 +2443,9 @@ class TelegramToolRunner {
     bool voice = false,
   }) async {
     final chat = _store.chat(chatId);
-    if (chatId == _store.me?.id || (chat != null && _store.kindOf(chat) == ChatKind.channel)) return null;
+    if (chatId == _store.me?.id ||
+        (chat != null && _store.kindOf(chat) == ChatKind.channel))
+      return null;
     final td.ChatAction action = voice
         ? const td.ChatActionUploadingVoiceNote(progress: 0)
         : files.isEmpty
@@ -2291,12 +2457,19 @@ class TelegramToolRunner {
         : const td.ChatActionUploadingDocument(progress: 0);
     Future<void> tell() => _client
         .send<td.Ok>(
-          td.SendChatAction(chatId: chatId, topicId: topicOf(chatId, threadId), businessConnectionId: '', action: action),
+          td.SendChatAction(
+            chatId: chatId,
+            topicId: topicOf(chatId, threadId),
+            businessConnectionId: '',
+            action: action,
+          ),
         )
         .then((_) {}, onError: (Object _) {});
     await tell();
     if (files.isEmpty && !voice) {
-      await Future<void>.delayed(Duration(milliseconds: (text.length * 25).clamp(800, 3000)));
+      await Future<void>.delayed(
+        Duration(milliseconds: (text.length * 25).clamp(800, 3000)),
+      );
       return null;
     }
     // Telegram shows an action for about five seconds; uploads take longer.
@@ -2313,7 +2486,14 @@ class TelegramToolRunner {
   }) async {
     final busy = await announceSending(chatId, threadId: threadId, voice: true);
     try {
-      return await _sendVoiceNote(chatId: chatId, path: path, duration: duration, caption: caption, replyToMessageId: replyToMessageId, threadId: threadId);
+      return await _sendVoiceNote(
+        chatId: chatId,
+        path: path,
+        duration: duration,
+        caption: caption,
+        replyToMessageId: replyToMessageId,
+        threadId: threadId,
+      );
     } finally {
       busy?.cancel();
     }
@@ -2337,7 +2517,9 @@ class TelegramToolRunner {
       replyMarkup: null,
       inputMessageContent: td.InputMessageVoiceNote(
         voiceNote: inputVoiceNote(path, duration: duration),
-        caption: caption.trim().isEmpty ? null : await formatText(caption.trim()),
+        caption: caption.trim().isEmpty
+            ? null
+            : await formatText(caption.trim()),
         selfDestructType: null,
       ),
     ),
@@ -2433,7 +2615,13 @@ class TelegramToolRunner {
 
     // Scheduled messages go out later; nobody should see "typing…" now.
     final busy = sendAt == null
-        ? await announceSending(chatId, threadId: threadId, text: text, files: files, asFiles: asFiles)
+        ? await announceSending(
+            chatId,
+            threadId: threadId,
+            text: text,
+            files: files,
+            asFiles: asFiles,
+          )
         : null;
     try {
       final formatted = await formatText(text);
@@ -2524,7 +2712,10 @@ class TelegramToolRunner {
         );
       }
       final chat = _store.chat(chatId);
-      if (_settings.aiReadOnReply && sendAt == null && chat != null && chat.hasUnread) {
+      if (_settings.aiReadOnReply &&
+          sendAt == null &&
+          chat != null &&
+          chat.hasUnread) {
         await markRead(chat).catchError((Object _) {});
       }
       return out;
@@ -4217,5 +4408,7 @@ final toolRunnerProvider = Provider<TelegramToolRunner>(
     browser: ref.watch(browserSessionProvider),
     engine: ref.watch(inAppEngineProvider),
     sandbox: ref.watch(sandboxProvider),
+    composio: ref.read(integrationsProvider.notifier).client,
+    e2b: ref.read(e2bSessionProvider),
   ),
 );

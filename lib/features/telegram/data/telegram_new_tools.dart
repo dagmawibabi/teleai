@@ -365,8 +365,11 @@ final _newTools = <TelegramTool>[
 
 /// Whether this call waits for approval: Bot API reads (get…) are
 /// harmless and run without asking.
-bool callNeedsApproval(TelegramTool tool, Map<String, dynamic> args) =>
-    tool.name == 'bot_api' ? !'${args['method'] ?? ''}'.trim().startsWith('get') : tool.requiresApproval;
+bool callNeedsApproval(TelegramTool tool, Map<String, dynamic> args) => switch (tool.name) {
+  'bot_api' => !'${args['method'] ?? ''}'.trim().startsWith('get'),
+  'device_volume' => deviceCallNeedsApproval(tool.name, args),
+  _ => tool.requiresApproval,
+};
 
 /// Bot tokens live in the platform keystore, keyed by the bot's user id;
 /// the model never sees them.

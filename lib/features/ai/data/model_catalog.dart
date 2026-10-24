@@ -6,15 +6,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../settings/data/settings.dart';
+
 /// Which service a model is reached through.
-enum AiRouter { vercel, openRouter }
+enum AiRouter { vercel, openRouter, gemini }
 
 abstract final class AiRoute {
   static const prefix = 'or:';
-  static AiRouter of(String model) => model.startsWith(prefix) ? AiRouter.openRouter : AiRouter.vercel;
+  static const geminiPrefix = 'g:';
+  static AiRouter of(String model) => model.startsWith(prefix)
+      ? AiRouter.openRouter
+      : (model.startsWith(geminiPrefix) ? AiRouter.gemini : AiRouter.vercel);
   static bool isOpenRouter(String model) => model.startsWith(prefix);
-  static String bare(String model) => isOpenRouter(model) ? model.substring(prefix.length) : model;
-  static String routerName(String model) => isOpenRouter(model) ? 'OpenRouter' : 'Vercel AI Gateway';
+  static bool isGemini(String model) => model.startsWith(geminiPrefix);
+  static String bare(String model) => isOpenRouter(model)
+      ? model.substring(prefix.length)
+      : (isGemini(model) ? model.substring(geminiPrefix.length) : model);
+  static String routerName(String model) => switch (of(model)) {
+    AiRouter.openRouter => 'OpenRouter',
+    AiRouter.gemini => 'Google AI Studio',
+    AiRouter.vercel => 'Vercel AI Gateway',
+  };
 }
 
 /// What a model is picked for.
@@ -99,7 +111,10 @@ class ModelInfo {
   String get bareId => AiRoute.bare(id);
   bool get vision => inputModalities.contains('image');
   bool get audioIn => inputModalities.contains('audio');
-  bool get pdfIn => inputModalities.contains('pdf') || inputModalities.contains('file') || attachment;
+  bool get pdfIn =>
+      inputModalities.contains('pdf') ||
+      inputModalities.contains('file') ||
+      attachment;
   bool get isText => type == 'language' && outputModalities.contains('text');
   bool get makesImages => type == 'image' || outputModalities.contains('image');
   bool get isSpeech => type == 'speech';
@@ -110,13 +125,17 @@ class ModelInfo {
     ModelKind.speech => isSpeech,
     ModelKind.transcription => isText && audioIn,
   };
-  bool get isVariant => id.endsWith('-batch') || id.endsWith(':batch') || (inputPrice ?? 0) < 0;
-  bool get isFree => id.endsWith(':free') || (inputPrice == 0 && outputPrice == 0);
+  bool get isVariant =>
+      id.endsWith('-batch') || id.endsWith(':batch') || (inputPrice ?? 0) < 0;
+  bool get isFree =>
+      id.endsWith(':free') || (inputPrice == 0 && outputPrice == 0);
 
-  double get sortPrice => (inputPrice ?? 999) * 0.75 + (outputPrice ?? 999) * 0.25;
+  double get sortPrice =>
+      (inputPrice ?? 999) * 0.75 + (outputPrice ?? 999) * 0.25;
 
-  static String usd(double v) =>
-      v >= 10 ? '\$${v.toStringAsFixed(0)}' : (v >= 1 ? '\$${v.toStringAsFixed(2)}' : '\$${v.toStringAsFixed(3)}');
+  static String usd(double v) => v >= 10
+      ? '\$${v.toStringAsFixed(0)}'
+      : (v >= 1 ? '\$${v.toStringAsFixed(2)}' : '\$${v.toStringAsFixed(3)}');
 
   String get priceLabel {
     if (isFree) return 'Free';
@@ -127,7 +146,8 @@ class ModelInfo {
 
   static String tokens(int? c) {
     if (c == null) return '—';
-    if (c >= 1000000) return '${(c / 1000000).toStringAsFixed(c % 1000000 == 0 ? 0 : 1)}M';
+    if (c >= 1000000)
+      return '${(c / 1000000).toStringAsFixed(c % 1000000 == 0 ? 0 : 1)}M';
     return '${(c / 1000).round()}K';
   }
 
@@ -192,7 +212,12 @@ class ModelInfo {
 
 @immutable
 class CatalogState {
-  const CatalogState({this.models = const [], this.loading = false, this.error, this.fetchedAt});
+  const CatalogState({
+    this.models = const [],
+    this.loading = false,
+    this.error,
+    this.fetchedAt,
+  });
 
   final List<ModelInfo> models;
   final bool loading;
@@ -202,17 +227,23 @@ class CatalogState {
   /// Chat models, without batch variants.
   List<ModelInfo> get chatModels => ofKind(ModelKind.text);
 
-  List<ModelInfo> ofKind(ModelKind kind) => models.where((m) => !m.isVariant && m.fits(kind)).toList();
+  List<ModelInfo> ofKind(ModelKind kind) =>
+      models.where((m) => !m.isVariant && m.fits(kind)).toList();
 
   ModelInfo? byId(String id) => models.where((m) => m.id == id).firstOrNull;
 
-  CatalogState copyWith({List<ModelInfo>? models, bool? loading, String? error, DateTime? fetchedAt, bool clearError = false}) =>
-      CatalogState(
-        models: models ?? this.models,
-        loading: loading ?? this.loading,
-        error: clearError ? null : (error ?? this.error),
-        fetchedAt: fetchedAt ?? this.fetchedAt,
-      );
+  CatalogState copyWith({
+    List<ModelInfo>? models,
+    bool? loading,
+    String? error,
+    DateTime? fetchedAt,
+    bool clearError = false,
+  }) => CatalogState(
+    models: models ?? this.models,
+    loading: loading ?? this.loading,
+    error: clearError ? null : (error ?? this.error),
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
 }
 
 /// Every text model both routers offer, cached for three days.
@@ -221,7 +252,10 @@ class ModelCatalog extends Notifier<CatalogState> {
   static const _cacheTimeKey = 'model_catalog.time.v2';
   static const gatewayModelsUrl = 'https://ai-gateway.vercel.sh/v1/models';
   static const modelsDevUrl = 'https://models.dev/api.json';
-  static const openRouterModelsUrl = 'https://openrouter.ai/api/v1/models?output_modalities=all';
+  static const openRouterModelsUrl =
+      'https://openrouter.ai/api/v1/models?output_modalities=all';
+  static const geminiModelsUrl =
+      'https://generativelanguage.googleapis.com/v1beta/openai/models';
 
   @override
   CatalogState build() {
@@ -236,7 +270,10 @@ class ModelCatalog extends Notifier<CatalogState> {
       if (raw == null) return;
       final t = prefs.getString(_cacheTimeKey);
       state = state.copyWith(
-        models: [for (final m in jsonDecode(raw) as List) ModelInfo.fromJson(Map<String, dynamic>.from(m))],
+        models: [
+          for (final m in jsonDecode(raw) as List)
+            ModelInfo.fromJson(Map<String, dynamic>.from(m)),
+        ],
         fetchedAt: t == null ? null : DateTime.tryParse(t),
       );
     } catch (e) {
@@ -246,12 +283,17 @@ class ModelCatalog extends Notifier<CatalogState> {
 
   Future<void> ensureLoaded() async {
     final at = state.fetchedAt;
-    if (state.models.isEmpty || at == null || DateTime.now().difference(at) > const Duration(days: 3)) {
+    if (state.models.isEmpty ||
+        at == null ||
+        DateTime.now().difference(at) > const Duration(days: 3)) {
       await refresh();
     }
   }
 
-  static Future<String?> _get(String url, {Duration timeout = const Duration(seconds: 45)}) async {
+  static Future<String?> _get(
+    String url, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
     try {
       final r = await http.get(Uri.parse(url)).timeout(timeout);
       return r.statusCode == 200 ? utf8.decode(r.bodyBytes) : null;
@@ -264,29 +306,62 @@ class ModelCatalog extends Notifier<CatalogState> {
     if (state.loading) return;
     state = state.copyWith(loading: true, clearError: true);
     try {
+      final geminiKey = ref.read(settingsProvider).geminiKey.trim();
       final results = await Future.wait([
         _get(gatewayModelsUrl),
         _get(modelsDevUrl, timeout: const Duration(seconds: 60)),
         _get(openRouterModelsUrl),
+        if (geminiKey.isNotEmpty) _getAuthed(geminiModelsUrl, geminiKey),
       ]);
-      if (results[0] == null && results[2] == null) {
-        throw Exception('Could not reach the model lists. Check your connection.');
+      if (results[0] == null &&
+          results[2] == null &&
+          (results.length < 4 || results[3] == null)) {
+        throw Exception(
+          'Could not reach the model lists. Check your connection.',
+        );
       }
-      final merged = await compute(mergeCatalogs, (results[0], results[1], results[2]));
+      final merged = await compute(mergeCatalogs, (
+        results[0],
+        results[1],
+        results[2],
+      ));
+      if (geminiKey.isNotEmpty && results.length > 3 && results[3] != null) {
+        merged.addAll(_gemini(results[3]!));
+      }
       final now = DateTime.now();
       state = state.copyWith(models: merged, fetchedAt: now, loading: false);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKey, jsonEncode(merged.map((m) => m.toJson()).toList()));
+      await prefs.setString(
+        _cacheKey,
+        jsonEncode(merged.map((m) => m.toJson()).toList()),
+      );
       await prefs.setString(_cacheTimeKey, now.toIso8601String());
     } catch (e) {
-      state = state.copyWith(loading: false, error: '$e'.replaceFirst('Exception: ', ''));
+      state = state.copyWith(
+        loading: false,
+        error: '$e'.replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  static Future<String?> _getAuthed(String url, String key) async {
+    try {
+      final r = await http
+          .get(Uri.parse(url), headers: {'Authorization': 'Bearer $key'})
+          .timeout(const Duration(seconds: 45));
+      return r.statusCode == 200 ? utf8.decode(r.bodyBytes) : null;
+    } catch (_) {
+      return null;
     }
   }
 }
 
-final modelCatalogProvider = NotifierProvider<ModelCatalog, CatalogState>(ModelCatalog.new);
+final modelCatalogProvider = NotifierProvider<ModelCatalog, CatalogState>(
+  ModelCatalog.new,
+);
 
-double? _num(dynamic v) => v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+double? _num(dynamic v) =>
+    v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
 
 double? _perMillion(dynamic v) {
   final d = _num(v);
@@ -301,12 +376,16 @@ String? _str(dynamic v) {
 String? _released(dynamic unix) {
   final n = _num(unix);
   if (n == null || n <= 0) return null;
-  return DateTime.fromMillisecondsSinceEpoch((n * 1000).toInt(), isUtc: true).toIso8601String().substring(0, 10);
+  return DateTime.fromMillisecondsSinceEpoch(
+    (n * 1000).toInt(),
+    isUtc: true,
+  ).toIso8601String().substring(0, 10);
 }
 
 /// models.dev keyed by `provider/model` across all its providers, with the
 /// `vercel` and `openrouter` entries taking priority for their own router.
-({Map<String, Map> vercel, Map<String, Map> openRouter, Map<String, Map> any}) _modelsDev(String? raw) {
+({Map<String, Map> vercel, Map<String, Map> openRouter, Map<String, Map> any})
+_modelsDev(String? raw) {
   final vercel = <String, Map>{};
   final openRouter = <String, Map>{};
   final any = <String, Map>{};
@@ -344,7 +423,11 @@ List<ModelInfo> mergeCatalogs((String?, String?, String?) input) {
   return out;
 }
 
-List<ModelInfo> _vercel(String gateway, Map<String, Map> dev, Map<String, Map> any) {
+List<ModelInfo> _vercel(
+  String gateway,
+  Map<String, Map> dev,
+  Map<String, Map> any,
+) {
   final gw = (jsonDecode(gateway)['data'] as List).cast<Map<String, dynamic>>();
   final out = <ModelInfo>[];
   for (final m in gw) {
@@ -353,9 +436,13 @@ List<ModelInfo> _vercel(String gateway, Map<String, Map> dev, Map<String, Map> a
     if (!const {'language', 'image', 'speech'}.contains(type)) continue;
     final d = dev[id] ?? any[id];
     final pricing = (m['pricing'] as Map?) ?? const {};
-    final mod = (m['modalities'] as Map?) ?? d?['modalities'] as Map? ?? const {};
+    final mod =
+        (m['modalities'] as Map?) ?? d?['modalities'] as Map? ?? const {};
     final outMods = List<String>.from(
-      mod['output'] ?? (type == 'image' ? const ['image'] : (type == 'speech' ? const ['audio'] : const ['text'])),
+      mod['output'] ??
+          (type == 'image'
+              ? const ['image']
+              : (type == 'speech' ? const ['audio'] : const ['text'])),
     );
     final tags = List<String>.from(m['tags'] ?? const []);
     out.add(
@@ -367,16 +454,27 @@ List<ModelInfo> _vercel(String gateway, Map<String, Map> dev, Map<String, Map> a
         imagePrice: double.tryParse('${pricing['image']}'),
         voices: List<String>.from(m['voices'] ?? const []),
         description: (m['description'] ?? d?['description'] ?? '').toString(),
-        contextWindow: (m['context_window'] as num?)?.toInt() ?? (d?['limit']?['context'] as num?)?.toInt(),
-        maxOutput: (m['max_tokens'] as num?)?.toInt() ?? (d?['limit']?['output'] as num?)?.toInt(),
-        inputPrice: _perMillion(pricing['input']) ?? (d?['cost']?['input'] as num?)?.toDouble(),
-        outputPrice: _perMillion(pricing['output']) ?? (d?['cost']?['output'] as num?)?.toDouble(),
-        cacheReadPrice: _perMillion(pricing['input_cache_read']) ?? (d?['cost']?['cache_read'] as num?)?.toDouble(),
+        contextWindow:
+            (m['context_window'] as num?)?.toInt() ??
+            (d?['limit']?['context'] as num?)?.toInt(),
+        maxOutput:
+            (m['max_tokens'] as num?)?.toInt() ??
+            (d?['limit']?['output'] as num?)?.toInt(),
+        inputPrice:
+            _perMillion(pricing['input']) ??
+            (d?['cost']?['input'] as num?)?.toDouble(),
+        outputPrice:
+            _perMillion(pricing['output']) ??
+            (d?['cost']?['output'] as num?)?.toDouble(),
+        cacheReadPrice:
+            _perMillion(pricing['input_cache_read']) ??
+            (d?['cost']?['cache_read'] as num?)?.toDouble(),
         inputModalities: List<String>.from(mod['input'] ?? const ['text']),
         outputModalities: outMods,
         reasoning: (d?['reasoning'] as bool?) ?? tags.contains('reasoning'),
         toolCall: (d?['tool_call'] as bool?) ?? tags.contains('tool-use'),
-        openWeights: (d?['open_weights'] as bool?) ?? tags.contains('open-weights'),
+        openWeights:
+            (d?['open_weights'] as bool?) ?? tags.contains('open-weights'),
         structuredOutput: (d?['structured_output'] as bool?) ?? false,
         attachment: (d?['attachment'] as bool?) ?? false,
         temperature: (d?['temperature'] as bool?) ?? true,
@@ -391,15 +489,22 @@ List<ModelInfo> _vercel(String gateway, Map<String, Map> dev, Map<String, Map> a
   return out;
 }
 
-List<ModelInfo> _openRouter(String raw, Map<String, Map> dev, Map<String, Map> any) {
+List<ModelInfo> _openRouter(
+  String raw,
+  Map<String, Map> dev,
+  Map<String, Map> any,
+) {
   final list = (jsonDecode(raw)['data'] as List).cast<Map<String, dynamic>>();
   final out = <ModelInfo>[];
   for (final m in list) {
     final id = m['id'] as String;
     final arch = (m['architecture'] as Map?) ?? const {};
-    final outMods = List<String>.from(arch['output_modalities'] ?? const ['text']);
+    final outMods = List<String>.from(
+      arch['output_modalities'] ?? const ['text'],
+    );
     final String type;
-    if (outMods.contains('speech') || outMods.contains('audio') && !outMods.contains('text')) {
+    if (outMods.contains('speech') ||
+        outMods.contains('audio') && !outMods.contains('text')) {
       type = 'speech';
     } else if (outMods.contains('text')) {
       type = 'language';
@@ -408,7 +513,9 @@ List<ModelInfo> _openRouter(String raw, Map<String, Map> dev, Map<String, Map> a
     } else {
       continue;
     }
-    final inMods = List<String>.from(arch['input_modalities'] ?? const ['text']);
+    final inMods = List<String>.from(
+      arch['input_modalities'] ?? const ['text'],
+    );
     final pricing = (m['pricing'] as Map?) ?? const {};
     final params = List.from(m['supported_parameters'] ?? const []);
     final d = dev[id] ?? any[id.replaceAll(':free', '')];
@@ -419,22 +526,34 @@ List<ModelInfo> _openRouter(String raw, Map<String, Map> dev, Map<String, Map> a
     out.add(
       ModelInfo(
         id: '${AiRoute.prefix}$id',
-        name: name.contains(': ') ? name.substring(name.indexOf(': ') + 2) : name,
+        name: name.contains(': ')
+            ? name.substring(name.indexOf(': ') + 2)
+            : name,
         provider: id.split('/').first,
         type: type,
         voices: List<String>.from(m['supported_voices'] ?? const []),
-        imagePrice: outMods.contains('image') ? ((_num(pricing['image_output']) ?? completion ?? 0) * 1290) : null,
+        imagePrice: outMods.contains('image')
+            ? ((_num(pricing['image_output']) ?? completion ?? 0) * 1290)
+            : null,
         description: (m['description'] ?? d?['description'] ?? '').toString(),
-        contextWindow: (m['context_length'] as num?)?.toInt() ?? (d?['limit']?['context'] as num?)?.toInt(),
-        maxOutput: (m['top_provider']?['max_completion_tokens'] as num?)?.toInt() ?? (d?['limit']?['output'] as num?)?.toInt(),
+        contextWindow:
+            (m['context_length'] as num?)?.toInt() ??
+            (d?['limit']?['context'] as num?)?.toInt(),
+        maxOutput:
+            (m['top_provider']?['max_completion_tokens'] as num?)?.toInt() ??
+            (d?['limit']?['output'] as num?)?.toInt(),
         inputPrice: prompt == null ? null : prompt * 1e6,
         outputPrice: completion == null ? null : completion * 1e6,
         cacheReadPrice: cacheRead == null ? null : cacheRead * 1e6,
         inputModalities: inMods,
         outputModalities: outMods,
-        reasoning: params.contains('reasoning') || (d?['reasoning'] as bool? ?? false),
+        reasoning:
+            params.contains('reasoning') || (d?['reasoning'] as bool? ?? false),
         toolCall: params.contains('tools'),
-        openWeights: (d?['open_weights'] as bool?) ?? (m['hugging_face_id'] != null && '${m['hugging_face_id']}'.isNotEmpty),
+        openWeights:
+            (d?['open_weights'] as bool?) ??
+            (m['hugging_face_id'] != null &&
+                '${m['hugging_face_id']}'.isNotEmpty),
         structuredOutput: params.contains('structured_outputs'),
         attachment: (d?['attachment'] as bool?) ?? false,
         temperature: params.contains('temperature'),
@@ -442,6 +561,37 @@ List<ModelInfo> _openRouter(String raw, Map<String, Map> dev, Map<String, Map> a
         lastUpdated: _str(d?['last_updated']),
         knowledge: _str(d?['knowledge']),
         family: _str(d?['family']),
+      ),
+    );
+  }
+  return out;
+}
+
+/// Gemini's OpenAI-compatible model list is scoped to the user's API key.
+/// Its ids come as `models/gemini-…`; chat completions take the bare name.
+/// Embedding, live (native audio) and TTS models can't chat through that
+/// endpoint, so they are left out; image models are marked as such.
+List<ModelInfo> _gemini(String raw) {
+  final data = (jsonDecode(raw) as Map)['data'] as List? ?? const [];
+  final out = <ModelInfo>[];
+  final seen = <String>{};
+  for (final item in data.whereType<Map>()) {
+    final id = '${item['id']}'.replaceFirst('models/', '');
+    if (!id.startsWith('gemini-') || !seen.add(id)) continue;
+    if (RegExp(r'embedding|live|native-audio|tts|aqa').hasMatch(id)) continue;
+    final image = id.contains('image');
+    out.add(
+      ModelInfo(
+        id: '${AiRoute.geminiPrefix}$id',
+        name: '${item['display_name'] ?? id}',
+        provider: 'Google AI Studio',
+        type: image ? 'image' : 'language',
+        description: 'Available through this Google AI Studio key.',
+        inputModalities: const ['text', 'image', 'audio', 'file'],
+        outputModalities: image ? const ['image', 'text'] : const ['text'],
+        reasoning: !image && !id.startsWith('gemini-2.0'),
+        toolCall: !image,
+        attachment: !image,
       ),
     );
   }

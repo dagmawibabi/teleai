@@ -125,6 +125,30 @@ final _canvasTools = <TelegramTool>[
     }, ['folder']),
   ),
   TelegramTool(
+    name: 'canvas_save',
+    label: 'Saving to the canvas',
+    category: ToolCategory.memory,
+    cost: ToolCost.device,
+    description:
+        'Saves anything that isn\'t a Telegram message into a canvas folder (made if missing): a web link, an email, a file '
+        'of this conversation, or an item from a connected app (a Notion page, Slack message, issue, task, calendar event, '
+        'R2 file…). Give a title, its url and/or file, a short text (the gist or an excerpt), and source (e.g. "Gmail").',
+    parameters: _obj({
+      'folder': {'type': 'string', 'description': 'folder_id, name or path; created when new.'},
+      'kind': {'type': 'string', 'enum': ['link', 'email', 'file', 'app', 'note']},
+      'title': {'type': 'string'},
+      'text': {'type': 'string'},
+      'url': {'type': 'string'},
+      'file': {'type': 'string', 'description': 'A file of this conversation.'},
+      'source': {'type': 'string'},
+      'note': {'type': 'string', 'description': 'Why it is here.'},
+      'tags': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    }, ['folder', 'kind', 'title']),
+  ),
+  TelegramTool(
     name: 'canvas_add_note',
     label: 'Writing a canvas note',
     category: ToolCategory.memory,
