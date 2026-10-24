@@ -12,7 +12,6 @@ import '../features/auth/presentation/qr_screen.dart';
 import '../features/auth/presentation/unsupported_screen.dart';
 import '../features/auth/presentation/welcome_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
-import '../features/telegram/data/telegram_store.dart';
 import '../features/settings/data/settings.dart';
 import '../infrastructure/telegram/telegram_client.dart';
 import 'theme.dart';
@@ -81,10 +80,7 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     ref.listenManual(settingsProvider, (_, _) => _syncOnline());
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncOnline());
-    // The store listens from the first update, so no chat or user TDLib
-    // reports before the chat screen opens is missed.
-    ref.read(telegramStoreProvider);
-    ref.read(telegramClientProvider).start().catchError((_) {});
+    // TDLib itself was started with the process (see startRuntime).
   }
 
   @override

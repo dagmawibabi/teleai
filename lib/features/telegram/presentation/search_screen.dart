@@ -18,18 +18,21 @@ import 'tg_avatar.dart';
 /// Every chat at once, by kind of content: all the photos, files, links or
 /// voice messages people sent, optionally matching words, newest first.
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key, this.chatId, this.initialType = 'any'});
+  const SearchScreen({super.key, this.chatId, this.initialType = 'any', this.initialQuery = ''});
 
   /// Search only this chat.
   final int? chatId;
   final String initialType;
+
+  /// Searched straight away, e.g. a tapped #hashtag.
+  final String initialQuery;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  final _query = TextEditingController();
+  late final _query = TextEditingController(text: widget.initialQuery);
   final _scroll = ScrollController();
   late String _type = widget.initialType;
   String _scope = 'all';
@@ -49,7 +52,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _scroll.addListener(() {
       if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 500) _more();
     });
-    if (_type != 'any') _search();
+    if (_type != 'any' || widget.initialQuery.isNotEmpty) _search();
   }
 
   @override
@@ -60,14 +63,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
+  /// Typing: a search is about to start, so it shows as searching already.
+  bool _pending = false;
+
   void _queue() {
     _debounce?.cancel();
+    if (!_pending) setState(() => _pending = true);
     _debounce = Timer(const Duration(milliseconds: 450), _search);
   }
 
+  bool get _busy => _loading || _pending;
+
   Future<void> _search() async {
+    _debounce?.cancel();
     final run = ++_run;
     setState(() {
+      _pending = false;
       _results.clear();
       _next = '';
       _error = null;
@@ -185,10 +196,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ],
               ),
             ),
-          if (_loading && _results.isEmpty) const LinearProgressIndicator(minHeight: 2),
+          // Searching (or about to): a bar while anything is loading, and
+          // a clear "Searching…" until the first results arrive.
+          SizedBox(height: 2, child: _busy ? const LinearProgressIndicator(minHeight: 2) : null),
+          if (_searched || _busy)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.l, Space.s, Space.l, Space.xs),
+              child: Row(
+                children: [
+                  Text(
+                    _busy && _results.isEmpty
+                        ? 'Searching…'
+                        : '${_results.length}${_next.isEmpty ? '' : '+'} result${_results.length == 1 ? '' : 's'}',
+                    style: context.text.labelSmall,
+                  ),
+                  if (_busy && _results.isNotEmpty) ...[
+                    const SizedBox(width: Space.s),
+                    const SizedBox.square(dimension: 10, child: CircularProgressIndicator(strokeWidth: 1.5)),
+                  ],
+                ],
+              ),
+            ),
           Expanded(
             child: _error != null
                 ? Center(child: Padding(padding: const EdgeInsets.all(Space.xl), child: Text(_error!, textAlign: TextAlign.center)))
+                : _busy && _results.isEmpty
+                ? const _SearchingPlaceholder()
                 : !_searched
                 ? Center(
                     child: Padding(
@@ -207,8 +240,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     controller: _scroll,
                     padding: const EdgeInsets.all(3),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 3, crossAxisSpacing: 3),
-                    itemCount: _results.length,
+                    itemCount: _results.length + (_next.isEmpty ? 0 : 1),
                     itemBuilder: (_, i) {
+                      if (i == _results.length) {
+                        return const Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2)));
+                      }
                       final m = _results[i];
                       return GestureDetector(
                         onTap: () => _open(m),
@@ -258,4 +294,56 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
     );
   }
+}
+
+/// What the page shows while the first results load: a few shimmering rows.
+class _SearchingPlaceholder extends StatefulWidget {
+  const _SearchingPlaceholder();
+
+  @override
+  State<_SearchingPlaceholder> createState() => _SearchingPlaceholderState();
+}
+
+class _SearchingPlaceholderState extends State<_SearchingPlaceholder> with SingleTickerProviderStateMixin {
+  late final _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: Tween<double>(begin: 0.35, end: 0.8).animate(_pulse),
+    child: ListView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 7,
+      itemBuilder: (_, i) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: 10),
+        child: Row(
+          children: [
+            const CircleAvatar(radius: 20, backgroundColor: AppColors.surface3),
+            const SizedBox(width: Space.m),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FractionallySizedBox(
+                    widthFactor: 0.45 + (i % 3) * 0.12,
+                    child: Container(height: 11, decoration: BoxDecoration(color: AppColors.surface3, borderRadius: BorderRadius.circular(4))),
+                  ),
+                  const SizedBox(height: 7),
+                  FractionallySizedBox(
+                    widthFactor: 0.8 - (i % 2) * 0.15,
+                    child: Container(height: 9, decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(4))),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

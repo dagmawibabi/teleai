@@ -1,0 +1,27 @@
+PART
+
+/// DESCRIPTION1
+CLASS_MODIFIER class CLASS_NAME extends PARENT {
+  
+  /// DESCRIPTION2
+  const CLASS_NAME(ARGUMENTS);
+  VARIABLESEXTRA
+  FROM_JSON
+  /// Convert model to TDLib JSON format
+  @override
+  Map<String, dynamic> toJson(JSON_ARGS)TO_JSON
+
+  COPY_OVERRIDE
+  CLASS_NAME copyWith(COPY_FIELDS)COPY_RETURN;
+
+  /// TDLib object type
+  static const String defaultObjectId = 'ID';
+
+  /// Convert model to TDLib JSON format, encoded into String.
+  @override
+  String toString() => jsonEncode(toJson());
+
+  /// TDLib object type for current class instance
+  @override
+  String get currentObjectId => defaultObjectId;
+}

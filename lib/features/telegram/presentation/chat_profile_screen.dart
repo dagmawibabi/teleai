@@ -1,5 +1,6 @@
 import 'blocked_screen.dart';
 import 'members_screen.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -88,9 +89,17 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
     try {
       switch (c.type) {
         case td.ChatTypePrivate(:final userId):
-          final full = await client.send<td.UserFullInfo>(td.GetUserFullInfo(userId: userId), limited: true);
-          if (full.personalChatId != 0 && ref.read(telegramStoreProvider).chat(full.personalChatId) == null) {
-            await client.send<td.Chat>(td.GetChat(chatId: full.personalChatId), limited: true);
+          final full = await client.send<td.UserFullInfo>(
+            td.GetUserFullInfo(userId: userId),
+            limited: true,
+          );
+          if (full.personalChatId != 0 &&
+              ref.read(telegramStoreProvider).chat(full.personalChatId) ==
+                  null) {
+            await client.send<td.Chat>(
+              td.GetChat(chatId: full.personalChatId),
+              limited: true,
+            );
           }
           if (mounted) setState(() => _user = full);
         case td.ChatTypeSupergroup(:final supergroupId):
@@ -98,8 +107,10 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
             td.GetSupergroupFullInfo(supergroupId: supergroupId),
             limited: true,
           );
-          if (full.linkedChatId != 0 && ref.read(telegramStoreProvider).chat(full.linkedChatId) == null) {
-            await client.send<td.Chat>(td.GetChat(chatId: full.linkedChatId), limited: true);
+          for (final id in [full.linkedChatId, full.directMessagesChatId]) {
+            if (id != 0 && ref.read(telegramStoreProvider).chat(id) == null) {
+              await client.send<td.Chat>(td.GetChat(chatId: id), limited: true);
+            }
           }
           if (mounted) setState(() => _supergroup = full);
         case td.ChatTypeBasicGroup(:final basicGroupId):
@@ -131,13 +142,14 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
               offset: 0,
               limit: 40,
               filter: tab.filter,
-              messageThreadId: 0,
-              savedMessagesTopicId: 0,
+              topicId: null,
             ),
             limited: true,
           );
       _totals[tab] = r.totalCount;
-      final fresh = r.messages.where((m) => list.every((x) => x.id != m.id)).toList();
+      final fresh = r.messages
+          .where((m) => list.every((x) => x.id != m.id))
+          .toList();
       _shared[tab] = [...list, ...fresh];
       if (fresh.isEmpty || r.nextFromMessageId == 0) _ended.add(tab);
     } catch (e) {
@@ -154,7 +166,10 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
       return Scaffold(
         body: Center(
           child: widget.self
-              ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Text('Chat not found'),
         ),
       );
@@ -163,11 +178,17 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
     final self = widget.self && kind == ChatKind.saved;
     final me = store.me;
     final username = store.chatUsername(c);
-    final user = c.type is td.ChatTypePrivate ? store.users[(c.type as td.ChatTypePrivate).userId] : null;
-    final members = _supergroup?.memberCount ?? _basic?.members.length ?? store.memberCount(c);
+    final user = c.type is td.ChatTypePrivate
+        ? store.users[(c.type as td.ChatTypePrivate).userId]
+        : null;
+    final members =
+        _supergroup?.memberCount ??
+        _basic?.members.length ??
+        store.memberCount(c);
 
     final subtitle = switch (kind) {
-      ChatKind.channel => username != null ? 'public channel' : 'private channel',
+      ChatKind.channel =>
+        username != null ? 'public channel' : 'private channel',
       ChatKind.group =>
         '${members == null ? '' : '${NumberFormat.decimalPattern().format(members)} members · '}${username != null ? 'public group' : 'group'}',
       ChatKind.bot => 'bot',
@@ -175,19 +196,44 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
       _ => switch (user?.status) {
         td.UserStatusOnline() => 'online',
         td.UserStatusRecently() => 'last seen recently',
-        td.UserStatusOffline(:final wasOnline) => 'last seen ${shortTime(wasOnline)}',
+        td.UserStatusOffline(:final wasOnline) =>
+          'last seen ${shortTime(wasOnline)}',
         td.UserStatusLastWeek() => 'last seen within a week',
         td.UserStatusLastMonth() => 'last seen within a month',
         _ => 'last seen a long time ago',
       },
     };
-    final about = _user?.bio?.text ?? _supergroup?.description ?? _basic?.description ?? '';
-    final aboutFormatted = _user?.bio;
+    final about =
+        _user?.bio?.text ??
+        _supergroup?.description ??
+        _basic?.description ??
+        '';
+    // Group/channel descriptions are plain strings in TDLib while user bios
+    // preserve entities. Feed both through the same formatter so URLs and
+    // @mentions behave like Telegram's own profile screen.
+    final aboutFormatted =
+        _user?.bio ??
+        (about.isEmpty
+            ? null
+            : td.FormattedText(text: about, entities: const []));
     final link = username != null
         ? 't.me/$username'
         : _supergroup?.inviteLink?.inviteLink ?? _basic?.inviteLink?.inviteLink;
-    final personal = _user != null && _user!.personalChatId != 0 ? store.chat(_user!.personalChatId) : null;
-    final linked = _supergroup != null && _supergroup!.linkedChatId != 0 ? store.chat(_supergroup!.linkedChatId) : null;
+    final personal = _user != null && _user!.personalChatId != 0
+        ? store.chat(_user!.personalChatId)
+        : null;
+    final linked = _supergroup != null && _supergroup!.linkedChatId != 0
+        ? store.chat(_supergroup!.linkedChatId)
+        : null;
+    // Channel subscribers are visible to admins only.
+    final canSeeMembers =
+        kind == ChatKind.group ||
+        (kind == ChatKind.channel && store.isAdmin(c));
+    void openMembers(String filter) => Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MembersScreen(chatId: c.id, initialFilter: filter),
+      ),
+    );
 
     final top = MediaQuery.paddingOf(context).top;
     return Scaffold(
@@ -200,7 +246,11 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                 child: GestureDetector(
                   onTap: () => _openPhoto(c),
                   child: self && me != null
-                      ? TgAvatar(userId: me.id, title: '${me.firstName} ${me.lastName}', size: 110)
+                      ? TgAvatar(
+                          userId: me.id,
+                          title: '${me.firstName} ${me.lastName}',
+                          size: 110,
+                        )
                       : kind == ChatKind.saved
                       ? const SavedAvatar(size: 110)
                       : TgAvatar(chatId: c.id, title: c.title, size: 110),
@@ -221,72 +271,100 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: context.text.bodyMedium?.copyWith(
-                  color: subtitle == 'online' ? AppColors.accent : AppColors.text2,
+                  color: subtitle == 'online'
+                      ? AppColors.accent
+                      : AppColors.text2,
                 ),
               ),
               const SizedBox(height: Space.xl),
-              Row(
+              _ActionGrid(
                 children: [
                   if (self) ...[
                     _Action(
                       icon: Icons.bookmark_outline_rounded,
                       label: 'Saved',
-                      onTap: () =>
-                          Navigator.of(context)
-                              .pushReplacement(MaterialPageRoute<void>(builder: (_) => ChatViewScreen(chatId: c.id))),
+                      onTap: () => Navigator.of(context).pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ChatViewScreen(chatId: c.id),
+                        ),
+                      ),
                     ),
                     _Action(
                       icon: Icons.settings_outlined,
                       label: 'Settings',
-                      onTap: () =>
-                          Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      ),
                     ),
                     _Action(
                       icon: Icons.block_rounded,
                       label: 'Blocked',
-                      onTap: () =>
-                          Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const BlockedScreen())),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const BlockedScreen(),
+                        ),
+                      ),
                     ),
                   ] else ...[
                     _Action(
-                      icon: kind == ChatKind.channel ? Icons.forum_outlined : Icons.chat_bubble_outline_rounded,
+                      icon: kind == ChatKind.channel
+                          ? Icons.forum_outlined
+                          : Icons.chat_bubble_outline_rounded,
                       label: kind == ChatKind.channel ? 'Open' : 'Message',
-                      onTap: () =>
-                          Navigator.of(context)
-                              .pushReplacement(MaterialPageRoute<void>(builder: (_) => ChatViewScreen(chatId: c.id))),
-                    ),
-                    _Action(
-                      icon: c.isMuted ? Icons.notifications_off_outlined : Icons.notifications_none_rounded,
-                      label: c.isMuted ? 'Unmute' : 'Mute',
-                      onTap: () => setChatMuted(ref, c, !c.isMuted, context: context),
-                    ),
-                    _Action(
-                      icon: Icons.auto_awesome_outlined,
-                      label: 'Ask AI',
-                      onTap: () => askAiAbout(context, ref, c),
-                    ),
-                    if (kind == ChatKind.group || (kind == ChatKind.channel && store.isAdmin(c)))
-                      _Action(
-                        icon: Icons.groups_outlined,
-                        label: kind == ChatKind.channel ? 'Subscribers' : 'Members',
-                        onTap: () => Navigator.of(
-                          context,
-                        ).push(MaterialPageRoute<void>(builder: (_) => MembersScreen(chatId: c.id))),
+                      onTap: () => Navigator.of(context).pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ChatViewScreen(chatId: c.id),
+                        ),
                       ),
-                    if ((kind == ChatKind.group || kind == ChatKind.channel) && store.isAdmin(c))
+                    ),
+                    _Action(
+                      icon: c.isMuted
+                          ? Icons.notifications_off_outlined
+                          : Icons.notifications_none_rounded,
+                      label: c.isMuted ? 'Unmute' : 'Mute',
+                      onTap: () =>
+                          setChatMuted(ref, c, !c.isMuted, context: context),
+                    ),
+                    // A channel's direct messages live in a separate group
+                    // its admins read, one conversation per sender.
+                    if (kind == ChatKind.channel &&
+                        store.isAdmin(c) &&
+                        (_supergroup?.directMessagesChatId ?? 0) != 0)
+                      _Action(
+                        icon: Icons.forum_outlined,
+                        label: 'DM',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ChatViewScreen(
+                              chatId: _supergroup!.directMessagesChatId,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if ((kind == ChatKind.group || kind == ChatKind.channel) &&
+                        store.isAdmin(c))
                       _Action(
                         icon: Icons.query_stats_rounded,
                         label: 'Statistics',
-                        onTap: () => Navigator.of(
-                          context,
-                        ).push(MaterialPageRoute<void>(builder: (_) => AnalyticsScreen(chatId: c.id))),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => AnalyticsScreen(chatId: c.id),
+                          ),
+                        ),
                       ),
                     _Action(
                       icon: Icons.manage_search_rounded,
                       label: 'Search',
-                      onTap: () => Navigator.of(
-                        context,
-                      ).push(MaterialPageRoute<void>(builder: (_) => SearchScreen(chatId: c.id, initialType: 'photos_and_videos'))),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SearchScreen(
+                            chatId: c.id,
+                            initialType: 'photos_and_videos',
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                   if (link != null)
@@ -294,13 +372,21 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                       icon: Icons.ios_share_rounded,
                       label: 'Copy link',
                       onTap: () {
-                        Clipboard.setData(ClipboardData(text: link.startsWith('http') ? link : 'https://$link'));
+                        Clipboard.setData(
+                          ClipboardData(
+                            text: link.startsWith('http')
+                                ? link
+                                : 'https://$link',
+                          ),
+                        );
                         showSnack(context, 'Link copied');
                       },
                     ),
                 ],
               ),
-              if (about.isNotEmpty || link != null || (user != null && user.phoneNumber.isNotEmpty)) ...[
+              if (about.isNotEmpty ||
+                  link != null ||
+                  (user != null && user.phoneNumber.isNotEmpty)) ...[
                 const SizedBox(height: Space.l),
                 _Card(
                   children: [
@@ -309,37 +395,62 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                     if (about.isNotEmpty)
                       _InfoRow(
                         value: about,
-                        label: kind == ChatKind.private || kind == ChatKind.bot ? 'Bio' : 'Description',
-                        rich: aboutFormatted == null ? null : formattedSpan(aboutFormatted),
+                        label: kind == ChatKind.private || kind == ChatKind.bot
+                            ? 'Bio'
+                            : 'Description',
+                        rich: aboutFormatted == null
+                            ? null
+                            : formattedSpan(aboutFormatted, selectable: true),
                       ),
                     if (link != null)
                       _InfoRow(
                         value: username != null ? '@$username' : link,
-                        label: username != null ? (kind == ChatKind.private ? 'Username' : 'Link') : 'Invite link',
-                        trailing: const Icon(Icons.copy_rounded, size: 18, color: AppColors.text3),
+                        label: username != null
+                            ? (kind == ChatKind.private ? 'Username' : 'Link')
+                            : 'Invite link',
+                        trailing: const Icon(
+                          Icons.copy_rounded,
+                          size: 18,
+                          color: AppColors.text3,
+                        ),
                         onTap: () {
-                          Clipboard.setData(ClipboardData(text: link.startsWith('http') ? link : 'https://$link'));
+                          Clipboard.setData(
+                            ClipboardData(
+                              text: link.startsWith('http')
+                                  ? link
+                                  : 'https://$link',
+                            ),
+                          );
                           showSnack(context, 'Copied');
                         },
                       ),
                   ],
                 ),
               ],
-              for (final (label, other) in [('Channel', personal), ('Discussion', linked)])
+              for (final (label, other) in [
+                ('Channel', personal),
+                ('Discussion', linked),
+              ])
                 if (other != null) ...[
                   const SizedBox(height: Space.m),
                   _Card(
                     children: [
                       InkWell(
                         borderRadius: BorderRadius.circular(Radii.xl),
-                        onTap: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute<void>(builder: (_) => ChatViewScreen(chatId: other.id))),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ChatViewScreen(chatId: other.id),
+                          ),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(Space.l),
                           child: Row(
                             children: [
-                              TgAvatar(chatId: other.id, title: other.title, size: 48),
+                              TgAvatar(
+                                chatId: other.id,
+                                title: other.title,
+                                size: 48,
+                              ),
                               const SizedBox(width: Space.m),
                               Expanded(
                                 child: Column(
@@ -355,7 +466,8 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        if (store.memberCount(other) case final n? when n > 0) ...[
+                                        if (store.memberCount(other)
+                                            case final n? when n > 0) ...[
                                           const SizedBox(width: Space.s),
                                           Text(
                                             '${NumberFormat.compact().format(n)} subscribers',
@@ -364,15 +476,20 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                                         ],
                                       ],
                                     ),
-                                    Text(other.title, style: context.text.titleSmall),
+                                    Text(
+                                      other.title,
+                                      style: context.text.titleSmall,
+                                    ),
                                     if (other.lastMessage != null)
                                       Text(
                                         () {
-                                          final g = gistOf(other.lastMessage!.content);
-                                          return (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind)).replaceAll(
-                                            '\n',
-                                            ' ',
+                                          final g = gistOf(
+                                            other.lastMessage!.content,
                                           );
+                                          return (g.text.isNotEmpty
+                                                  ? g.text
+                                                  : (g.detail ?? g.kind))
+                                              .replaceAll('\n', ' ');
                                         }(),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -381,7 +498,10 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: AppColors.text3,
+                              ),
                             ],
                           ),
                         ),
@@ -389,33 +509,49 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                     ],
                   ),
                 ],
-              if (_supergroup != null || (_user?.groupInCommonCount ?? 0) > 0 || _basic != null) ...[
+              if (_supergroup != null ||
+                  (_user?.groupInCommonCount ?? 0) > 0 ||
+                  _basic != null) ...[
                 const SizedBox(height: Space.m),
                 _Card(
                   children: [
                     if (members != null && members > 0)
                       _StatRow(
                         icon: Icons.people_outline_rounded,
-                        label: kind == ChatKind.channel ? 'Subscribers' : 'Members',
+                        label: kind == ChatKind.channel
+                            ? 'Subscribers'
+                            : 'Members',
                         value: NumberFormat.decimalPattern().format(members),
+                        onTap: canSeeMembers
+                            ? () => openMembers('recent')
+                            : null,
                       ),
                     if ((_supergroup?.administratorCount ?? 0) > 0)
                       _StatRow(
                         icon: Icons.shield_outlined,
                         label: 'Administrators',
                         value: '${_supergroup!.administratorCount}',
+                        onTap: canSeeMembers
+                            ? () => openMembers('admins')
+                            : null,
                       ),
                     if ((_supergroup?.bannedCount ?? 0) > 0)
                       _StatRow(
                         icon: Icons.person_off_outlined,
                         label: 'Removed users',
                         value: '${_supergroup!.bannedCount}',
+                        onTap: store.isAdmin(c)
+                            ? () => openMembers('banned')
+                            : null,
                       ),
                     if ((_supergroup?.restrictedCount ?? 0) > 0)
                       _StatRow(
                         icon: Icons.block_outlined,
                         label: 'Restricted',
                         value: '${_supergroup!.restrictedCount}',
+                        onTap: store.isAdmin(c)
+                            ? () => openMembers('restricted')
+                            : null,
                       ),
                     if ((_user?.groupInCommonCount ?? 0) > 0)
                       _StatRow(
@@ -441,8 +577,18 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                       Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: ChoiceChip(
-                          avatar: Icon(t.icon, size: 16, color: _tab == t ? AppColors.accent : AppColors.text3),
-                          label: Text(_totals[t] == null ? t.label : '${t.label} ${_totals[t]}'),
+                          avatar: Icon(
+                            t.icon,
+                            size: 16,
+                            color: _tab == t
+                                ? AppColors.accent
+                                : AppColors.text3,
+                          ),
+                          label: Text(
+                            _totals[t] == null
+                                ? t.label
+                                : '${t.label} ${_totals[t]}',
+                          ),
                           selected: _tab == t,
                           onSelected: (_) {
                             setState(() => _tab = t);
@@ -471,7 +617,12 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(Space.m, Space.s, Space.m, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  Space.m,
+                  Space.s,
+                  Space.m,
+                  0,
+                ),
                 child: Column(
                   children: [
                     Row(
@@ -482,12 +633,22 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                           onTap: () => Navigator.of(context).maybePop(),
                         ),
                         const Spacer(),
+                        GlassIconButton(
+                          icon: Icons.auto_awesome_outlined,
+                          tooltip: 'Ask AI',
+                          onTap: () => askAiAbout(context, ref, c),
+                        ),
+                        if (link != null) const SizedBox(width: Space.s),
                         if (link != null)
                           GlassIconButton(
                             icon: Icons.open_in_new_rounded,
                             tooltip: 'Open in Telegram',
                             onTap: () => launchUrl(
-                              Uri.parse(link.startsWith('http') ? link : 'https://$link'),
+                              Uri.parse(
+                                link.startsWith('http')
+                                    ? link
+                                    : 'https://$link',
+                              ),
                               mode: LaunchMode.externalApplication,
                             ),
                           ),
@@ -514,7 +675,12 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
         builder: (_) => Scaffold(
           backgroundColor: Colors.black,
           appBar: AppBar(backgroundColor: Colors.black, title: Text(c.title)),
-          body: Center(child: InteractiveViewer(maxScale: 5, child: Image.file(File(path)))),
+          body: Center(
+            child: InteractiveViewer(
+              maxScale: 5,
+              child: Image.file(File(path)),
+            ),
+          ),
         ),
       ),
     );
@@ -543,7 +709,13 @@ class _Action extends StatelessWidget {
               children: [
                 Icon(icon, size: 22, color: AppColors.text),
                 const SizedBox(height: 4),
-                Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -559,17 +731,29 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(Radii.xl)),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(Radii.xl),
+    ),
     clipBehavior: Clip.antiAlias,
     child: Material(
       type: MaterialType.transparency,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
     ),
   );
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.value, required this.label, this.rich, this.trailing, this.onTap});
+  const _InfoRow({
+    required this.value,
+    required this.label,
+    this.rich,
+    this.trailing,
+    this.onTap,
+  });
   final String value;
   final String label;
   final TextSpan? rich;
@@ -587,8 +771,11 @@ class _InfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Text.rich lets the recognizers in a bio's URL / @mention
+                // spans receive the tap. A selectable paragraph consumes
+                // that gesture before the link can open.
                 rich != null
-                    ? SelectableText.rich(rich!, style: context.text.bodyLarge)
+                    ? Text.rich(rich!, style: context.text.bodyLarge)
                     : SelectableText(value, style: context.text.bodyLarge),
                 const SizedBox(height: 2),
                 Text(label, style: context.text.bodySmall),
@@ -603,26 +790,80 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _StatRow extends StatelessWidget {
-  const _StatRow({required this.icon, required this.label, required this.value});
+  const _StatRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.onTap,
+  });
   final IconData icon;
   final String label;
   final String value;
 
+  /// Opens the list behind the number, when there is one to see.
+  final VoidCallback? onTap;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: 13),
-    child: Row(
-      children: [
-        Icon(icon, size: 22, color: AppColors.text2),
-        const SizedBox(width: Space.l),
-        Expanded(child: Text(label, style: context.text.bodyLarge)),
-        Text(
-          value,
-          style: context.text.bodyLarge?.copyWith(color: AppColors.accent, fontFeatures: tabularFigures),
-        ),
-      ],
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(
+        Space.l,
+        13,
+        onTap == null ? Space.l : Space.s,
+        13,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22, color: AppColors.text2),
+          const SizedBox(width: Space.l),
+          Expanded(child: Text(label, style: context.text.bodyLarge)),
+          Text(
+            value,
+            style: context.text.bodyLarge?.copyWith(
+              color: AppColors.accent,
+              fontFeatures: tabularFigures,
+            ),
+          ),
+          if (onTap != null)
+            const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+        ],
+      ),
     ),
   );
+}
+
+/// The profile's buttons, four to a row so they never crowd.
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid({required this.children});
+  final List<Widget> children;
+  static const _perRow = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = (children.length / _perRow).ceil();
+    // Rows share one width per button, so a short last row lines up.
+    final perRow = children.length <= _perRow ? children.length : _perRow;
+    return Column(
+      children: [
+        for (var r = 0; r < rows; r++)
+          Padding(
+            padding: EdgeInsets.only(top: r == 0 ? 0 : Space.s),
+            child: Row(
+              children: [
+                ...children.skip(r * _perRow).take(_perRow),
+                for (
+                  var pad = children.skip(r * _perRow).take(_perRow).length;
+                  pad < perRow;
+                  pad++
+                )
+                  const Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _SharedSection extends ConsumerWidget {
@@ -650,7 +891,10 @@ class _SharedSection extends ConsumerWidget {
         padding: const EdgeInsets.all(Space.xl),
         child: Center(
           child: loading
-              ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : Text('Nothing shared here yet', style: context.text.bodySmall),
         ),
       );
@@ -661,7 +905,10 @@ class _SharedSection extends ConsumerWidget {
             child: loading
                 ? const Padding(
                     padding: EdgeInsets.all(Space.l),
-                    child: SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                 : TextButton(onPressed: onMore, child: const Text('Load more')),
           );
@@ -679,7 +926,8 @@ class _SharedSection extends ConsumerWidget {
                 mainAxisSpacing: 2,
                 crossAxisSpacing: 2,
               ),
-              itemBuilder: (_, i) => _GridTile(message: messages[i], chatTitle: chatTitle),
+              itemBuilder: (_, i) =>
+                  _GridTile(message: messages[i], chatTitle: chatTitle),
             ),
           ),
           more,
@@ -689,7 +937,13 @@ class _SharedSection extends ConsumerWidget {
     final playlist = [for (final m in messages.reversed) ?Track.of(m, store)];
     return Column(
       children: [
-        for (final m in messages) _SharedRow(tab: tab, message: m, chatTitle: chatTitle, playlist: playlist),
+        for (final m in messages)
+          _SharedRow(
+            tab: tab,
+            message: m,
+            chatTitle: chatTitle,
+            playlist: playlist,
+          ),
         more,
       ],
     );
@@ -712,7 +966,10 @@ class _GridTileState extends ConsumerState<_GridTile> {
   void initState() {
     super.initState();
     final file = switch (widget.message.content) {
-      td.MessagePhoto(:final photo) => pickPhotoSize(photo.sizes, minWidth: 240)?.photo,
+      td.MessagePhoto(:final photo) => pickPhotoSize(
+        photo.sizes,
+        minWidth: 240,
+      )?.photo,
       final c => previewFileOf(c),
     };
     if (file != null) {
@@ -735,7 +992,8 @@ class _GridTileState extends ConsumerState<_GridTile> {
       _ => null,
     };
     return GestureDetector(
-      onTap: () => showPost(context, snapshotOf(widget.message, widget.chatTitle, null)),
+      onTap: () =>
+          showPost(context, snapshotOf(widget.message, widget.chatTitle, null)),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -751,12 +1009,25 @@ class _GridTileState extends ConsumerState<_GridTile> {
               bottom: 4,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(999)),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(999),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.play_arrow_rounded, size: 12, color: Colors.white),
-                    Text(formatDuration(video.duration), style: const TextStyle(fontSize: 10.5, color: Colors.white)),
+                    const Icon(
+                      Icons.play_arrow_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                    Text(
+                      formatDuration(video.duration),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: Colors.white,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -768,7 +1039,12 @@ class _GridTileState extends ConsumerState<_GridTile> {
 }
 
 class _SharedRow extends ConsumerWidget {
-  const _SharedRow({required this.tab, required this.message, required this.chatTitle, required this.playlist});
+  const _SharedRow({
+    required this.tab,
+    required this.message,
+    required this.chatTitle,
+    required this.playlist,
+  });
   final _Tab tab;
   final td.Message message;
   final String chatTitle;
@@ -791,12 +1067,25 @@ class _SharedRow extends ConsumerWidget {
           child: CircleAvatar(
             radius: 22,
             backgroundColor: AppColors.accent,
-            child: Icon(current && audio.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: AppColors.bg),
+            child: Icon(
+              current && audio.playing
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
+              color: AppColors.bg,
+            ),
           ),
         ),
-        title: Text(t?.title ?? g.kind, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          t?.title ?? g.kind,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         subtitle: Text(
-          [t?.subtitle ?? '', formatDuration(t?.seconds ?? 0), date].where((s) => s.isNotEmpty).join(' · '),
+          [
+            t?.subtitle ?? '',
+            formatDuration(t?.seconds ?? 0),
+            date,
+          ].where((s) => s.isNotEmpty).join(' · '),
           style: context.text.bodySmall,
         ),
         onTap: t == null ? null : () => audio.play(t, playlist: playlist),
@@ -809,7 +1098,10 @@ class _SharedRow extends ConsumerWidget {
         leading: Container(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.m)),
+          decoration: BoxDecoration(
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(Radii.m),
+          ),
           child: Icon(Icons.link_rounded, color: AppColors.accent),
         ),
         title: Text(
@@ -833,17 +1125,29 @@ class _SharedRow extends ConsumerWidget {
         onLongPress: () => showPost(context, snapshotOf(m, chatTitle, null)),
       );
     }
-    final size = m.content is td.MessageDocument ? (m.content as td.MessageDocument).document.document.size : 0;
+    final size = m.content is td.MessageDocument
+        ? (m.content as td.MessageDocument).document.document.size
+        : 0;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       leading: Container(
         width: 44,
         height: 44,
-        decoration: BoxDecoration(color: AppColors.accentDim, borderRadius: BorderRadius.circular(Radii.m)),
+        decoration: BoxDecoration(
+          color: AppColors.accentDim,
+          borderRadius: BorderRadius.circular(Radii.m),
+        ),
         child: Icon(kindIcon(g.kind), color: AppColors.accent),
       ),
-      title: Text(g.detail ?? g.text, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text([if (size > 0) formatBytes(size), date].join(' · '), style: context.text.bodySmall),
+      title: Text(
+        g.detail ?? g.text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        [if (size > 0) formatBytes(size), date].join(' · '),
+        style: context.text.bodySmall,
+      ),
       onTap: () => showPost(context, snapshotOf(m, chatTitle, null)),
     );
   }

@@ -1,0 +1,15 @@
+/// Convert decoded JSON (Map<String, dynamic>) to TdObject
+TdObject? convertMapToObject(final Map<String, dynamic>? parsed) {
+  if (parsed == null) return null;
+  switch (parsed['@type']) {
+    CASES
+    default: return null;
+  }
+}
+
+/// Convert encoded JSON to TdObject
+TdObject? convertJsonToObject(String? query) {
+  if (query == null) return null;
+  final parsed = json.decode(query);
+  return convertMapToObject(parsed);
+}

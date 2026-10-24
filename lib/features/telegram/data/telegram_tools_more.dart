@@ -178,7 +178,7 @@ extension _MoreTools on TelegramToolRunner {
     return ToolOutput({
       'chat': c.title,
       'question': poll.question.text,
-      'type': quiz != null ? 'quiz' : (poll.type is td.PollTypeRegular && (poll.type as td.PollTypeRegular).allowMultipleAnswers ? 'multiple choice' : 'single choice'),
+      'type': quiz != null ? 'quiz' : (poll.allowsMultipleAnswers ? 'multiple choice' : 'single choice'),
       'anonymous': poll.isAnonymous,
       'closed': poll.isClosed,
       'total_voters': poll.totalVoterCount,

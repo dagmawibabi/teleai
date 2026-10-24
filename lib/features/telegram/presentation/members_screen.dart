@@ -28,8 +28,11 @@ enum _MemberFilter {
 /// list only to its admins), with search, role filters and, for admins,
 /// removing and banning.
 class MembersScreen extends ConsumerStatefulWidget {
-  const MembersScreen({super.key, required this.chatId});
+  const MembersScreen({super.key, required this.chatId, this.initialFilter = 'recent'});
   final int chatId;
+
+  /// recent, admins, bots, restricted or banned.
+  final String initialFilter;
 
   @override
   ConsumerState<MembersScreen> createState() => _MembersScreenState();
@@ -43,7 +46,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   String? _error;
   String _q = '';
   Timer? _debounce;
-  _MemberFilter _filter = _MemberFilter.recent;
+  late _MemberFilter _filter = _MemberFilter.values.asNameMap()[widget.initialFilter] ?? _MemberFilter.recent;
   final _scroll = ScrollController();
 
   td.ChatPermissions? _defaults;
@@ -298,8 +301,8 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
 }
 
 String _role(td.ChatMemberStatus s) => switch (s) {
-  td.ChatMemberStatusCreator(:final customTitle) => customTitle.isNotEmpty ? customTitle : 'Owner',
-  td.ChatMemberStatusAdministrator(:final customTitle) => customTitle.isNotEmpty ? customTitle : 'Admin',
+  td.ChatMemberStatusCreator() => 'Owner',
+  td.ChatMemberStatusAdministrator() => 'Admin',
   td.ChatMemberStatusRestricted() => 'Restricted',
   td.ChatMemberStatusBanned() => 'Banned',
   td.ChatMemberStatusLeft() => 'Left',
@@ -320,7 +323,7 @@ class _MemberTile extends ConsumerWidget {
     final name = store.senderName(m.memberId);
     final userId = _MembersScreenState._userId(m.memberId);
     final user = store.users[userId];
-    final role = _role(m.status);
+    final role = [_role(m.status), if (m.tag.isNotEmpty) m.tag].where((e) => e.isNotEmpty).join(' · ');
     final status = switch (user?.status) {
       td.UserStatusOnline() => 'online',
       td.UserStatusRecently() => 'last seen recently',

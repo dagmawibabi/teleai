@@ -60,9 +60,9 @@ class _HealthState extends ConsumerState<_Health> with AutomaticKeepAliveClientM
     return FutureBuilder<Map<String, dynamic>>(
       future: _report,
       builder: (context, snap) {
-        if (snap.hasError) return _Failed('${snap.error}', retry: _reload);
+        if (snap.hasError) return ErrorState('${snap.error}', onRetry: _reload);
         final r = snap.data;
-        if (r == null) return const _Loading('Checking your account…');
+        if (r == null) return const LoadingState('Checking your account…');
         final score = r['score'] as int;
         final color = _scoreColor(score);
         final fix = (r['fix'] as List).cast<String>();
@@ -103,9 +103,19 @@ class _HealthState extends ConsumerState<_Health> with AutomaticKeepAliveClientM
                               fix.isEmpty ? 'Nothing to fix right now.' : '${fix.length} thing${fix.length == 1 ? '' : 's'} to look at',
                               style: context.text.bodySmall,
                             ),
+                            const SizedBox(height: Space.s),
+                            Text('Score out of 100', style: context.text.labelSmall),
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: Space.l),
+                  StatStrip(
+                    stats: [
+                      (twoStep ? 'On' : 'Off', 'two-step'),
+                      ('${r['devices']}', 'devices'),
+                      ('${fine.length}/${fine.length + fix.length}', 'checks passed'),
                     ],
                   ),
                 ],
@@ -115,9 +125,9 @@ class _HealthState extends ConsumerState<_Health> with AutomaticKeepAliveClientM
                   label: 'To fix',
                   children: [
                     for (final f in fix)
-                      ListTile(
+                      Tile(
                         leading: const IconBadge(Icons.priority_high_rounded, color: AppColors.warning),
-                        title: Text(f, style: const TextStyle(fontSize: 14)),
+                        title: f,
                         onTap: f.contains('device') || f.contains('login')
                             ? () => DefaultTabController.of(context).animateTo(1)
                             : (f.contains('see your') || f.contains('groups') ? () => DefaultTabController.of(context).animateTo(2) : null),
@@ -161,7 +171,7 @@ class _HealthState extends ConsumerState<_Health> with AutomaticKeepAliveClientM
                 Group(
                   label: 'Looks good',
                   children: [
-                    for (final f in fine) ListTile(leading: const IconBadge(Icons.check_rounded, color: AppColors.success), title: Text(f)),
+                    for (final f in fine) Tile(leading: const IconBadge(Icons.check_rounded, color: AppColors.success), title: f),
                   ],
                 ),
               const SizedBox(height: Space.m),
@@ -192,50 +202,10 @@ class _Fact extends StatelessWidget {
   final bool? good;
 
   @override
-  Widget build(BuildContext context) => ListTile(
+  Widget build(BuildContext context) => Tile(
     leading: IconBadge(icon, color: good == null ? null : (good! ? AppColors.success : AppColors.warning)),
-    title: Text(label),
-    trailing: Text(value, style: context.text.bodyMedium?.copyWith(color: AppColors.text2)),
-  );
-}
-
-class _Loading extends StatelessWidget {
-  const _Loading(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2)),
-        const SizedBox(height: Space.m),
-        Text(label, style: context.text.bodySmall),
-      ],
-    ),
-  );
-}
-
-class _Failed extends StatelessWidget {
-  const _Failed(this.error, {required this.retry});
-  final String error;
-  final VoidCallback retry;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(Space.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.cloud_off_rounded, size: 36, color: AppColors.text3),
-          const SizedBox(height: Space.m),
-          Text(error, textAlign: TextAlign.center, style: context.text.bodySmall),
-          const SizedBox(height: Space.m),
-          OutlinedButton(onPressed: retry, child: const Text('Try again')),
-        ],
-      ),
-    ),
+    title: label,
+    trailing: Pill(value, color: good == null ? AppColors.text2 : (good! ? AppColors.success : AppColors.warning)),
   );
 }
 
@@ -256,15 +226,15 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
 
   void _reload() => setState(() => _sessions = ref.read(toolRunnerProvider).activeSessions());
 
-  static IconData _icon(td.Session s) => switch (s.type) {
-    td.SessionTypeAndroid() => Icons.android_rounded,
-    td.SessionTypeIphone() => Icons.phone_iphone_rounded,
-    td.SessionTypeIpad() => Icons.tablet_mac_rounded,
-    td.SessionTypeApple() || td.SessionTypeMac() => Icons.laptop_mac_rounded,
-    td.SessionTypeWindows() => Icons.desktop_windows_rounded,
-    td.SessionTypeLinux() || td.SessionTypeUbuntu() => Icons.computer_rounded,
-    td.SessionTypeXbox() => Icons.sports_esports_outlined,
-    td.SessionTypeChrome() || td.SessionTypeFirefox() || td.SessionTypeSafari() || td.SessionTypeEdge() || td.SessionTypeOpera() || td.SessionTypeBrave() || td.SessionTypeVivaldi() =>
+  static IconData _icon(td.Session s) => switch (s.deviceType) {
+    td.SessionDeviceTypeAndroid() => Icons.android_rounded,
+    td.SessionDeviceTypeIphone() => Icons.phone_iphone_rounded,
+    td.SessionDeviceTypeIpad() => Icons.tablet_mac_rounded,
+    td.SessionDeviceTypeApple() || td.SessionDeviceTypeMac() => Icons.laptop_mac_rounded,
+    td.SessionDeviceTypeWindows() => Icons.desktop_windows_rounded,
+    td.SessionDeviceTypeLinux() || td.SessionDeviceTypeUbuntu() => Icons.computer_rounded,
+    td.SessionDeviceTypeXbox() => Icons.sports_esports_outlined,
+    td.SessionDeviceTypeChrome() || td.SessionDeviceTypeFirefox() || td.SessionDeviceTypeSafari() || td.SessionDeviceTypeEdge() || td.SessionDeviceTypeOpera() || td.SessionDeviceTypeBrave() || td.SessionDeviceTypeVivaldi() =>
       Icons.language_rounded,
     _ => Icons.devices_other_rounded,
   };
@@ -359,22 +329,21 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
       if (s.isUnconfirmed || s.isPasswordPending) const Pill('New login', color: AppColors.danger),
       if (!s.isOfficialApplication) const Pill('Unofficial', color: AppColors.warning),
     ];
-    return ListTile(
+    return Tile(
       leading: IconBadge(_icon(s), color: s.isCurrent ? AppColors.success : (flags.isNotEmpty ? AppColors.warning : null)),
-      title: Row(
-        children: [
-          Flexible(child: Text(s.deviceModel.isEmpty ? s.applicationName : s.deviceModel, maxLines: 1, overflow: TextOverflow.ellipsis)),
-          for (final f in flags) Padding(padding: const EdgeInsets.only(left: 6), child: f),
-        ],
-      ),
-      subtitle: Text(
-        '${s.applicationName} ${s.applicationVersion} · ${s.location}${s.isCurrent ? '' : ' · ${_ago(s.lastActiveDate)}'}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: context.text.bodySmall,
-      ),
+      title: s.deviceModel.isEmpty ? s.applicationName : s.deviceModel,
+      subtitle: '${s.applicationName} ${s.applicationVersion} · ${s.location.isEmpty ? 'Unknown place' : s.location}',
+      below: flags.isEmpty ? null : Wrap(spacing: 6, children: flags),
       onTap: () => _details(s),
-      trailing: s.isCurrent ? null : const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+      trailing: s.isCurrent
+          ? const Pill('This phone', color: AppColors.success)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_ago(s.lastActiveDate), style: context.text.labelSmall),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+              ],
+            ),
     );
   }
 
@@ -384,9 +353,9 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
     return FutureBuilder<td.Sessions>(
       future: _sessions,
       builder: (context, snap) {
-        if (snap.hasError) return _Failed('${snap.error}', retry: _reload);
+        if (snap.hasError) return ErrorState('${snap.error}', onRetry: _reload);
         final r = snap.data;
-        if (r == null) return const _Loading('Finding your devices…');
+        if (r == null) return const LoadingState('Finding your devices…');
         final current = r.sessions.where((s) => s.isCurrent).toList();
         final others = r.sessions.where((s) => !s.isCurrent).toList()..sort((a, b) => b.lastActiveDate.compareTo(a.lastActiveDate));
         return RefreshIndicator(
@@ -399,10 +368,11 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
                 Group(label: 'Other devices · ${others.length}', children: [for (final s in others) _tile(s)]),
                 Group(
                   children: [
-                    ListTile(
+                    Tile(
                       leading: const IconBadge(Icons.phonelink_erase_rounded, color: AppColors.danger),
-                      title: const Text('Log out all other devices', style: TextStyle(color: AppColors.danger)),
-                      subtitle: Text('Keeps only this phone', style: context.text.bodySmall),
+                      title: 'Log out all other devices',
+                      titleColor: AppColors.danger,
+                      subtitle: 'Keeps only this phone',
                       onTap: () => _end(null),
                     ),
                   ],
@@ -411,9 +381,10 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
               Group(
                 label: 'Automatically',
                 children: [
-                  ListTile(
+                  Tile(
                     leading: const IconBadge(Icons.timer_outlined),
-                    title: const Text('Log out idle devices after'),
+                    title: 'Log out idle devices after',
+                    subtitle: 'Devices unused this long are logged out',
                     trailing: DropdownButton<int>(
                       value: const [7, 30, 90, 180, 365].contains(r.inactiveSessionTtlDays) ? r.inactiveSessionTtlDays : null,
                       hint: Text('${r.inactiveSessionTtlDays} days'),
@@ -575,17 +546,16 @@ class _PrivacyState extends ConsumerState<_Privacy> with AutomaticKeepAliveClien
       'nobody' => AppColors.success,
       _ => AppColors.text3,
     };
-    return ListTile(
-      leading: IconBadge(_icons[key] ?? Icons.lock_outline_rounded),
-      title: Text(privacySettings[key]!.$1),
-      subtitle: exceptions == 0 ? null : Text('$exceptions exception${exceptions == 1 ? '' : 's'}', style: context.text.bodySmall),
+    return Tile(
+      leading: IconBadge(_icons[key] ?? Icons.lock_outline_rounded, color: r?.audience == 'everybody' ? AppColors.text2 : null),
+      title: privacySettings[key]!.$1,
+      subtitle: exceptions == 0 ? null : '$exceptions exception${exceptions == 1 ? '' : 's'}',
       trailing: r == null
-          ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 1.5))
+          ? const SizedBox(width: 24, child: Center(child: SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 1.5))))
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Pill(_audienceLabel(r.audience), color: color),
-                const SizedBox(width: 4),
                 const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
               ],
             ),
@@ -601,7 +571,17 @@ class _PrivacyState extends ConsumerState<_Privacy> with AutomaticKeepAliveClien
     return ListView(
       padding: const EdgeInsets.fromLTRB(Space.l, Space.s, Space.l, Space.x4),
       children: [
-        if (_loading) const LinearProgressIndicator(minHeight: 2),
+        SizedBox(height: 2, child: _loading ? const LinearProgressIndicator(minHeight: 2) : null),
+        if (_rules.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: Space.s),
+            child: StatStrip(
+              stats: [
+                for (final (aud, label) in const [('everybody', 'everybody'), ('contacts', 'contacts only'), ('nobody', 'nobody')])
+                  ('${_rules.values.where((r) => r.audience == aud).length}', label),
+              ],
+            ),
+          ),
         Group(label: 'Who can see my', children: [for (final k in see) _row(k)]),
         Group(label: 'Who can', children: [for (final k in can) _row(k)]),
         if (_readDates != null || _strangers != null)
@@ -609,20 +589,20 @@ class _PrivacyState extends ConsumerState<_Privacy> with AutomaticKeepAliveClien
             label: 'Messages',
             children: [
               if (_readDates != null)
-                SwitchListTile(
-                  secondary: const IconBadge(Icons.done_all_rounded),
-                  title: const Text('Show my read times'),
-                  subtitle: Text('If off, you don\'t see others\' either', style: context.text.bodySmall),
-                  value: _readDates!,
-                  onChanged: (v) => _toggle('read_dates', v),
+                Tile(
+                  leading: const IconBadge(Icons.done_all_rounded),
+                  title: 'Show my read times',
+                  subtitle: 'If off, you don\'t see others\' either',
+                  trailing: Switch(value: _readDates!, onChanged: (v) => _toggle('read_dates', v)),
+                  onTap: () => _toggle('read_dates', !_readDates!),
                 ),
               if (_strangers != null)
-                SwitchListTile(
-                  secondary: const IconBadge(Icons.person_add_alt_1_outlined),
-                  title: const Text('Strangers can message me'),
-                  subtitle: Text('Turning this off needs Telegram Premium', style: context.text.bodySmall),
-                  value: _strangers!,
-                  onChanged: (v) => _toggle('new_chats', v),
+                Tile(
+                  leading: const IconBadge(Icons.person_add_alt_1_outlined),
+                  title: 'Strangers can message me',
+                  subtitle: 'Turning this off needs Telegram Premium',
+                  trailing: Switch(value: _strangers!, onChanged: (v) => _toggle('new_chats', v)),
+                  onTap: () => _toggle('new_chats', !_strangers!),
                 ),
             ],
           ),

@@ -9,6 +9,7 @@ import '../../../app/theme.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../data/telegram_store.dart';
 import 'tg_avatar.dart';
+import '../../../infrastructure/telegram/td_compat.dart';
 
 /// A poll or quiz you can use: vote (one option, or several then "Vote"),
 /// see the results once you voted or it closed, take your vote back, see
@@ -52,7 +53,7 @@ class _PollViewState extends ConsumerState<PollView> {
   }
 
   td.PollTypeQuiz? get _quiz => _poll.type is td.PollTypeQuiz ? _poll.type as td.PollTypeQuiz : null;
-  bool get _multiple => _poll.type is td.PollTypeRegular && (_poll.type as td.PollTypeRegular).allowMultipleAnswers;
+  bool get _multiple => _poll.type is td.PollTypeRegular && _poll.allowsMultipleAnswers;
   bool get _voted => _poll.options.any((o) => o.isChosen);
   bool get _showResults => _voted || _poll.isClosed;
 

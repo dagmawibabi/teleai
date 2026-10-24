@@ -69,13 +69,41 @@ class _StarSheetState extends ConsumerState<_StarSheet> {
     }
   }
 
+  Future<void> _custom() async {
+    final ctrl = TextEditingController(text: '$_amount');
+    final n = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('How many Stars?'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(suffixText: '⭐', hintText: '1–2500'),
+          onSubmitted: (v) => Navigator.pop(ctx, int.tryParse(v.trim())),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text.trim())), child: const Text('Set')),
+        ],
+      ),
+    );
+    if (n != null && n > 0) setState(() => _amount = n.clamp(1, 2500));
+  }
+
+  static const _presets = [1, 5, 10, 25, 50, 100, 500];
+
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(telegramStoreProvider);
     final reactions = widget.message.interactionInfo?.reactions;
     final total = reactions?.reactions.where((r) => r.type is td.ReactionTypePaid).fold<int>(0, (n, r) => n + r.totalCount) ?? 0;
-    final reactors = reactions?.paidReactors ?? const <td.PaidReactor>[];
+    final reactors = [...?reactions?.paidReactors]..sort((a, b) => b.starCount.compareTo(a.starCount));
+    final mine = reactors.where((p) => p.isMe).fold<int>(0, (n, p) => n + p.starCount);
+    final top = reactors.isEmpty ? 1 : reactors.first.starCount.clamp(1, 1 << 30);
     final enough = _balance == null || _balance! >= _amount;
+    final number = NumberFormat.decimalPattern();
+    final chatTitle = store.chat(widget.message.chatId)?.title ?? 'this chat';
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l + MediaQuery.viewInsetsOf(context).bottom),
@@ -83,41 +111,118 @@ class _StarSheetState extends ConsumerState<_StarSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.star_rounded, color: starGold, size: 28),
-                const SizedBox(width: Space.s),
-                Text('${NumberFormat.decimalPattern().format(total)} Stars', style: context.text.titleLarge),
-                const Spacer(),
-                if (_balance != null)
-                  Text('You have ${NumberFormat.decimalPattern().format(_balance)} ⭐', style: context.text.bodySmall),
-              ],
+            // The total, gold, with what the account has to give.
+            Container(
+              padding: const EdgeInsets.fromLTRB(Space.l, Space.l, Space.l, Space.m),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radii.l),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [starGold.withValues(alpha: 0.28), starGold.withValues(alpha: 0.06)],
+                ),
+                border: Border.all(color: starGold.withValues(alpha: 0.35)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.star_rounded, color: starGold, size: 44),
+                  const SizedBox(height: 2),
+                  Text(
+                    number.format(total),
+                    style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800, fontFeatures: tabularFigures),
+                  ),
+                  Text(
+                    '${total == 1 ? 'Star' : 'Stars'} on this post${reactors.isEmpty ? '' : ' from ${reactors.length} supporter${reactors.length == 1 ? '' : 's'}'}',
+                    style: context.text.bodySmall,
+                  ),
+                  const SizedBox(height: Space.m),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: Space.s,
+                    runSpacing: Space.xs,
+                    children: [
+                      _Pill(
+                        icon: Icons.account_balance_wallet_outlined,
+                        text: _balance == null ? 'Balance…' : 'You have ${number.format(_balance)} ⭐',
+                      ),
+                      if (mine > 0) _Pill(icon: Icons.favorite_rounded, text: 'You gave ${number.format(mine)} ⭐'),
+                    ],
+                  ),
+                ],
+              ),
             ),
             if (reactors.isNotEmpty) ...[
-              const SizedBox(height: Space.m),
+              const SizedBox(height: Space.l),
               Text('TOP SUPPORTERS', style: context.text.labelSmall),
-              const SizedBox(height: Space.s),
+              const SizedBox(height: Space.xs),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: ListView(
+                constraints: const BoxConstraints(maxHeight: 230),
+                child: ListView.builder(
                   shrinkWrap: true,
-                  children: [
-                    for (final p in reactors)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: p.isAnonymous || p.senderId == null
-                            ? const CircleAvatar(radius: 16, backgroundColor: AppColors.surface3, child: Icon(Icons.person_off_outlined, size: 16))
-                            : TgAvatar(
-                                userId: p.senderId is td.MessageSenderUser ? (p.senderId as td.MessageSenderUser).userId : null,
-                                chatId: p.senderId is td.MessageSenderChat ? (p.senderId as td.MessageSenderChat).chatId : null,
-                                title: store.senderName(p.senderId!),
-                                size: 32,
-                              ),
-                        title: Text(p.isMe ? 'You' : (p.isAnonymous || p.senderId == null ? 'Anonymous' : store.senderName(p.senderId!))),
-                        trailing: Text('${p.starCount} ⭐', style: const TextStyle(color: starGold, fontWeight: FontWeight.w600)),
+                  itemCount: reactors.length,
+                  itemBuilder: (_, i) {
+                    final p = reactors[i];
+                    final anonymous = p.isAnonymous || p.senderId == null;
+                    final name = p.isMe ? 'You' : (anonymous ? 'Anonymous' : store.senderName(p.senderId!));
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            child: Text(
+                              i < 3 ? const ['🥇', '🥈', '🥉'][i] : '${i + 1}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: i < 3 ? 16 : 12.5, color: AppColors.text3),
+                            ),
+                          ),
+                          const SizedBox(width: Space.s),
+                          anonymous
+                              ? const CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: AppColors.surface3,
+                                  child: Icon(Icons.visibility_off_outlined, size: 15, color: AppColors.text3),
+                                )
+                              : TgAvatar(
+                                  userId: p.senderId is td.MessageSenderUser ? (p.senderId as td.MessageSenderUser).userId : null,
+                                  chatId: p.senderId is td.MessageSenderChat ? (p.senderId as td.MessageSenderChat).chatId : null,
+                                  title: name,
+                                  size: 32,
+                                ),
+                          const SizedBox(width: Space.m),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontWeight: p.isMe ? FontWeight.w700 : FontWeight.w500, fontSize: 14),
+                                ),
+                                const SizedBox(height: 4),
+                                // Their share against the top supporter.
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(3),
+                                  child: LinearProgressIndicator(
+                                    value: p.starCount / top,
+                                    minHeight: 4,
+                                    backgroundColor: AppColors.surface3,
+                                    color: starGold.withValues(alpha: p.isMe ? 1 : 0.7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: Space.m),
+                          Text(
+                            '${number.format(p.starCount)} ⭐',
+                            style: const TextStyle(color: starGold, fontWeight: FontWeight.w700, fontFeatures: tabularFigures),
+                          ),
+                        ],
                       ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -128,28 +233,77 @@ class _StarSheetState extends ConsumerState<_StarSheet> {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final n in const [1, 5, 10, 25, 50, 100, 500])
+                for (final n in _presets)
                   ChoiceChip(
                     label: Text('$n ⭐'),
                     selected: _amount == n,
+                    selectedColor: starGold.withValues(alpha: 0.25),
+                    side: BorderSide(color: _amount == n ? starGold : AppColors.line),
                     onSelected: (_) => setState(() => _amount = n),
                   ),
+                ChoiceChip(
+                  avatar: const Icon(Icons.edit_outlined, size: 15),
+                  label: Text(_presets.contains(_amount) ? 'Custom' : '$_amount ⭐'),
+                  selected: !_presets.contains(_amount),
+                  selectedColor: starGold.withValues(alpha: 0.25),
+                  side: BorderSide(color: !_presets.contains(_amount) ? starGold : AppColors.line),
+                  onSelected: (_) => _custom(),
+                ),
               ],
             ),
             const SizedBox(height: Space.m),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: starGold, foregroundColor: Colors.black),
-              onPressed: _sending || !enough ? null : _send,
-              icon: _sending
-                  ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                  : const Icon(Icons.star_rounded),
-              label: Text(enough ? 'Send $_amount Star${_amount == 1 ? '' : 's'}' : 'Not enough Stars (buy them in Telegram)'),
+            SizedBox(
+              height: 50,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: starGold,
+                  foregroundColor: Colors.black,
+                  disabledBackgroundColor: AppColors.surface3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.l)),
+                ),
+                onPressed: _sending || !enough ? null : _send,
+                icon: _sending
+                    ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    : const Icon(Icons.star_rounded),
+                label: Text(
+                  enough ? 'Send $_amount Star${_amount == 1 ? '' : 's'}' : 'Not enough Stars',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+              ),
+            ),
+            const SizedBox(height: Space.s),
+            Text(
+              enough
+                  ? 'Stars go to $chatTitle and can\'t be taken back.'
+                  : 'Buy Stars in Telegram\'s Settings → Telegram Stars.',
+              textAlign: TextAlign.center,
+              style: context.text.bodySmall,
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(999)),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: starGold),
+        const SizedBox(width: 5),
+        Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      ],
+    ),
+  );
 }
 
 /// Who reacted to a message, and with what.

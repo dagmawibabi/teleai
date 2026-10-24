@@ -21,7 +21,8 @@ import '../../voice/player_sheet.dart';
 import '../../voice/speaker.dart';
 import '../data/settings.dart';
 import 'model_picker_screen.dart';
-import 'permissions_card.dart';
+import 'approvals_screen.dart';
+import 'permissions_screen.dart';
 import 'settings_hub.dart';
 import 'tools_screen.dart';
 import '../../assistant/memory.dart';
@@ -42,7 +43,7 @@ enum SettingsSection {
   ),
   proactivity(
     'Proactivity & watches',
-    'Notifications, approvals, background',
+    'Notifications, background, watches',
     Icons.bolt_rounded,
   ),
   voice('Voice', 'Read aloud and dictation', Icons.graphic_eq_rounded),
@@ -513,72 +514,46 @@ class SettingsScreen extends ConsumerWidget {
                       value: s.keepAlive,
                       onChanged: ctl.setKeepAlive,
                     ),
-                    const Divider(indent: Space.l, endIndent: Space.l),
-                    Padding(
-                      padding: const EdgeInsets.all(Space.l),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Approvals', style: context.text.titleSmall),
-                          const SizedBox(height: 2),
-                          Text(
-                            'For sending, commenting, editing, scheduling, reacting, muting, archiving and marking as read.',
-                            style: context.text.bodySmall,
-                          ),
-                          const SizedBox(height: Space.m),
-                          SizedBox(
-                            width: double.infinity,
-                            child: SegmentedButton<ApprovalMode>(
-                              showSelectedIcon: false,
-                              segments: const [
-                                ButtonSegment(
-                                  value: ApprovalMode.ask,
-                                  label: Text('Always ask'),
-                                ),
-                                ButtonSegment(
-                                  value: ApprovalMode.watches,
-                                  label: Text('Not in watches'),
-                                ),
-                                ButtonSegment(
-                                  value: ApprovalMode.never,
-                                  label: Text('Never ask'),
-                                ),
-                              ],
-                              selected: {s.approvalMode},
-                              onSelectionChanged: (v) =>
-                                  ctl.setApprovalMode(v.first),
-                            ),
-                          ),
-                          const SizedBox(height: Space.s),
-                          Text(
-                            s.approvalMode.explanation,
-                            style: context.text.bodySmall?.copyWith(
-                              color: s.approvalMode == ApprovalMode.ask
-                                  ? AppColors.text2
-                                  : AppColors.warning,
-                            ),
-                          ),
-                        ],
+                    SwitchListTile(
+                      secondary: const Icon(Icons.all_inclusive_rounded),
+                      title: const Text('Always run in the background'),
+                      subtitle: Text(
+                        'Once opened, TeleAI stays ready in the background even with no watches on',
+                        style: context.text.bodySmall,
                       ),
+                      value: s.backgroundAlways,
+                      onChanged: ctl.setBackgroundAlways,
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.restart_alt_rounded),
+                      title: const Text('Start when the phone restarts'),
+                      subtitle: Text(
+                        'Starts in the background after a reboot, so watches and reminders carry on without opening the app',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.startOnBoot,
+                      onChanged: ctl.setStartOnBoot,
                     ),
                   ],
                 ),
-              ],
-              if (section == SettingsSection.proactivity) ...[
-                const _Header('Permissions'),
-                const _Card(children: [PermissionsCard()]),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Space.xs,
-                    Space.s,
-                    Space.xs,
-                    0,
-                  ),
-                  child: Text(
-                    'Some phones (Samsung, Xiaomi, Huawei) also have their own battery saver: set TeleAI to '
-                    '"Unrestricted" there so watches are not stopped.',
-                    style: context.text.bodySmall,
-                  ),
+                const _Header('Approvals & permissions'),
+                _Card(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.front_hand_outlined),
+                      title: const Text('Approvals'),
+                      subtitle: Text(s.approvalMode.label, style: context.text.bodySmall),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ApprovalsScreen())),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.verified_user_outlined),
+                      title: const Text('Permissions'),
+                      subtitle: Text('Battery, notifications, alarms, microphone, location', style: context.text.bodySmall),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PermissionsScreen())),
+                    ),
+                  ],
                 ),
               ],
               if (section == SettingsSection.voice) ...[
@@ -868,6 +843,32 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ],
               if (section == SettingsSection.appearance) ...[
+                const _Header('Side drawer'),
+                _Card(
+                  children: [
+                    SwitchListTile(
+                      secondary: const Icon(Icons.forum_outlined),
+                      title: const Text('Chats'),
+                      subtitle: Text('DMs, groups, channels, bots, contacts and calls', style: context.text.bodySmall),
+                      value: s.drawerChats,
+                      onChanged: ctl.setDrawerChats,
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.folder_outlined),
+                      title: const Text('Folders'),
+                      subtitle: Text('Your Telegram chat folders', style: context.text.bodySmall),
+                      value: s.drawerFolders,
+                      onChanged: ctl.setDrawerFolders,
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.widgets_outlined),
+                      title: const Text('Tools'),
+                      subtitle: Text('Files, Brief, Content Canvas, Search all chats and Browser', style: context.text.bodySmall),
+                      value: s.drawerTools,
+                      onChanged: ctl.setDrawerTools,
+                    ),
+                  ],
+                ),
                 const _Header('Appearance'),
                 _Card(
                   children: [
@@ -1093,6 +1094,29 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       value: s.markReadOnOpen,
                       onChanged: ctl.setMarkReadOnOpen,
+                    ),
+                    const Divider(indent: 56),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.mark_chat_read_outlined),
+                      title: const Text('Mark read when the assistant replies'),
+                      subtitle: Text(
+                        'When it sends or answers in a DM, group or channel, the messages there show as seen.',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.aiReadOnReply,
+                      onChanged: ctl.setAiReadOnReply,
+                    ),
+                    const Divider(indent: 56),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.visibility_outlined),
+                      title: const Text('Mark read when the assistant opens a chat'),
+                      subtitle: Text(
+                        'When it reads a chat\'s messages (summaries, watches, searches). Off: the assistant reads '
+                        'invisibly and chats stay unread.',
+                        style: context.text.bodySmall,
+                      ),
+                      value: s.aiReadOnView,
+                      onChanged: ctl.setAiReadOnView,
                     ),
                   ],
                 ),

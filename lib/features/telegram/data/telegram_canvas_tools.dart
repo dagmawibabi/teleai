@@ -71,6 +71,23 @@ final _canvasTools = <TelegramTool>[
     }, ['folder']),
   ),
   TelegramTool(
+    name: 'canvas_export',
+    label: 'Exporting a canvas folder',
+    category: ToolCategory.memory,
+    cost: ToolCost.device,
+    description:
+        'Exports a Content Canvas folder (and its subfolders unless subfolders: false) as json, md (Markdown), html or '
+        'pdf. Returns the file\'s name; it appears in Files, and send_message can send it (files: [name]).',
+    parameters: _obj({
+      'folder': {'type': 'string'},
+      'format': {
+        'type': 'string',
+        'enum': ['json', 'md', 'html', 'pdf'],
+      },
+      'subfolders': {'type': 'boolean'},
+    }, ['folder', 'format']),
+  ),
+  TelegramTool(
     name: 'canvas_delete_folder',
     label: 'Deleting a canvas folder',
     category: ToolCategory.memory,

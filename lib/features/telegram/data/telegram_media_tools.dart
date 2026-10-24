@@ -184,7 +184,7 @@ extension TelegramMedia on TelegramToolRunner {
       return _client.send<td.Message>(
         td.SendInlineQueryResultMessage(
           chatId: chatId,
-          messageThreadId: threadId,
+          topicId: topicOf(chatId, threadId),
           replyTo: null,
           options: null,
           queryId: int.parse(parts[1]),
@@ -199,16 +199,19 @@ extension TelegramMedia on TelegramToolRunner {
     return _client.send<td.Message>(
       td.SendMessage(
         chatId: chatId,
-        messageThreadId: threadId,
+        topicId: topicOf(chatId, threadId),
         replyTo: null,
         options: null,
         replyMarkup: null,
         inputMessageContent: td.InputMessageAnimation(
-          animation: td.InputFileId(id: fileId),
-          addedStickerFileIds: const [],
-          duration: 0,
-          width: 0,
-          height: 0,
+          animation: td.InputAnimation(
+            animation: td.InputFileId(id: fileId),
+            thumbnail: null,
+            addedStickerFileIds: const [],
+            duration: 0,
+            width: 0,
+            height: 0,
+          ),
           caption: caption.isEmpty ? null : td.FormattedText(text: caption, entities: const []),
           showCaptionAboveMedia: false,
           hasSpoiler: false,
@@ -245,7 +248,7 @@ extension TelegramMedia on TelegramToolRunner {
     final emojiOnly = !RegExp(r'[A-Za-z0-9]').hasMatch(q);
     final r = await _client.send<td.Stickers>(
       emojiOnly
-          ? td.SearchStickers(stickerType: const td.StickerTypeRegular(), emojis: q, limit: 60)
+          ? td.SearchStickers(stickerType: const td.StickerTypeRegular(), emojis: q, query: '', inputLanguageCodes: const [], offset: 0, limit: 60)
           : td.GetStickers(stickerType: const td.StickerTypeRegular(), query: q, limit: 60, chatId: 0),
       limited: true,
     );
@@ -255,14 +258,12 @@ extension TelegramMedia on TelegramToolRunner {
   Future<td.Message> sendStickerTo(int chatId, td.Sticker s, {int threadId = 0}) => _client.send<td.Message>(
     td.SendMessage(
       chatId: chatId,
-      messageThreadId: threadId,
+      topicId: topicOf(chatId, threadId),
       replyTo: null,
       options: null,
       replyMarkup: null,
       inputMessageContent: td.InputMessageSticker(
-        sticker: td.InputFileId(id: s.sticker.id),
-        width: s.width,
-        height: s.height,
+        sticker: td.InputSticker(sticker: td.InputFileId(id: s.sticker.id), thumbnail: null, width: s.width, height: s.height),
         emoji: s.emoji,
       ),
     ),

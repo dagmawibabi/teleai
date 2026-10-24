@@ -1,0 +1,26 @@
+plugins {
+    id "com.android.library"
+}
+
+android {
+    namespace "ru.tdrk.handy_tdlib"
+    compileSdkVersion 34
+
+    defaultConfig {
+        minSdkVersion 21
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+    }
+
+    sourceSets {
+        main {
+            jni.srcDirs = ["src/main/jniLibs"]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

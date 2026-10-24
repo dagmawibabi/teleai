@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:geolocator/geolocator.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show NumberFormat;
+import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../infrastructure/telegram/telegram_client.dart';
@@ -21,10 +24,13 @@ import '../../web/sandbox.dart';
 import '../../web/web_fetch.dart';
 import 'file_loader.dart' show formatDuration;
 import 'message_content.dart';
+import 'rich_message.dart';
 import 'telegram_store.dart';
+import '../../../infrastructure/telegram/td_compat.dart';
 
 part 'telegram_account_tools.dart';
 part 'telegram_activity_tools.dart';
+part 'telegram_analytics_tools.dart';
 part 'telegram_admin_tools.dart';
 part 'telegram_background_tools.dart';
 part 'telegram_canvas_tools.dart';
@@ -35,7 +41,9 @@ part 'telegram_discover_tools.dart';
 part 'telegram_extra_tools.dart';
 part 'telegram_bot_tools.dart';
 part 'telegram_botfather_tools.dart';
+part 'telegram_media_meta_tools.dart';
 part 'telegram_media_tools.dart';
+part 'telegram_new_tools.dart';
 part 'telegram_more_tools.dart';
 part 'telegram_tools_more.dart';
 part 'telegram_local_tools.dart';
@@ -94,7 +102,10 @@ enum ToolCost {
     'Calls an AI model through your gateway key, which costs credits.',
   ),
   device('This phone', 'Kept on this phone only; nothing goes to Telegram.'),
-  web('The web', 'Reaches websites and APIs on the internet straight from this phone.');
+  web(
+    'The web',
+    'Reaches websites and APIs on the internet straight from this phone.',
+  );
 
   const ToolCost(this.label, this.explanation);
   final String label;
@@ -133,7 +144,8 @@ class TelegramTool {
   final ToolCost cost;
 
   /// Whether the assistant gets this tool under [s].
-  bool isOn(AppSettings s) => s.toolOn(name, destructive: destructive, writes: requiresApproval);
+  bool isOn(AppSettings s) =>
+      s.toolOn(name, destructive: destructive, writes: requiresApproval);
 
   Map<String, dynamic> get schema => {
     'type': 'function',
@@ -489,7 +501,8 @@ final _tools = <TelegramTool>[
         'to_chat_ids': {
           'type': 'array',
           'items': {'type': 'integer'},
-          'description': 'Several destination chats (instead of to_chat_id), up to 20.',
+          'description':
+              'Several destination chats (instead of to_chat_id), up to 20.',
         },
         'hide_sender': {
           'type': 'boolean',
@@ -893,13 +906,19 @@ final _tools = <TelegramTool>[
       {
         'chat_id': {'type': 'integer'},
         'message_id': {'type': 'integer'},
-        'text': {'type': 'string', 'description': 'The full new text or caption. Leave out to keep the current one.'},
+        'text': {
+          'type': 'string',
+          'description': 'The full new text or caption. Leave out to keep the current one.',
+        },
         'files': {
           'type': 'array',
           'items': {'type': 'string'},
           'description': 'One file to put in place of the message\'s media (a name from this conversation).',
         },
-        'send_as': {'type': 'string', 'enum': ['media', 'file']},
+        'send_as': {
+          'type': 'string',
+          'enum': ['media', 'file'],
+        },
       },
       ['chat_id', 'message_id'],
     ),
@@ -1095,6 +1114,12 @@ final _tools = <TelegramTool>[
           'type': 'boolean',
           'description': 'Also fire for muted chats. Default true.',
         },
+        'notify': {
+          'type': 'boolean',
+          'description':
+              'Send a phone notification when it fires. false runs it quietly in the background; results '
+              'still land in its conversation. Default true.',
+        },
       },
       ['name', 'trigger', 'mode'],
     ),
@@ -1130,6 +1155,10 @@ final _tools = <TelegramTool>[
         'daily_at': {'type': 'string'},
         'every_minutes': {'type': 'integer'},
         'include_muted': {'type': 'boolean'},
+        'notify': {
+          'type': 'boolean',
+          'description': 'false: run quietly, no notifications.',
+        },
       },
       ['watch_id'],
     ),
@@ -1146,6 +1175,32 @@ final _tools = <TelegramTool>[
       },
       ['watch_id'],
     ),
+  ),
+  TelegramTool(
+    name: 'online_alert',
+    label: 'Setting an online alert',
+    category: ToolCategory.automation,
+    cost: ToolCost.device,
+    description:
+        'Notifies the user when someone comes online ("tell me when Liya is online"). once: false keeps alerting each '
+        'time (at most every 15 minutes). remove: true cancels it. Works only if that person lets the user see their '
+        'last seen (contacts, or everybody); the app keeps running in the background while alerts are set.',
+    parameters: _obj(
+      {
+        'user_id': {'type': 'integer'},
+        'once': {'type': 'boolean', 'description': 'Default true: alert the first time, then stop.'},
+        'remove': {'type': 'boolean'},
+      },
+      ['user_id'],
+    ),
+  ),
+  TelegramTool(
+    name: 'list_online_alerts',
+    label: 'Listing online alerts',
+    category: ToolCategory.automation,
+    cost: ToolCost.device,
+    description: 'The people the user asked to be told about when they come online, and whether each is online now.',
+    parameters: _obj({}),
   ),
   TelegramTool(
     name: 'notify_me',
@@ -1172,6 +1227,7 @@ final _tools = <TelegramTool>[
   ..._backgroundTools,
   ..._botTools,
   ..._activityTools,
+  ..._analyticsTools,
   ..._chatTools,
   ..._adminTools,
   ..._extraTools,
@@ -1186,6 +1242,8 @@ final _tools = <TelegramTool>[
   ..._accountTools,
   ..._moreTdTools,
   ..._discoverTools,
+  ..._newTools,
+  ..._mediaMetaTools,
 ];
 
 const generateImageTool = TelegramTool(
@@ -1237,7 +1295,9 @@ const sendMessageTool = TelegramTool(
   description:
       'Sends a message to a chat, or posts in a channel the user can post in, optionally with photos, videos '
       'or files. The user sees an editable draft and must approve it before anything is sent; they may change '
-      'the text or attachments, or decline. Only call when the user asked you to send something.',
+      'the text or attachments, or decline. Only call when the user asked you to send something. Text may use '
+      'Telegram formatting: **bold**, *italic*, <u>underline</u>, ~~strikethrough~~, ||spoiler||, `code`, '
+      '```code block```, [text](https://link). The other person sees "typing…" or "sending a photo…" first.',
   parameters: {
     'type': 'object',
     'properties': {
@@ -1280,7 +1340,11 @@ const listAttachmentsTool = TelegramTool(
   description:
       'Every file in this conversation that can be sent to a chat: pictures, videos, voice notes and documents the '
       'user attached, and images or audio you generated. Pass a name in files to send it.',
-  parameters: {'type': 'object', 'properties': {}, 'additionalProperties': false},
+  parameters: {
+    'type': 'object',
+    'properties': {},
+    'additionalProperties': false,
+  },
 );
 
 final sendVoiceMessageTool = TelegramTool(
@@ -1389,7 +1453,9 @@ class TelegramToolRunner {
         'schedule_message' => await _schedule(args),
         'list_scheduled_messages' => await _scheduled(args),
         'reschedule_message' => await _reschedule(args),
-        _ => await (_runExtra(name, args) ?? Future.value(ToolOutput({'error': 'Unknown tool $name'}))),
+        _ =>
+          await (_runExtra(name, args) ??
+              Future.value(ToolOutput({'error': 'Unknown tool $name'}))),
       };
     } on TelegramException catch (e) {
       final wait = e.retryAfterSeconds;
@@ -1434,16 +1500,88 @@ class TelegramToolRunner {
   static String _iso(int unix) =>
       _date(unix).toIso8601String().substring(0, 16);
 
+  /// Where in [chatId] a message goes for [threadId]: a forum topic in a
+  /// forum group, a post's comment thread elsewhere; none for 0.
+  td.MessageTopic? topicOf(int chatId, int threadId) {
+    if (threadId == 0) return null;
+    final chat = _store.chat(chatId);
+    if (chat != null && _store.isDirectMessagesGroup(chat)) {
+      return td.MessageTopicDirectMessages(directMessagesChatTopicId: threadId);
+    }
+    return chat != null && _store.isForum(chat)
+        ? forumTopic(threadId)
+        : commentThread(threadId);
+  }
+
+  /// Send options for a scheduled send and/or an animated effect.
+  static td.MessageSendOptions sendOptions({
+    DateTime? sendAt,
+    int effectId = 0,
+  }) => td.MessageSendOptions(
+    suggestedPostInfo: null,
+    disableNotification: false,
+    fromBackground: false,
+    protectContent: false,
+    allowPaidBroadcast: false,
+    paidMessageStarCount: 0,
+    updateOrderOfInstalledStickerSets: false,
+    schedulingState: sendAt == null
+        ? null
+        : td.MessageSchedulingStateSendAtDate(
+            sendDate: sendAt.millisecondsSinceEpoch ~/ 1000,
+            repeatPeriod: 0,
+          ),
+    effectId: effectId,
+    sendingId: 0,
+    onlyPreview: false,
+  );
+
   static String _clip(String s, [int max = _maxText]) =>
       s.length <= max ? s : '${s.substring(0, max)}…';
 
   /// Tools defined in the part files, each answering null for names it
   /// doesn't own.
   Future<ToolOutput>? _runExtra(String name, Map<String, dynamic> args) =>
-      _runMore(name, args) ?? _runMedia(name, args) ?? _runBackgrounds(name, args) ?? _runBots(name, args) ?? _runActivity(name, args) ?? _runChats(name, args) ?? _runDestructive(name, args) ?? _runAdmin(name, args) ?? _runExtra2(name, args) ?? _runBotFather(name, args) ?? _runWeb(name, args) ?? _runStars(name, args) ?? _runDev(name, args) ?? _runManage(name, args) ?? _runAccount(name, args) ?? _runMoreTd(name, args) ?? _runDiscover(name, args);
+      _runMore(name, args) ??
+      _runMedia(name, args) ??
+      _runBackgrounds(name, args) ??
+      _runBots(name, args) ??
+      _runActivity(name, args) ??
+      _runAnalytics(name, args) ??
+      _runChats(name, args) ??
+      _runDestructive(name, args) ??
+      _runAdmin(name, args) ??
+      _runExtra2(name, args) ??
+      _runBotFather(name, args) ??
+      _runWeb(name, args) ??
+      _runStars(name, args) ??
+      _runDev(name, args) ??
+      _runManage(name, args) ??
+      _runAccount(name, args) ??
+      _runMoreTd(name, args) ??
+      _runDiscover(name, args) ??
+      _runNew(name, args) ?? _runMediaMeta(name, args);
 
-  String? _describeExtra(String name, Map<String, dynamic> args, String title) =>
-      _describeMore(name, args, title) ?? _describeBackgrounds(name, args, title) ?? _describeBots(name, args, title) ?? _describeChats(name, args, title) ?? _describeDestructive(name, args, title) ?? _describeAdmin(name, args, title) ?? _describeExtra2(name, args, title) ?? _describeBotFather(name, args) ?? _describeWeb(name, args) ?? _describeStars(name, args, title) ?? _describeDev(name, args) ?? _describeManage(name, args, title) ?? _describeAccount(name, args) ?? _describeMoreTd(name, args, title);
+  String? _describeExtra(
+    String name,
+    Map<String, dynamic> args,
+    String title,
+  ) =>
+      _describeMore(name, args, title) ??
+      _describeBackgrounds(name, args, title) ??
+      _describeBots(name, args, title) ??
+      _describeChats(name, args, title) ??
+      _describeDestructive(name, args, title) ??
+      _describeAdmin(name, args, title) ??
+      _describeExtra2(name, args, title) ??
+      _describeBotFather(name, args) ??
+      _describeWeb(name, args) ??
+      _describeStars(name, args, title) ??
+      _describeDev(name, args) ??
+      _describeManage(name, args, title) ??
+      _describeAccount(name, args) ??
+      _describeMoreTd(name, args, title) ??
+      _describeNew(name, args, title);
 
   ChatInfo _requireChat(Map<String, dynamic> args) {
     final id = _intOrNull(args, 'chat_id');
@@ -1498,6 +1636,7 @@ class TelegramToolRunner {
       'ref': 'post:${m.chatId}:${m.id}',
       'chat': chatTitle,
       'sender': ?sender,
+      if (m.senderTag.isNotEmpty) 'sender_tag': m.senderTag,
       'date': _iso(m.date),
       if (g.kind != 'text') 'media': g.kind,
       if (g.text.isNotEmpty) 'text': _clip(g.text),
@@ -1520,7 +1659,10 @@ class TelegramToolRunner {
       if (m.replyTo case td.MessageReplyToMessage(:final messageId)
           when messageId != 0)
         'reply_to': messageId,
+      if (m.replyTo case final td.MessageReplyToMessage r when r.messageId != 0 || r.content != null)
+        'replying_to': ?_replyContext(m, r),
       if (m.isTopicMessage) 'topic_id': m.messageThreadId,
+      if (m.directMessagesTopicId case final t?) 'direct_messages_topic_id': t,
       if (m.editDate > 0) 'edited': true,
       if (chat != null && !m.isOutgoing && m.id > chat.lastReadInboxMessageId)
         'unread': true,
@@ -1676,6 +1818,13 @@ class TelegramToolRunner {
         );
         if (full.bio?.text case final bio? when bio.isNotEmpty)
           out['bio'] = bio;
+        if (full.note?.text case final note? when note.isNotEmpty)
+          out['your_private_note'] = note;
+        if (full.firstProfileAudio case final a?)
+          out['profile_music'] = [
+            a.performer,
+            a.title,
+          ].where((e) => e.isNotEmpty).join(' – ');
         final u = _store.users[userId];
         if (u != null) {
           out['status'] = switch (u.status) {
@@ -1707,6 +1856,62 @@ class TelegramToolRunner {
   /// Pages through a chat's history, newest first, until [limit] messages
   /// or one older than [after]. `onlyLocal: false` lets TDLib fetch what it
   /// hasn't cached; each page is one limited request.
+  /// Messages seen recently, so a reply can say what it answers.
+  final Map<String, td.Message> _seenMessages = {};
+
+  void _remember(Iterable<td.Message> messages) {
+    for (final m in messages) {
+      _seenMessages['${m.chatId}:${m.id}'] = m;
+    }
+    // Plenty for a few conversations; oldest go first.
+    if (_seenMessages.length > 3000) {
+      for (final k in _seenMessages.keys.take(_seenMessages.length - 2500).toList()) {
+        _seenMessages.remove(k);
+      }
+    }
+  }
+
+  /// Fetches the originals of replies in [messages] that aren't known yet
+  /// (at most [max] requests), so the model sees what each reply answers.
+  Future<void> loadRepliedMessages(Iterable<td.Message> messages, {int max = 15}) async {
+    _remember(messages);
+    var fetched = 0;
+    for (final m in messages) {
+      if (fetched >= max) break;
+      final r = m.replyTo;
+      if (r is! td.MessageReplyToMessage || r.messageId == 0 || r.content != null) continue;
+      final chat = r.chatId == 0 ? m.chatId : r.chatId;
+      if (_seenMessages.containsKey('$chat:${r.messageId}')) continue;
+      fetched++;
+      try {
+        _remember([await _client.send<td.Message>(td.GetRepliedMessage(chatId: m.chatId, messageId: m.id), limited: true)]);
+      } catch (_) {
+        // Deleted, or in a chat this account can't read.
+      }
+    }
+  }
+
+  /// Who and what a reply answers, as far as it's known: the quoted part
+  /// always, the original's sender and text when it was seen or fetched.
+  Map<String, dynamic>? _replyContext(td.Message m, td.MessageReplyToMessage r) {
+    final chat = r.chatId == 0 ? m.chatId : r.chatId;
+    final original = _seenMessages['$chat:${r.messageId}'];
+    final content = original?.content ?? r.content;
+    final quote = r.quote?.text.text ?? '';
+    if (original == null && content == null && quote.isEmpty) return null;
+    final g = content == null ? null : gistOf(content);
+    final text = g == null ? '' : (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind));
+    return {
+      if (original != null) 'from': original.isOutgoing ? 'you (the user)' : _store.senderName(original.senderId),
+      if (r.origin != null && original == null) 'from': _origin(r.origin!),
+      if (text.isNotEmpty) 'text': _clip(text, 240),
+      if (g != null && g.kind != 'text') 'media': g.kind,
+      if (quote.isNotEmpty) 'quoted_part': _clip(quote, 240),
+      if (chat != m.chatId) 'in_chat': _store.chat(chat)?.title ?? 'another chat',
+      if (original != null) 'ref': 'post:${original.chatId}:${original.id}',
+    };
+  }
+
   Future<List<td.Message>> _history(
     ChatInfo c, {
     required int limit,
@@ -1749,6 +1954,10 @@ class TelegramToolRunner {
       }
       if (stop) break;
       from = messages.last.id;
+    }
+    await loadRepliedMessages(out);
+    if (_settings.aiReadOnView && out.isNotEmpty && (c.hasUnread || c.unreadMentionCount > 0)) {
+      await markRead(c, seen: out).catchError((Object _) {});
     }
     return out;
   }
@@ -1871,20 +2080,22 @@ class TelegramToolRunner {
           fromMessageId: 0,
           offset: 0,
           limit: limit,
-          messageThreadId: 0,
-          savedMessagesTopicId: 0,
+          topicId: null,
         ),
         limited: true,
       );
       found = r.messages.where((m) => m.date >= after).toList();
     } else {
-      // TDLib 1.8.36 can only narrow a global search to channels; private
-      // and group are filtered here from what it returns.
       final type = '${args['type'] ?? 'all'}';
       final r = await _client.send<td.FoundMessages>(
         td.SearchMessages(
           chatList: null,
-          onlyInChannels: type == 'channel',
+          chatTypeFilter: switch (type) {
+            'private' => const td.SearchMessagesChatTypeFilterPrivate(),
+            'group' => const td.SearchMessagesChatTypeFilterGroup(),
+            'channel' => const td.SearchMessagesChatTypeFilterChannel(),
+            _ => null,
+          },
           query: query,
           offset: '',
           limit: limit,
@@ -1935,6 +2146,8 @@ class TelegramToolRunner {
           chatId: chatId,
           messageId: messageId,
           mediaTimestamp: 0,
+          checklistTaskId: 0,
+          pollOptionId: '',
           forAlbum: false,
           inMessageThread: false,
         ),
@@ -2001,6 +2214,95 @@ class TelegramToolRunner {
   }
 
   /// Sends a native Telegram voice message from a locally recorded Opus file.
+  /// Plain messages with Telegram's free formatting: **bold**, __italic__
+  /// (or *italic*, _italic_), ~~strikethrough~~, ||spoiler||, `code`,
+  /// ```code blocks```, [links](https://…), <u>underline</u>; "# headings"
+  /// become bold lines and "- items" bullets. TDLib's lenient parser ignores
+  /// mistakes, so a stray * stays a *.
+  Future<td.FormattedText> formatText(String text) async {
+    final plain = td.FormattedText(text: text, entities: const []);
+    if (!RegExp(r'[*_~|`\[#<-]').hasMatch(text)) return plain;
+    var md = text
+        // Headings and bullets the way chat apps show them.
+        .replaceAllMapped(RegExp(r'^#{1,6}\s+(.+?)\s*#*$', multiLine: true), (m) => '**${m[1]}**')
+        .replaceAllMapped(RegExp(r'^(\s*)[-*+]\s+(?!\[)', multiLine: true), (m) => '${m[1]}• ')
+        // Single-star and single-underscore italics, as most writers use.
+        .replaceAllMapped(RegExp(r'(?<![*\w])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?![*\w])'), (m) => '__${m[1]}__')
+        .replaceAllMapped(RegExp(r'(?<![_\w])_(?![\s_])([^_\n]+?)(?<!\s)_(?![_\w])'), (m) => '__${m[1]}__');
+    // Underline has no Markdown; pull <u>…</u> out and mark it afterwards.
+    final underlined = <String>[];
+    md = md.replaceAllMapped(RegExp(r'<u>(.+?)</u>', dotAll: true), (m) {
+      underlined.add(m[1]!);
+      return '\u0000${underlined.length - 1}\u0000';
+    });
+    td.FormattedText f;
+    try {
+      f = await _client.send<td.FormattedText>(td.ParseMarkdown(text: td.FormattedText(text: md, entities: const [])));
+    } catch (_) {
+      return plain;
+    }
+    if (underlined.isEmpty) return f;
+    // Put the underlined pieces back, shifting entities that come after.
+    var out = f.text;
+    var entities = [...f.entities];
+    for (var i = 0; i < underlined.length; i++) {
+      final marker = '\u0000$i\u0000';
+      final at = out.indexOf(marker);
+      if (at < 0) continue;
+      final piece = underlined[i];
+      final delta = piece.length - marker.length;
+      out = out.replaceRange(at, at + marker.length, piece);
+      entities = [
+        for (final e in entities)
+          e.offset >= at + marker.length
+              ? td.TextEntity(offset: e.offset + delta, length: e.length, type: e.type)
+              : (e.offset <= at && e.offset + e.length >= at + marker.length)
+              ? td.TextEntity(offset: e.offset, length: e.length + delta, type: e.type)
+              : e,
+        td.TextEntity(offset: at, length: piece.length, type: const td.TextEntityTypeUnderline()),
+      ];
+    }
+    return td.FormattedText(text: out, entities: entities);
+  }
+
+  /// Shows the other side what's coming, the way a person sending would:
+  /// "typing…" for a moment (longer for longer text), or "sending a
+  /// photo/video/file…" kept up every few seconds while files upload; stop
+  /// the returned timer once sent. Skipped in Saved Messages and channels,
+  /// where nobody sees it.
+  Future<Timer?> announceSending(
+    int chatId, {
+    int threadId = 0,
+    String text = '',
+    List<String> files = const [],
+    bool asFiles = false,
+    bool voice = false,
+  }) async {
+    final chat = _store.chat(chatId);
+    if (chatId == _store.me?.id || (chat != null && _store.kindOf(chat) == ChatKind.channel)) return null;
+    final td.ChatAction action = voice
+        ? const td.ChatActionUploadingVoiceNote(progress: 0)
+        : files.isEmpty
+        ? const td.ChatActionTyping()
+        : !asFiles && files.every(_isVideo)
+        ? const td.ChatActionUploadingVideo(progress: 0)
+        : !asFiles && files.every((f) => _isPhoto(f) || _isGif(f))
+        ? const td.ChatActionUploadingPhoto(progress: 0)
+        : const td.ChatActionUploadingDocument(progress: 0);
+    Future<void> tell() => _client
+        .send<td.Ok>(
+          td.SendChatAction(chatId: chatId, topicId: topicOf(chatId, threadId), businessConnectionId: '', action: action),
+        )
+        .then((_) {}, onError: (Object _) {});
+    await tell();
+    if (files.isEmpty && !voice) {
+      await Future<void>.delayed(Duration(milliseconds: (text.length * 25).clamp(800, 3000)));
+      return null;
+    }
+    // Telegram shows an action for about five seconds; uploads take longer.
+    return Timer.periodic(const Duration(seconds: 4), (_) => tell());
+  }
+
   Future<td.Message> sendVoiceNote({
     required int chatId,
     required String path,
@@ -2008,25 +2310,34 @@ class TelegramToolRunner {
     String caption = '',
     int? replyToMessageId,
     int threadId = 0,
-  }) => _client.send<td.Message>(
+  }) async {
+    final busy = await announceSending(chatId, threadId: threadId, voice: true);
+    try {
+      return await _sendVoiceNote(chatId: chatId, path: path, duration: duration, caption: caption, replyToMessageId: replyToMessageId, threadId: threadId);
+    } finally {
+      busy?.cancel();
+    }
+  }
+
+  Future<td.Message> _sendVoiceNote({
+    required int chatId,
+    required String path,
+    required int duration,
+    String caption = '',
+    int? replyToMessageId,
+    int threadId = 0,
+  }) async => _client.send<td.Message>(
     td.SendMessage(
       chatId: chatId,
-      messageThreadId: threadId,
+      topicId: topicOf(chatId, threadId),
       replyTo: replyToMessageId == null
           ? null
-          : td.InputMessageReplyToMessage(
-              messageId: replyToMessageId,
-              quote: null,
-            ),
+          : replyToMessage(replyToMessageId),
       options: null,
       replyMarkup: null,
       inputMessageContent: td.InputMessageVoiceNote(
-        voiceNote: td.InputFileLocal(path: path),
-        duration: duration,
-        waveform: '',
-        caption: caption.trim().isEmpty
-            ? null
-            : td.FormattedText(text: caption.trim(), entities: const []),
+        voiceNote: inputVoiceNote(path, duration: duration),
+        caption: caption.trim().isEmpty ? null : await formatText(caption.trim()),
         selfDestructType: null,
       ),
     ),
@@ -2053,20 +2364,7 @@ class TelegramToolRunner {
     text = text.trim();
     final options = sendAt == null && effectId == 0
         ? null
-        : td.MessageSendOptions(
-            disableNotification: false,
-            fromBackground: false,
-            protectContent: false,
-            updateOrderOfInstalledStickerSets: false,
-            schedulingState: sendAt == null
-                ? null
-                : td.MessageSchedulingStateSendAtDate(
-                    sendDate: sendAt.millisecondsSinceEpoch ~/ 1000,
-                  ),
-            effectId: effectId,
-            sendingId: 0,
-            onlyPreview: false,
-          );
+        : sendOptions(sendAt: sendAt, effectId: effectId);
     if (text.isEmpty && files.isEmpty) throw ArgumentError('Nothing to send.');
     // A reply to a message in another chat (a channel post quoted in a DM,
     // say) names that chat; [replyInChatId] is where the original lives.
@@ -2077,20 +2375,26 @@ class TelegramToolRunner {
             chatId: replyInChatId,
             messageId: replyToMessageId,
             quote: quote,
+            checklistTaskId: 0,
+            pollOptionId: '',
           )
-        : td.InputMessageReplyToMessage(
-            messageId: replyToMessageId,
-            quote: quote,
-          );
+        : replyToMessage(replyToMessageId, quote: quote);
     final sent = <td.Message>[];
     // Confirmations can arrive right after the reply, so they are collected
     // from before the first send.
     final settled = <int, td.Message>{};
+    final failed = <int, td.TdError>{};
     final waiters = <int, Completer<td.Message>>{};
     final sub = _client.updates.listen((u) {
       if (u is td.UpdateMessageSendSucceeded && u.message.chatId == chatId) {
         settled[u.oldMessageId] = u.message;
         waiters.remove(u.oldMessageId)?.complete(u.message);
+      } else if (u is td.UpdateMessageSendFailed &&
+          u.message.chatId == chatId) {
+        failed[u.oldMessageId] = u.error;
+        waiters
+            .remove(u.oldMessageId)
+            ?.completeError(TelegramException(u.error.code, u.error.message));
       }
     });
 
@@ -2099,7 +2403,7 @@ class TelegramToolRunner {
         await _client.send<td.Message>(
           td.SendMessage(
             chatId: chatId,
-            messageThreadId: threadId,
+            topicId: topicOf(chatId, threadId),
             replyTo: replyTo,
             options: options,
             replyMarkup: null,
@@ -2116,7 +2420,7 @@ class TelegramToolRunner {
       final r = await _client.send<td.Messages>(
         td.SendMessageAlbum(
           chatId: chatId,
-          messageThreadId: threadId,
+          topicId: topicOf(chatId, threadId),
           replyTo: replyTo,
           options: options,
           inputMessageContents: contents,
@@ -2127,12 +2431,17 @@ class TelegramToolRunner {
       replyTo = null;
     }
 
+    // Scheduled messages go out later; nobody should see "typing…" now.
+    final busy = sendAt == null
+        ? await announceSending(chatId, threadId: threadId, text: text, files: files, asFiles: asFiles)
+        : null;
     try {
+      final formatted = await formatText(text);
       // Captions are capped at 1024 characters; longer text goes on its own.
-      if (files.isEmpty || text.length > 1024) {
+      if (files.isEmpty || formatted.text.length > 1024) {
         await one(
           td.InputMessageText(
-            text: td.FormattedText(text: text, entities: const []),
+            text: formatted,
             linkPreviewOptions: null,
             clearDraft: false,
           ),
@@ -2141,13 +2450,13 @@ class TelegramToolRunner {
       }
       td.FormattedText? caption() {
         if (text.isEmpty) return null;
-        final t = td.FormattedText(text: text, entities: const []);
         text = '';
-        return t;
+        return formatted;
       }
 
       // As files, pictures and videos go uncompressed, as documents.
-      bool visualFile(String f) => !asFiles && (_isPhoto(f) || _isVideo(f) || _isGif(f));
+      bool visualFile(String f) =>
+          !asFiles && (_isPhoto(f) || _isVideo(f) || _isGif(f));
       final visual = files.where(visualFile).toList();
       final docs = files.where((f) => !visualFile(f)).toList();
       // Telegram groups at most ten items per album, and photos/videos can't
@@ -2157,35 +2466,25 @@ class TelegramToolRunner {
           for (final f in visual.skip(i).take(10))
             if (_isGif(f))
               td.InputMessageAnimation(
-                animation: td.InputFileLocal(path: f),
-                addedStickerFileIds: const [],
-                duration: 0,
-                width: 0,
-                height: 0,
+                animation: inputAnimation(f),
                 caption: caption(),
                 showCaptionAboveMedia: false,
                 hasSpoiler: false,
               )
             else if (_isPhoto(f))
               td.InputMessagePhoto(
-                photo: td.InputFileLocal(path: f),
-                addedStickerFileIds: const [],
-                width: 0,
-                height: 0,
+                photo: inputPhoto(f),
                 caption: caption(),
                 showCaptionAboveMedia: false,
+                selfDestructType: null,
                 hasSpoiler: false,
               )
             else
               td.InputMessageVideo(
-                video: td.InputFileLocal(path: f),
-                addedStickerFileIds: const [],
-                duration: 0,
-                width: 0,
-                height: 0,
-                supportsStreaming: true,
+                video: inputVideo(f),
                 caption: caption(),
                 showCaptionAboveMedia: false,
+                selfDestructType: null,
                 hasSpoiler: false,
               ),
         ]);
@@ -2194,9 +2493,8 @@ class TelegramToolRunner {
         await album([
           for (final f in docs.skip(i).take(10))
             td.InputMessageDocument(
-              document: td.InputFileLocal(path: f),
               // Sent as a file on purpose: keep it a file, not a video.
-              disableContentTypeDetection: asFiles,
+              document: inputDocument(f, keepAsFile: asFiles),
               caption: caption(),
             ),
         ]);
@@ -2213,6 +2511,8 @@ class TelegramToolRunner {
           out.add(done);
           continue;
         }
+        if (failed[m.id] case final e?)
+          throw TelegramException(e.code, e.message);
         final c = waiters[m.id] = Completer<td.Message>();
         // Uploads can take a while; past that, the temporary message is
         // still the best there is.
@@ -2223,7 +2523,67 @@ class TelegramToolRunner {
           ),
         );
       }
+      final chat = _store.chat(chatId);
+      if (_settings.aiReadOnReply && sendAt == null && chat != null && chat.hasUnread) {
+        await markRead(chat).catchError((Object _) {});
+      }
       return out;
+    } finally {
+      busy?.cancel();
+      await sub.cancel();
+    }
+  }
+
+  /// Sends one message and waits for Telegram to accept it, so the id
+  /// handed back is the permanent one (a sending message's temporary id
+  /// stops existing once it's sent). A rejected send throws Telegram's
+  /// reason; past [wait], the temporary message is returned as it is.
+  Future<td.Message> sendAndSettle(
+    td.SendMessage request, {
+    Duration wait = const Duration(seconds: 20),
+  }) async {
+    // Confirmations can beat the send call's own reply, so collect them first.
+    final early = <int, td.Update>{};
+    int? temporary;
+    final done = Completer<td.Message>();
+    void settle(td.Update u) {
+      if (done.isCompleted) return;
+      switch (u) {
+        case td.UpdateMessageSendSucceeded(:final message):
+          done.complete(message);
+        case td.UpdateMessageSendFailed(:final error):
+          done.completeError(TelegramException(error.code, error.message));
+        default:
+          break;
+      }
+    }
+
+    final sub = _client.updates.listen((u) {
+      final (chat, old) = switch (u) {
+        td.UpdateMessageSendSucceeded(:final message, :final oldMessageId) => (
+          message.chatId,
+          oldMessageId,
+        ),
+        td.UpdateMessageSendFailed(:final message, :final oldMessageId) => (
+          message.chatId,
+          oldMessageId,
+        ),
+        _ => (0, 0),
+      };
+      if (chat != request.chatId || u is! td.Update) return;
+      if (temporary == null) {
+        early[old] = u;
+      } else if (old == temporary) {
+        settle(u);
+      }
+    });
+    try {
+      final m = await _client.send<td.Message>(request, limited: true);
+      if (m.sendingState == null || request.options?.schedulingState != null)
+        return m;
+      temporary = m.id;
+      if (early[m.id] case final u?) settle(u);
+      return await done.future.timeout(wait, onTimeout: () => m);
     } finally {
       await sub.cancel();
     }
@@ -2320,13 +2680,19 @@ class TelegramToolRunner {
 
   /// A folder's name, from the store or else straight from TDLib.
   Future<String> _folderTitle(int folderId) async {
-    final known = _store.folders.where((f) => f.id == folderId).firstOrNull?.title ?? '';
+    final known =
+        _store.folders.where((f) => f.id == folderId).firstOrNull?.title ?? '';
     if (known.isNotEmpty) return known;
     try {
-      final f = await _client.send<td.ChatFolder>(td.GetChatFolder(chatFolderId: folderId), limited: true);
+      final f = await _client.send<td.ChatFolder>(
+        td.GetChatFolder(chatFolderId: folderId),
+        limited: true,
+      );
       return f.title;
     } on TelegramException {
-      throw ArgumentError('No folder with id $folderId. Call list_chat_folders without folder_id to see them.');
+      throw ArgumentError(
+        'No folder with id $folderId. Call list_chat_folders without folder_id to see them.',
+      );
     }
   }
 
@@ -2347,8 +2713,7 @@ class TelegramToolRunner {
           offset: 0,
           limit: 10,
           filter: const td.SearchMessagesFilterUnreadMention(),
-          messageThreadId: 0,
-          savedMessagesTopicId: 0,
+          topicId: null,
         ),
         limited: true,
       );
@@ -2383,8 +2748,7 @@ class TelegramToolRunner {
         offset: 0,
         limit: limit,
         filter: filter,
-        messageThreadId: 0,
-        savedMessagesTopicId: 0,
+        topicId: null,
       ),
       limited: true,
     );
@@ -2465,6 +2829,7 @@ class TelegramToolRunner {
     td.MessageSender s, {
     String? role,
     int? joined,
+    String tag = '',
   }) {
     final userId = s is td.MessageSenderUser ? s.userId : null;
     final username = userId == null
@@ -2474,6 +2839,7 @@ class TelegramToolRunner {
       'user_id': ?userId,
       'name': _store.senderName(s),
       if (username != null) 'username': '@$username',
+      if (tag.isNotEmpty) 'tag': tag,
       'role': ?role,
       if (joined != null && joined > 0) 'joined': _iso(joined),
     };
@@ -2530,6 +2896,7 @@ class TelegramToolRunner {
                 m.memberId,
                 role: _role(m.status),
                 joined: m.joinedChatDate,
+                tag: m.tag,
               ),
           ],
         });
@@ -2603,7 +2970,9 @@ class TelegramToolRunner {
         );
         done.add(target.title);
       } catch (e) {
-        failed[target.title] = e is TelegramException ? e.friendlyMessage : '$e';
+        failed[target.title] = e is TelegramException
+            ? e.friendlyMessage
+            : '$e';
       }
     }
     return ToolOutput({
@@ -2628,7 +2997,7 @@ class TelegramToolRunner {
         query: '${args['query'] ?? ''}',
         offsetDate: 0,
         offsetMessageId: 0,
-        offsetMessageThreadId: 0,
+        offsetForumTopicId: 0,
         limit: 100,
       ),
       limited: true,
@@ -2752,7 +3121,7 @@ class TelegramToolRunner {
     await _client.send<td.Ok>(
       td.SendChatAction(
         chatId: chat.id,
-        messageThreadId: topic,
+        topicId: topicOf(chat.id, topic),
         businessConnectionId: '',
         action: action,
       ),
@@ -2769,22 +3138,41 @@ class TelegramToolRunner {
   /// Posts a poll or quiz, as the composer or the assistant drafted it.
   Future<td.Message> sendPoll(int chatId, PollDraft d, {int threadId = 0}) {
     if (d.question.isEmpty) throw ArgumentError('The poll needs a question.');
-    if (d.options.length < 2 || d.options.length > 10) throw ArgumentError('A poll takes 2 to 10 options.');
-    td.FormattedText f(String t) => td.FormattedText(text: t, entities: const []);
+    if (d.options.length < 2 || d.options.length > 10)
+      throw ArgumentError('A poll takes 2 to 10 options.');
+    td.FormattedText f(String t) =>
+        td.FormattedText(text: t, entities: const []);
     return _client.send<td.Message>(
       td.SendMessage(
         chatId: chatId,
-        messageThreadId: threadId,
+        topicId: topicOf(chatId, threadId),
         replyTo: null,
         options: null,
         replyMarkup: null,
         inputMessageContent: td.InputMessagePoll(
           question: f(d.question),
-          options: [for (final o in d.options) f(o)],
+          options: [
+            for (final o in d.options)
+              td.InputPollOption(text: f(o), media: null),
+          ],
+          description: null,
+          media: null,
           isAnonymous: d.anonymous,
+          allowsMultipleAnswers: d.multipleAnswers && !d.quiz,
+          allowsRevoting: !d.quiz,
+          membersOnly: false,
+          countryCodes: const [],
+          shuffleOptions: false,
+          hideResultsUntilCloses: false,
           type: d.quiz
-              ? td.PollTypeQuiz(correctOptionId: d.correctOption.clamp(0, d.options.length - 1), explanation: f(d.explanation))
-              : td.PollTypeRegular(allowMultipleAnswers: d.multipleAnswers),
+              ? td.InputPollTypeQuiz(
+                  correctOptionIds: [
+                    d.correctOption.clamp(0, d.options.length - 1),
+                  ],
+                  explanation: f(d.explanation),
+                  explanationMedia: null,
+                )
+              : const td.InputPollTypeRegular(allowAddingOptions: false),
           openPeriod: d.openSeconds,
           closeDate: 0,
           isClosed: false,
@@ -2796,11 +3184,13 @@ class TelegramToolRunner {
 
   /// Shares a Telegram user as a contact card.
   Future<td.Message> sendContact(int chatId, int userId) async {
-    final u = _store.users[userId] ?? await _client.send<td.User>(td.GetUser(userId: userId), limited: true);
+    final u =
+        _store.users[userId] ??
+        await _client.send<td.User>(td.GetUser(userId: userId), limited: true);
     return _client.send<td.Message>(
       td.SendMessage(
         chatId: chatId,
-        messageThreadId: 0,
+        topicId: null,
         replyTo: null,
         options: null,
         replyMarkup: null,
@@ -2842,20 +3232,30 @@ class TelegramToolRunner {
     final sent = await _client.send<td.Message>(
       td.SendMessage(
         chatId: c.id,
-        messageThreadId: 0,
+        topicId: null,
         replyTo: null,
         options: null,
         replyMarkup: null,
-        inputMessageContent: td.InputMessageLocation(
-          location: td.Location(
-            latitude: p.latitude,
-            longitude: p.longitude,
-            horizontalAccuracy: p.accuracy,
-          ),
-          livePeriod: mins == 0 ? 0 : mins * 60,
-          heading: 0,
-          proximityAlertRadius: 0,
-        ),
+        inputMessageContent: mins == 0
+            ? td.InputMessageLocation(
+                location: td.Location(
+                  latitude: p.latitude,
+                  longitude: p.longitude,
+                  horizontalAccuracy: p.accuracy,
+                ),
+              )
+            : td.InputMessageLiveLocation(
+                location: td.LiveLocation(
+                  location: td.Location(
+                    latitude: p.latitude,
+                    longitude: p.longitude,
+                    horizontalAccuracy: p.accuracy,
+                  ),
+                  livePeriod: mins * 60,
+                  heading: 0,
+                  proximityAlertRadius: 0,
+                ),
+              ),
       ),
       limited: true,
     );
@@ -2874,16 +3274,18 @@ class TelegramToolRunner {
                 td.EditMessageLiveLocation(
                   chatId: sent.chatId,
                   messageId: sent.id,
-                  location: td.Location(
-                    latitude: next.latitude,
-                    longitude: next.longitude,
-                    horizontalAccuracy: next.accuracy,
+                  location: td.LiveLocation(
+                    location: td.Location(
+                      latitude: next.latitude,
+                      longitude: next.longitude,
+                      horizontalAccuracy: next.accuracy,
+                    ),
+                    livePeriod: 0,
+                    heading: next.heading.isFinite && next.heading > 0
+                        ? next.heading.round().clamp(1, 360)
+                        : 0,
+                    proximityAlertRadius: 0,
                   ),
-                  livePeriod: 0,
-                  heading: next.heading.isFinite && next.heading > 0
-                      ? next.heading.round().clamp(1, 360)
-                      : 0,
-                  proximityAlertRadius: 0,
                 ),
                 limited: true,
               );
@@ -2936,6 +3338,9 @@ class TelegramToolRunner {
       td.SearchStickers(
         stickerType: const td.StickerTypeRegular(),
         emojis: emojis,
+        query: '',
+        inputLanguageCodes: const [],
+        offset: 0,
         limit: _int(args, 'limit', fallback: 30, min: 1, max: 100),
       ),
       limited: true,
@@ -2953,14 +3358,17 @@ class TelegramToolRunner {
     final m = await _client.send<td.Message>(
       td.SendMessage(
         chatId: c.id,
-        messageThreadId: 0,
+        topicId: null,
         replyTo: null,
         options: null,
         replyMarkup: null,
         inputMessageContent: td.InputMessageSticker(
-          sticker: td.InputFileId(id: fileId),
-          width: _int(args, 'width', fallback: 512),
-          height: _int(args, 'height', fallback: 512),
+          sticker: td.InputSticker(
+            sticker: td.InputFileId(id: fileId),
+            thumbnail: null,
+            width: _int(args, 'width', fallback: 512),
+            height: _int(args, 'height', fallback: 512),
+          ),
           emoji: '${args['emoji'] ?? ''}',
         ),
       ),
@@ -3087,22 +3495,13 @@ class TelegramToolRunner {
   /// Runs only after the person approved it in the chat.
   Future<ToolOutput> _markRead(Map<String, dynamic> args) async {
     final c = _requireChat(args);
-    final last = c.lastMessage;
-    if (last == null)
+    if (c.lastMessage == null)
       return ToolOutput({
         'done': true,
         'chat': c.title,
         'note': 'Nothing to mark.',
       });
-    await _client.send<td.Ok>(
-      td.ViewMessages(
-        chatId: c.id,
-        messageIds: [last.id],
-        source: null,
-        forceRead: true,
-      ),
-      limited: true,
-    );
+    await markRead(c);
     return ToolOutput({
       'done': true,
       'chat': c.title,
@@ -3119,21 +3518,34 @@ class TelegramToolRunner {
     int fromId = 0,
     int limit = 40,
   }) async {
-    try {
-      final r = await _client.send<td.FoundChatMessages>(
-        td.SearchChatMessages(
+    final chat = _store.chat(chatId);
+    if (chat != null && _store.isDirectMessagesGroup(chat)) {
+      final r = await _client.send<td.Messages>(
+        td.GetDirectMessagesChatTopicHistory(
           chatId: chatId,
-          query: '',
+          topicId: topicId,
           fromMessageId: fromId,
           offset: 0,
           limit: limit,
-          messageThreadId: topicId,
-          savedMessagesTopicId: 0,
         ),
         limited: true,
       );
-      return r.messages;
-    } on TelegramException {
+      return r.messages.whereType<td.Message>().toList();
+    }
+    if (chat != null && _store.isForum(chat)) {
+      final r = await _client.send<td.Messages>(
+        td.GetForumTopicHistory(
+          chatId: chatId,
+          forumTopicId: topicId,
+          fromMessageId: fromId,
+          offset: 0,
+          limit: limit,
+        ),
+        limited: true,
+      );
+      return r.messages.whereType<td.Message>().toList();
+    }
+    {
       final r = await _client.send<td.Messages>(
         td.GetMessageThreadHistory(
           chatId: chatId,
@@ -3178,7 +3590,7 @@ class TelegramToolRunner {
         query: '',
         offsetDate: 0,
         offsetMessageId: 0,
-        offsetMessageThreadId: 0,
+        offsetForumTopicId: 0,
         limit: 100,
       ),
       limited: true,
@@ -3284,7 +3696,8 @@ class TelegramToolRunner {
     } on TelegramException {
       note = 'Telegram only shows counts here, not who reacted.';
     }
-    final paid = m.interactionInfo?.reactions?.paidReactors ?? const <td.PaidReactor>[];
+    final paid =
+        m.interactionInfo?.reactions?.paidReactors ?? const <td.PaidReactor>[];
     return ToolOutput({
       'ref': 'post:$chatId:$id',
       'reactions': counts,
@@ -3351,7 +3764,10 @@ class TelegramToolRunner {
     final wanted = '${args['quote'] ?? ''}'.trim();
     if (wanted.isNotEmpty) {
       final g = gistOf(original.content);
-      quote = buildQuote(g.formatted ?? td.FormattedText(text: g.text, entities: const []), wanted);
+      quote = buildQuote(
+        g.formatted ?? td.FormattedText(text: g.text, entities: const []),
+        wanted,
+      );
       if (quote == null) {
         note = "The quote isn't in the message, so the reply went without it. Copy the excerpt from the message's text.";
       }
@@ -3379,7 +3795,8 @@ class TelegramToolRunner {
       // Telegram still refused the quote (it checks things it doesn't
       // explain): the reply matters more, so it goes without.
       if (quote == null || !e.message.toUpperCase().contains('QUOTE')) rethrow;
-      note = 'Telegram refused the quote (${e.message}), so the reply went without it.';
+      note =
+          'Telegram refused the quote (${e.message}), so the reply went without it.';
       quote = null;
       sent = await send(null);
     }
@@ -3474,8 +3891,9 @@ class TelegramToolRunner {
     );
     final current = gistOf(m.content);
     final caption = newText == null
-        ? (current.formatted ?? td.FormattedText(text: current.text, entities: const []))
-        : td.FormattedText(text: newText, entities: const []);
+        ? (current.formatted ??
+              td.FormattedText(text: current.text, entities: const []))
+        : await formatText(newText);
     final td.Message edited;
     if (file != null) {
       try {
@@ -3483,7 +3901,11 @@ class TelegramToolRunner {
           td.EditMessageMedia(
             chatId: c.id,
             messageId: id,
-            inputMessageContent: _mediaContent(file, caption, asFile: args['send_as'] == 'file'),
+            inputMessageContent: _mediaContent(
+              file,
+              caption,
+              asFile: args['send_as'] == 'file',
+            ),
           ),
           limited: true,
           timeout: const Duration(minutes: 3),
@@ -3530,19 +3952,20 @@ class TelegramToolRunner {
 
   /// A local file as message content of the kind its type calls for, or a
   /// document when [asFile].
-  td.InputMessageContent _mediaContent(String f, td.FormattedText? caption, {bool asFile = false}) {
+  td.InputMessageContent _mediaContent(
+    String f,
+    td.FormattedText? caption, {
+    bool asFile = false,
+  }) {
     if (caption != null && caption.text.isEmpty) caption = null;
-    final input = td.InputFileLocal(path: f);
-    if (asFile) {
-      return td.InputMessageDocument(document: input, disableContentTypeDetection: true, caption: caption);
-    }
+    if (asFile)
+      return td.InputMessageDocument(
+        document: inputDocument(f, keepAsFile: true),
+        caption: caption,
+      );
     if (_isGif(f)) {
       return td.InputMessageAnimation(
-        animation: input,
-        addedStickerFileIds: const [],
-        duration: 0,
-        width: 0,
-        height: 0,
+        animation: inputAnimation(f),
         caption: caption,
         showCaptionAboveMedia: false,
         hasSpoiler: false,
@@ -3550,32 +3973,32 @@ class TelegramToolRunner {
     }
     if (_isPhoto(f)) {
       return td.InputMessagePhoto(
-        photo: input,
-        addedStickerFileIds: const [],
-        width: 0,
-        height: 0,
+        photo: inputPhoto(f),
         caption: caption,
         showCaptionAboveMedia: false,
+        selfDestructType: null,
         hasSpoiler: false,
       );
     }
     if (_isVideo(f)) {
       return td.InputMessageVideo(
-        video: input,
-        addedStickerFileIds: const [],
-        duration: 0,
-        width: 0,
-        height: 0,
-        supportsStreaming: true,
+        video: inputVideo(f),
         caption: caption,
         showCaptionAboveMedia: false,
+        selfDestructType: null,
         hasSpoiler: false,
       );
     }
-    if (RegExp(r'\.(mp3|m4a|flac|wav|ogg|opus|aac)$', caseSensitive: false).hasMatch(f)) {
-      return td.InputMessageAudio(audio: input, duration: 0, title: '', performer: '', caption: caption);
+    if (RegExp(
+      r'\.(mp3|m4a|flac|wav|ogg|opus|aac)$',
+      caseSensitive: false,
+    ).hasMatch(f)) {
+      return td.InputMessageAudio(audio: inputAudio(f), caption: caption);
     }
-    return td.InputMessageDocument(document: input, disableContentTypeDetection: false, caption: caption);
+    return td.InputMessageDocument(
+      document: inputDocument(f),
+      caption: caption,
+    );
   }
 
   /// Runs only after the person approved it in the chat.
@@ -3660,6 +4083,7 @@ class TelegramToolRunner {
             ? null
             : td.MessageSchedulingStateSendAtDate(
                 sendDate: at.millisecondsSinceEpoch ~/ 1000,
+                repeatPeriod: 0,
               ),
       ),
       limited: true,
@@ -3720,11 +4144,17 @@ class TelegramToolRunner {
   }.toList();
 
   /// Forwards [ids] from [from] to [to]; returns how many arrived.
-  Future<int> forwardTo(int to, int from, List<int> ids, {bool hideSender = false, bool removeCaption = false}) async {
+  Future<int> forwardTo(
+    int to,
+    int from,
+    List<int> ids, {
+    bool hideSender = false,
+    bool removeCaption = false,
+  }) async {
     final r = await _client.send<td.Messages>(
       td.ForwardMessages(
         chatId: to,
-        messageThreadId: 0,
+        topicId: null,
         fromChatId: from,
         messageIds: ids,
         options: null,
@@ -3739,7 +4169,10 @@ class TelegramToolRunner {
   /// A short line for the approval card: where the message would go.
   String describeTarget(Map<String, dynamic> args, {String? tool}) {
     if (tool == 'forward_message') {
-      final names = [for (final id in forwardTargets(args)) _store.chat(id)?.title ?? 'chat $id'];
+      final names = [
+        for (final id in forwardTargets(args))
+          _store.chat(id)?.title ?? 'chat $id',
+      ];
       return names.isEmpty ? 'Unknown chat' : names.join(', ');
     }
     if (tool == 'reply_to_message') {

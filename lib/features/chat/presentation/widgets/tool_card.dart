@@ -80,9 +80,37 @@ IconData toolIcon(String name) => switch (name) {
   'send_gif' => Icons.gif_rounded,
   'list_calls' => Icons.call_outlined,
   'view_image' => Icons.image_search_rounded,
+  'view_profile_photo' => Icons.account_circle_outlined,
+  'get_replied_message' => Icons.reply_all_rounded,
+  'message_read_status' => Icons.done_all_rounded,
+  'music_search' || 'music_album' => Icons.library_music_outlined,
+  'music_artist' => Icons.mic_external_on_outlined,
+  'movie_search' || 'movie_details' => Icons.movie_outlined,
+  'tv_search' || 'tv_show' => Icons.live_tv_rounded,
+  'online_alert' || 'list_online_alerts' => Icons.circle_notifications_outlined,
+  'canvas_export' => Icons.ios_share_rounded,
+  'export_channel_summary' => Icons.insert_chart_outlined,
   'list_my_bots' || 'get_bot_profile' => Icons.smart_toy_outlined,
   'edit_bot' || 'botfather' => Icons.precision_manufacturing_outlined,
   'create_bot' => Icons.add_reaction_outlined,
+  'connect_bot' => Icons.link_rounded,
+  'bot_api' => Icons.api_rounded,
+  'stream_bot_message' => Icons.stream_rounded,
+  'send_rich_message' || 'edit_rich_message' => Icons.table_chart_outlined,
+  'read_rich_message' => Icons.article_outlined,
+  'list_channel_dms' || 'read_channel_dm' => Icons.forum_outlined,
+  'reply_channel_dm' => Icons.reply_rounded,
+  'set_channel_dms' => Icons.mark_chat_read_outlined,
+  'set_member_tag' => Icons.label_outline_rounded,
+  'list_welcome_messages' ||
+  'set_welcome_message' => Icons.waving_hand_outlined,
+  'delete_welcome_message' => Icons.delete_outline_rounded,
+  'set_private_note' || 'get_private_note' => Icons.sticky_note_2_outlined,
+  'get_profile_music' || 'add_profile_music' => Icons.library_music_outlined,
+  'remove_profile_music' => Icons.music_off_outlined,
+  'send_ephemeral_command' => Icons.visibility_outlined,
+  'get_bot_commands' => Icons.terminal_rounded,
+  'stop_bot_reply' => Icons.stop_circle_outlined,
   'get_stories' => Icons.amp_stories_outlined,
   'add_contact' => Icons.person_add_alt_1_outlined,
   'set_draft' => Icons.edit_note_rounded,
@@ -102,12 +130,15 @@ IconData toolIcon(String name) => switch (name) {
   'list_blocked' => Icons.block_rounded,
   'list_briefs' || 'read_brief' => Icons.wb_twilight_rounded,
   'canvas_overview' => Icons.dashboard_outlined,
-  'canvas_create_folder' || 'canvas_update_folder' => Icons.create_new_folder_outlined,
+  'canvas_create_folder' ||
+  'canvas_update_folder' => Icons.create_new_folder_outlined,
   'canvas_delete_folder' || 'canvas_remove' => Icons.folder_delete_outlined,
   'canvas_add' || 'canvas_move' => Icons.dashboard_customize_outlined,
   'canvas_add_note' => Icons.sticky_note_2_outlined,
   'translate_message' => Icons.translate_rounded,
-  'delete_messages' || 'clear_chat_history' || 'delete_all_from_member' => Icons.delete_outline_rounded,
+  'delete_messages' ||
+  'clear_chat_history' ||
+  'delete_all_from_member' => Icons.delete_outline_rounded,
   'leave_chat' => Icons.logout_rounded,
   'delete_chat' => Icons.delete_forever_outlined,
   'block_user' => Icons.block_rounded,
@@ -120,7 +151,9 @@ IconData toolIcon(String name) => switch (name) {
   'recently_joined_chats' => Icons.new_releases_outlined,
   'contact_joins' => Icons.person_add_alt_outlined,
   'get_bot_buttons' || 'press_bot_button' => Icons.smart_button_outlined,
-  'list_backgrounds' || 'get_chat_background' || 'set_chat_background' => Icons.wallpaper_rounded,
+  'list_backgrounds' ||
+  'get_chat_background' ||
+  'set_chat_background' => Icons.wallpaper_rounded,
   'save_gif' => Icons.bookmark_add_outlined,
   'list_sticker_sets' => Icons.collections_outlined,
   'get_sticker_set' => Icons.emoji_emotions_outlined,
@@ -138,22 +171,46 @@ IconData toolIcon(String name) => switch (name) {
   'browser_type' => Icons.keyboard_alt_outlined,
   'browser_click' || 'browser_submit' => Icons.ads_click_rounded,
   'browser_run_js' => Icons.code_rounded,
-  'get_star_balance' || 'list_star_transactions' || 'get_star_revenue' => Icons.account_balance_wallet_outlined,
+  'get_star_balance' ||
+  'list_star_transactions' ||
+  'get_star_revenue' => Icons.account_balance_wallet_outlined,
   'send_star_reaction' || 'get_star_reactors' => Icons.star_rounded,
-  'list_star_subscriptions' || 'set_star_subscription' => Icons.card_membership_rounded,
+  'list_star_subscriptions' ||
+  'set_star_subscription' => Icons.card_membership_rounded,
   'web_screenshot' => Icons.screenshot_monitor_rounded,
   'web_inspect' || 'web_run_async_js' => Icons.developer_mode_rounded,
   'run_code' => Icons.terminal_rounded,
-  'github_repo' || 'github_list' || 'github_read' || 'github_search' || 'github_issues' || 'github_commits' || 'github_releases' || 'github_download' =>
-    Icons.code_rounded,
-  'list_stories' || 'view_story' || 'story_viewers' || 'post_story' || 'edit_story' || 'delete_story' || 'react_to_story' =>
-    Icons.amp_stories_outlined,
-  'get_folder' || 'create_folder' || 'edit_folder' || 'delete_folder' || 'reorder_folders' || 'suggested_folders' || 'share_folder' =>
-    Icons.folder_copy_outlined,
-  'set_chat_settings' || 'set_chat_reactions' || 'manage_topic' || 'delete_topic' => Icons.settings_suggest_outlined,
+  'github_repo' ||
+  'github_list' ||
+  'github_read' ||
+  'github_search' ||
+  'github_issues' ||
+  'github_commits' ||
+  'github_releases' ||
+  'github_download' => Icons.code_rounded,
+  'list_stories' ||
+  'view_story' ||
+  'story_viewers' ||
+  'post_story' ||
+  'edit_story' ||
+  'delete_story' ||
+  'react_to_story' => Icons.amp_stories_outlined,
+  'get_folder' ||
+  'create_folder' ||
+  'edit_folder' ||
+  'delete_folder' ||
+  'reorder_folders' ||
+  'suggested_folders' ||
+  'share_folder' => Icons.folder_copy_outlined,
+  'set_chat_settings' ||
+  'set_chat_reactions' ||
+  'manage_topic' ||
+  'delete_topic' => Icons.settings_suggest_outlined,
   'get_boosts' => Icons.rocket_launch_outlined,
   'invite_link_joins' => Icons.link_rounded,
-  'list_sessions' || 'end_session' || 'set_session_options' => Icons.devices_rounded,
+  'list_sessions' ||
+  'end_session' ||
+  'set_session_options' => Icons.devices_rounded,
   'get_privacy' || 'set_privacy' => Icons.privacy_tip_outlined,
   'get_profile' || 'edit_profile' => Icons.account_circle_outlined,
   'account_health' => Icons.health_and_safety_outlined,
@@ -165,9 +222,15 @@ IconData toolIcon(String name) => switch (name) {
   'video_chat' || 'manage_video_chat' => Icons.video_call_outlined,
   'storage_report' || 'clean_storage' => Icons.storage_rounded,
   'data_usage' => Icons.data_usage_rounded,
-  'search_books' || 'book_details' || 'find_free_copy' => Icons.menu_book_rounded,
+  'search_books' ||
+  'book_details' ||
+  'find_free_copy' => Icons.menu_book_rounded,
   'download_book' => Icons.download_for_offline_outlined,
-  'youtube_search' || 'youtube_video' || 'youtube_transcript' || 'youtube_channel' || 'youtube_playlist' => Icons.smart_display_outlined,
+  'youtube_search' ||
+  'youtube_video' ||
+  'youtube_transcript' ||
+  'youtube_channel' ||
+  'youtube_playlist' => Icons.smart_display_outlined,
   'x_post' || 'x_profile' => Icons.alternate_email_rounded,
   _ => Icons.build_outlined,
 };
@@ -181,14 +244,20 @@ String toolSubject(ToolPart part, TelegramStore store) {
     if (id is num) bits.add(store.chat(id.toInt())?.title ?? 'chat $id');
   }
   if (a['to_chat_ids'] case final List ids when ids.isNotEmpty) {
-    bits.add(ids.length == 1 ? (store.chat((ids.first as num).toInt())?.title ?? 'a chat') : '${ids.length} chats');
+    bits.add(
+      ids.length == 1
+          ? (store.chat((ids.first as num).toInt())?.title ?? 'a chat')
+          : '${ids.length} chats',
+    );
   }
   if (a['folder_id'] case final num f) {
-    final name = store.folders.where((x) => x.id == f.toInt()).firstOrNull?.title ?? '';
+    final name =
+        store.folders.where((x) => x.id == f.toInt()).firstOrNull?.title ?? '';
     bits.add(name.isEmpty ? 'folder $f' : name);
   }
   if (a['query'] case final String q when q.isNotEmpty) bits.add('"$q"');
-  if (a['url'] case final String u when u.isNotEmpty) bits.add(Uri.tryParse(u)?.host.isNotEmpty == true ? Uri.parse(u).host : u);
+  if (a['url'] case final String u when u.isNotEmpty)
+    bits.add(Uri.tryParse(u)?.host.isNotEmpty == true ? Uri.parse(u).host : u);
   if (a['prompt'] case final String p when p.isNotEmpty) bits.add(p);
   if (a['type'] case final String t when t != 'all') bits.add(t);
   if (a['since_hours'] case final num h)
@@ -216,10 +285,12 @@ String _summary(ToolPart part) {
   if (j['created'] == true) return 'Created';
   if (j['done'] == true) return 'Done';
   if (j['scheduled'] == true) return 'Scheduled';
-  if (j['reminders'] is List) return '${(j['reminders'] as List).length} reminders';
+  if (j['reminders'] is List)
+    return '${(j['reminders'] as List).length} reminders';
   if (j['stars'] is num && j['transactions'] == null) return '${j['stars']} ⭐';
   if (j['status'] is num && j['url'] is String) return 'HTTP ${j['status']}';
-  if (j['title'] is String && j['url'] is String) return '${j['title']}'.isEmpty ? 'Read' : '${j['title']}';
+  if (j['title'] is String && j['url'] is String)
+    return '${j['title']}'.isEmpty ? 'Read' : '${j['title']}';
   if (j['scheduled'] is List)
     return '${(j['scheduled'] as List).length} scheduled';
   if (j['topics'] is List) return '${(j['topics'] as List).length} topics';
@@ -273,7 +344,9 @@ class ToolCallCard extends ConsumerWidget {
       ToolStatus.awaitingApproval => (const SizedBox.shrink(), AppColors.text2),
     };
     // Generated images, screenshots and charts from code all show here.
-    final decoded = part.result != null && part.result!.contains('"image_path"') ? _decode(part.result) : null;
+    final decoded = part.result != null && part.result!.contains('"image_path"')
+        ? _decode(part.result)
+        : null;
     final image = decoded == null ? null : decoded['image_path'] as String?;
     return Padding(
       padding: const EdgeInsets.only(bottom: Space.xs + 2),
@@ -344,7 +417,11 @@ class ToolCallCard extends ConsumerWidget {
                           padding: EdgeInsets.symmetric(horizontal: 4),
                           child: Tooltip(
                             message: 'Watch the browser',
-                            child: Icon(Icons.open_in_new_rounded, size: 15, color: AppColors.text2),
+                            child: Icon(
+                              Icons.open_in_new_rounded,
+                              size: 15,
+                              color: AppColors.text2,
+                            ),
                           ),
                         ),
                       ),
@@ -362,15 +439,23 @@ class ToolCallCard extends ConsumerWidget {
                     const SizedBox(width: Space.s),
                     status,
                     if (part.status == ToolStatus.running &&
-                        ref.read(chatControllerProvider.notifier).canCancel(part))
+                        ref
+                            .read(chatControllerProvider.notifier)
+                            .canCancel(part))
                       InkWell(
                         borderRadius: BorderRadius.circular(99),
-                        onTap: () => ref.read(chatControllerProvider.notifier).cancelTool(part),
+                        onTap: () => ref
+                            .read(chatControllerProvider.notifier)
+                            .cancelTool(part),
                         child: const Padding(
                           padding: EdgeInsets.only(left: Space.s),
                           child: Tooltip(
                             message: 'Stop',
-                            child: Icon(Icons.stop_circle_outlined, size: 18, color: AppColors.danger),
+                            child: Icon(
+                              Icons.stop_circle_outlined,
+                              size: 18,
+                              color: AppColors.danger,
+                            ),
                           ),
                         ),
                       ),
@@ -382,7 +467,10 @@ class ToolCallCard extends ConsumerWidget {
           // Books, videos, posts, repos and pages get a card of their own;
           // other pictures (generated images, screenshots) show as they are.
           if (richResultFor(part) case final rich?)
-            Padding(padding: const EdgeInsets.only(top: Space.s), child: rich)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.s),
+              child: rich,
+            )
           else if (image != null)
             Padding(
               padding: const EdgeInsets.only(top: Space.s),
@@ -525,7 +613,9 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
       margin: const EdgeInsets.only(bottom: Space.s),
       padding: const EdgeInsets.all(Space.l),
       decoration: BoxDecoration(
-        color: danger ? AppColors.danger.withValues(alpha: 0.08) : AppColors.surface,
+        color: danger
+            ? AppColors.danger.withValues(alpha: 0.08)
+            : AppColors.surface,
         borderRadius: BorderRadius.circular(Radii.l),
         border: Border.all(color: tone.withValues(alpha: danger ? 0.8 : 0.5)),
       ),
@@ -670,8 +760,13 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
                           padding: const EdgeInsets.only(right: Space.s),
                           child: FilterChip(
                             visualDensity: VisualDensity.compact,
-                            tooltip: _asFiles ? 'Sent uncompressed, as files' : 'Sent compressed, shown in the chat',
-                            label: Text(_asFiles ? 'As files' : 'Compressed', style: const TextStyle(fontSize: 12)),
+                            tooltip: _asFiles
+                                ? 'Sent uncompressed, as files'
+                                : 'Sent compressed, shown in the chat',
+                            label: Text(
+                              _asFiles ? 'As files' : 'Compressed',
+                              style: const TextStyle(fontSize: 12),
+                            ),
                             selected: _asFiles,
                             onSelected: (v) => setState(() => _asFiles = v),
                           ),
@@ -898,6 +993,75 @@ class _DraftFile extends StatelessWidget {
   }
 }
 
+/// Pictures a tool handed back, large enough to see; tap for full screen.
+class _ImageStrip extends StatelessWidget {
+  const _ImageStrip({required this.paths});
+  final List<String> paths;
+
+  @override
+  Widget build(BuildContext context) {
+    final files = [
+      for (final p in paths)
+        if (File(p).existsSync()) p,
+    ];
+    if (files.isEmpty) {
+      return Text(
+        'The images are no longer on this phone.',
+        style: context.text.bodySmall,
+      );
+    }
+    Widget tile(String p, {double? height}) => GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.black,
+              title: Text(p.split(RegExp(r'[\\/]')).last),
+            ),
+            body: Center(
+              child: InteractiveViewer(maxScale: 6, child: Image.file(File(p))),
+            ),
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Radii.m),
+        child: Image.file(
+          File(p),
+          height: height,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(
+            height: height ?? 160,
+            color: AppColors.surface2,
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.broken_image_outlined,
+              color: AppColors.text3,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (files.length == 1) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 360),
+        child: Center(child: tile(files.single)),
+      );
+    }
+    return SizedBox(
+      height: 180,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: files.length,
+        separatorBuilder: (_, _) => const SizedBox(width: Space.s),
+        itemBuilder: (_, i) =>
+            SizedBox(width: 180, child: tile(files[i], height: 180)),
+      ),
+    );
+  }
+}
+
 Future<void> showToolDetails(BuildContext context, ToolPart part) {
   return showModalBottomSheet<void>(
     context: context,
@@ -1009,15 +1173,23 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             _Pill(TimeOfDay.fromDateTime(part.startedAt).format(context)),
           ],
         ),
-        if (part.status == ToolStatus.running && controller.canCancel(part)) ...[
+        if (part.status == ToolStatus.running &&
+            controller.canCancel(part)) ...[
           const SizedBox(height: Space.l),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => controller.cancelTool(part),
             icon: const Icon(Icons.stop_rounded),
             label: Text(switch (part.name) {
               'run_code' => 'Stop the code',
-              final n when n.startsWith('browser_') || n.startsWith('web_') || n == 'fetch_url' => 'Stop browsing',
+              final n
+                  when n.startsWith('browser_') ||
+                      n.startsWith('web_') ||
+                      n == 'fetch_url' =>
+                'Stop browsing',
               _ => 'Stop',
             }),
           ),
@@ -1051,6 +1223,14 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
           onSelectionChanged: (v) => setState(() => _raw = v.first),
         ),
         if (!_raw) ...[
+          // Pictures the tool looked at (view_image, profile photos…).
+          if (result case {'_images': final List images}
+              when images.isNotEmpty) ...[
+            const SizedBox(height: Space.xl),
+            Text('IMAGES', style: context.text.labelSmall),
+            const SizedBox(height: Space.s),
+            _ImageStrip(paths: [for (final p in images) '$p']),
+          ],
           if (args.isNotEmpty) ...[
             const SizedBox(height: Space.xl),
             Text('ASKED FOR', style: context.text.labelSmall),
@@ -1083,19 +1263,26 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
           Text('ABOUT THIS CALL', style: context.text.labelSmall),
           const SizedBox(height: Space.s),
           if (tool != null) ...[
-            Text(tool.description, style: context.text.bodySmall?.copyWith(height: 1.4)),
+            Text(
+              tool.description,
+              style: context.text.bodySmall?.copyWith(height: 1.4),
+            ),
             const SizedBox(height: Space.m),
           ],
           _InfoRow('Tool', part.name),
           if (tool != null) _InfoRow('Category', tool.category.label),
-          if (tool != null) _InfoRow('Runs on', '${tool.cost.label}: ${tool.cost.explanation}'),
-          _InfoRow('Started', DateFormat('EEE d MMM y, HH:mm:ss').format(part.startedAt)),
+          if (tool != null)
+            _InfoRow('Runs on', '${tool.cost.label}: ${tool.cost.explanation}'),
+          _InfoRow(
+            'Started',
+            DateFormat('EEE d MMM y, HH:mm:ss').format(part.startedAt),
+          ),
           if (part.durationMs != null) ...[
             _InfoRow(
               'Finished',
-              DateFormat(
-                'HH:mm:ss.SSS',
-              ).format(part.startedAt.add(Duration(milliseconds: part.durationMs!))),
+              DateFormat('HH:mm:ss.SSS').format(
+                part.startedAt.add(Duration(milliseconds: part.durationMs!)),
+              ),
             ),
             _InfoRow('Took', '${part.durationMs} ms'),
           ],
@@ -1104,10 +1291,15 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             part.autoApproved
                 ? 'Ran without asking (approval setting)'
                 : (tool?.requiresApproval ?? false)
-                ? (part.status == ToolStatus.denied ? 'You declined it' : 'Asked you first')
+                ? (part.status == ToolStatus.denied
+                      ? 'You declined it'
+                      : 'Asked you first')
                 : 'Not needed (read-only)',
           ),
-          _InfoRow('Arguments', '${args.length} · ${part.arguments.length} characters'),
+          _InfoRow(
+            'Arguments',
+            '${args.length} · ${part.arguments.length} characters',
+          ),
           if (part.result != null)
             _InfoRow(
               'Result size',
@@ -1332,10 +1524,16 @@ class _InfoRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 104,
-          child: Text(label, style: const TextStyle(fontSize: 12.5, color: AppColors.text3)),
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+          ),
         ),
         Expanded(
-          child: SelectableText(value, style: const TextStyle(fontSize: 13, color: AppColors.text)),
+          child: SelectableText(
+            value,
+            style: const TextStyle(fontSize: 13, color: AppColors.text),
+          ),
         ),
       ],
     ),

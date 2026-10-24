@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mime/mime.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,7 +19,9 @@ import '../../usage/usage.dart';
 import '../../assistant/memory.dart';
 import '../../assistant/notifications.dart';
 import '../../assistant/reminders.dart';
+import '../../assistant/online_alerts.dart';
 import '../../assistant/watches.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/data/telegram_tools.dart';
@@ -66,6 +69,8 @@ const _localTools = {
   'list_watches',
   'update_watch',
   'delete_watch',
+  'online_alert',
+  'list_online_alerts',
   'notify_me',
   'list_attachments',
   'list_briefs',
@@ -142,16 +147,25 @@ class ChatController extends Notifier<ChatState> {
 
   // ---- conversations -------------------------------------------------------
 
+  /// Opening the app again: a new chat, unless the one on screen is still
+  /// empty. A turn running in the old one carries on in the background.
+  void freshStart() {
+    if (state.conversation.entries.isEmpty) return;
+    newChat();
+  }
+
+  /// Starts a new chat. A turn running in the one being left carries on in
+  /// the background; it's in [_live] until it ends.
   void newChat() {
-    if (state.busy && !_live.containsKey(state.conversation.id)) stop();
     state = state.copyWith(
       conversation: Conversation(id: _uuid.v4()),
       busy: false,
     );
   }
 
+  /// Opens a saved chat, or one still running (its live copy, so its
+  /// progress shows).
   Future<void> open(String id) async {
-    if (state.busy && !_live.containsKey(state.conversation.id)) stop();
     final c = _live[id] ?? await _repo.load(id);
     if (c == null) return;
     state = state.copyWith(conversation: c, busy: _live.containsKey(id));
@@ -259,6 +273,7 @@ class ChatController extends Notifier<ChatState> {
     List<Attachment>? files,
     bool? asFiles,
   }) {
+    if (ref.read(settingsProvider).haptics) HapticFeedback.mediumImpact();
     if (text != null || files != null || asFiles != null)
       _approvalEdits[callId] = (text: text, files: files, asFiles: asFiles);
     _approvals.remove(callId)?.complete(true);
@@ -410,9 +425,10 @@ class ChatController extends Notifier<ChatState> {
     List<Attachment> attachments = const [],
   }) async {
     text = text.trim();
-    if ((text.isEmpty && attachments.isEmpty) || state.busy) return;
-    final settings = ref.read(settingsProvider);
     final c = state.conversation;
+    if ((text.isEmpty && attachments.isEmpty) || _live.containsKey(c.id)) return;
+    final settings = ref.read(settingsProvider);
+    if (settings.haptics) HapticFeedback.lightImpact();
     if (c.entries.isEmpty)
       c.title = _titleFrom(text.isEmpty ? attachments.first.name : text);
     c.entries.add(
@@ -420,14 +436,30 @@ class ChatController extends Notifier<ChatState> {
     );
     final reply = AssistantEntry(id: _uuid.v4(), model: settings.model);
     c.entries.add(reply);
+    // Kept live while it runs, so switching chats doesn't stop it and coming
+    // back shows it still going.
+    _live[c.id] = c;
     state = state.copyWith(busy: true);
     unawaited(_persist(c));
     try {
       await _runTurn(c, reply);
     } finally {
-      if (ref.mounted && _onScreen(c)) state = state.copyWith(busy: false);
+      _live.remove(c.id);
+      if (ref.mounted) {
+        if (_onScreen(c)) {
+          state = state.copyWith(busy: false);
+        } else {
+          // Finished while the person was in another chat: mark it unread.
+          c.unread++;
+          await _persist(c);
+        }
+      }
     }
   }
+
+  /// Conversations with a turn under way (shown with a spinner in the
+  /// drawer).
+  Set<String> get runningIds => _live.keys.toSet();
 
   /// A watch fired: [event] describes what happened. Runs a turn in the
   /// watch's own conversation and returns the assistant's final words, for
@@ -442,7 +474,7 @@ class ChatController extends Notifier<ChatState> {
     // One turn at a time per conversation: wait for one under way.
     for (
       var i = 0;
-      i < 120 && (_live.containsKey(c.id) || (_onScreen(c) && state.busy));
+      i < 120 && _live.containsKey(c.id);
       i++
     ) {
       await Future<void>.delayed(const Duration(seconds: 1));
@@ -649,7 +681,8 @@ class ChatController extends Notifier<ChatState> {
         });
       return;
     }
-    if (tool.requiresApproval && !_mustAsk(tool, watch)) {
+    if (tool.requiresApproval &&
+        (!_mustAsk(tool, watch) || !callNeedsApproval(tool, part.args))) {
       part.autoApproved = true;
     } else if (tool.requiresApproval) {
       part.status = ToolStatus.awaitingApproval;
@@ -692,7 +725,7 @@ class ChatController extends Notifier<ChatState> {
     }
     _resolveFiles(part, c);
     Future<ToolOutput> work() async {
-      if (part.name == generateImageTool.name) return _generateImage(part.args);
+      if (part.name == generateImageTool.name) return _generateImage(part.args, c);
       if (part.name == generateAudioTool.name) return _generateAudio(part.args);
       if (_localTools.contains(part.name))
         return _runLocalTool(part.name, part.args, c);
@@ -835,6 +868,7 @@ class ChatController extends Notifier<ChatState> {
             folderId: integer('folder_id'),
             instructions: str('instructions'),
             includeMuted: a['include_muted'] != false,
+            notify: a['notify'] != false,
             dailyAt: a['daily_at'] == null ? null : str('daily_at'),
             everyMinutes: integer('every_minutes')?.clamp(15, 100000),
             // Updates come back to the conversation it was set up in.
@@ -874,11 +908,48 @@ class ChatController extends Notifier<ChatState> {
             includeMuted: a['include_muted'] is bool
                 ? a['include_muted'] as bool
                 : null,
+            notify: a['notify'] is bool ? a['notify'] as bool : null,
           ),
         );
         return w == null
             ? const ToolOutput({'error': 'No watch with that id.'})
             : ToolOutput({'updated': true, ...w.describe()});
+      case 'online_alert':
+        final userId = integer('user_id');
+        if (userId == null) return const ToolOutput({'error': 'user_id is required'});
+        final alerts = ref.read(onlineAlertStoreProvider.notifier);
+        final store = ref.read(telegramStoreProvider);
+        final name = store.userName(userId);
+        if (a['remove'] == true) {
+          return ToolOutput({'removed': await alerts.remove(userId), 'who': name});
+        }
+        await alerts.add(userId, name, once: a['once'] != false);
+        final status = store.users[userId]?.status;
+        final settings = ref.read(settingsProvider);
+        return ToolOutput({
+          'set': true,
+          'who': name,
+          'repeats': a['once'] == false,
+          'online_now': status is td.UserStatusOnline,
+          if (status is td.UserStatusRecently || status is td.UserStatusLastWeek || status is td.UserStatusLastMonth || status is td.UserStatusEmpty)
+            'warning': '$name hides their exact last seen from the user, so Telegram may not report when they come online.',
+          if (!settings.keepAlive && !settings.backgroundAlways)
+            'note': '"Keep running in the background" is off, so alerts only work while the app is open.',
+        });
+      case 'list_online_alerts':
+        final store = ref.read(telegramStoreProvider);
+        return ToolOutput({
+          'alerts': [
+            for (final x in ref.read(onlineAlertStoreProvider))
+              {
+                'user_id': x.userId,
+                'who': store.users.containsKey(x.userId) ? store.userName(x.userId) : x.name,
+                'online_now': store.users[x.userId]?.status is td.UserStatusOnline,
+                'repeats': !x.once,
+                if (x.fired > 0) 'times_alerted': x.fired,
+              },
+          ],
+        });
       case 'delete_watch':
         return await watches.remove(str('watch_id'))
             ? const ToolOutput({'deleted': true})
@@ -1185,7 +1256,7 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Creates an image with the model from Settings and keeps it on disk.
-  Future<ToolOutput> _generateImage(Map<String, dynamic> args) async {
+  Future<ToolOutput> _generateImage(Map<String, dynamic> args, Conversation conversation) async {
     final settings = ref.read(settingsProvider);
     final prompt = '${args['prompt'] ?? ''}'.trim();
     if (prompt.isEmpty) return const ToolOutput({'error': 'prompt is empty'});
@@ -1220,8 +1291,8 @@ class ChatController extends Notifier<ChatState> {
               at: DateTime.now(),
               model: settings.imageModel,
               modality: Modality.image,
-              conversationId: state.conversation.id,
-              conversationTitle: state.conversation.title,
+              conversationId: conversation.id,
+              conversationTitle: conversation.title,
               units: 1,
               cost: info?.imagePrice ?? 0.04,
               estimated: true,
@@ -1424,9 +1495,20 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - Chat backgrounds: list_backgrounds, get_chat_background, set_chat_background (an attached image works too).
 - Chat list: mark_as_unread, pin_chat, add_chat_to_folder, archive_chat, set_chat_notifications. translate_message for Telegram's translation (or translate yourself).
 - Running groups and channels: list_members / get_member (roles, rights, restrictions), get_chat_permissions / set_chat_permissions, promote_member, restrict_member, edit_chat_info, invite links (list_invite_links, create_invite_link), join requests (list_join_requests, answer_join_request), get_admin_log, add_members, create_chat, join_chat, get_chat_stats, get_post_stats.
-- Bots: list_my_bots, get_bot_profile, edit_bot (name, descriptions, photo), create_bot (through BotFather), botfather (any other BotFather command: commands, inline mode, privacy…). Groups and channels: create_chat, then manage them with the admin tools above.
+- Channel reports: export_channel_summary makes a shareable PNG with a channel's public profile and recent-post averages (subscribers where exposed, views, shares and reactions). It works for channels the account can read, not just ones the user administers; send the returned file with send_message when asked.
+- Bots: list_my_bots, get_bot_profile, edit_bot (name, descriptions, photo), create_bot (Telegram's bot API; keeps the token on the phone), botfather (any other BotFather command: commands, inline mode, privacy…). connect_bot lets you act as one of the user's bots: bot_api calls any Bot API method as it (setMyCommands, sendMessage, getUpdates…), stream_bot_message has it write a message live, word by word. Groups and channels: create_chat, then manage them with the admin tools above.
+- Messages you send (send_message, reply_to_message, edit_message, captions) support Telegram's formatting: **bold**, *italic*, <u>underline</u>, ~~strikethrough~~, ||spoiler||, `code`, ```code blocks```, [text](url). Use it the way a person would, sparingly. The other side sees "typing…" or "sending a file…" while you send.
+- Reading chats and replying don't mark anything as read unless the user turned that on in Settings (${settings.aiReadOnView ? 'reading marks read: on' : 'reading marks read: off'}, ${settings.aiReadOnReply ? 'replying marks read: on' : 'replying marks read: off'}); mark_as_read does it on request.
+- Rich messages: send_rich_message sends headings, tables, lists, checklists, quotes, code, math and collapsible sections written in Markdown; use it when the user asks for a table, report or structured post in a chat (plain chat stays send_message). read_rich_message loads a long one; edit_rich_message rewrites one.
+- Channel direct messages: list_channel_dms (who wrote to a channel the user runs), read_channel_dm, reply_channel_dm (answers as the channel), set_channel_dms (on/off, Star price).
+- Member tags: promote_member's title and set_member_tag set the tag shown by a member's name; member lists and messages show tags (sender_tag).
+- Welcome messages for people joining a group or channel: list_welcome_messages, set_welcome_message, delete_welcome_message.
+- Private notes on contacts, seen only by the user in Telegram: set_private_note, get_private_note (get_chat_info shows them too). Offer to save one when the user tells you something worth remembering about a person.
+- Profile music: get_profile_music (anyone's), add_profile_music / remove_profile_music (the user's).
+- Ephemeral messages: get_bot_commands shows a bot's ephemeral commands; send_ephemeral_command sends one so only the bot sees it and only the user sees its answer. Messages marked "only you can see this" are ephemeral.
+- Bots that stream their answers show it live in the chat; stop_bot_reply stops one that is still writing.
 - Account: list_blocked (unblock with block_user when on), add_contact, get_stories, set_draft (leaves text in a chat's box without sending), start_bot.
-- Content Canvas (the user's own folders of saved posts, on the phone): canvas_overview first, then canvas_create_folder, canvas_add (refs from earlier results; one call per folder when classifying), canvas_add_note, canvas_move, canvas_remove, canvas_update_folder, canvas_delete_folder. To "organise posts into folders", read them, decide the categories, then file each group.
+- Content Canvas (the user's own folders of saved posts, on the phone): canvas_overview first, then canvas_create_folder, canvas_add (refs from earlier results; one call per folder when classifying), canvas_add_note, canvas_move, canvas_remove, canvas_update_folder, canvas_delete_folder, canvas_export (a folder as JSON, Markdown, HTML or PDF; send the file with send_message). To "organise posts into folders", read them, decide the categories, then file each group.
 - Briefs: list_briefs and read_brief show the morning, night and on-demand briefs already written.
 - forward_message can send to several chats at once with to_chat_ids.
 - The user may send voice messages: you get a transcript or the audio itself. Act on what they say; the recording can also be sent on to a chat with send_voice_message.
@@ -1447,6 +1529,8 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - t.me links: open_telegram_link resolves any Telegram link (chat, message, invite, story, bot) to ids the other tools use. search_all_chats finds photos, files, links, music, voice… across every chat. inline_bot_query + send_inline_result use inline bots (@gif, @wiki…). list_message_effects + send_message(effect_id) send with an animated effect.
 - This phone: storage_report / clean_storage (Telegram's cache), data_usage.
 - Books: search_books, book_details (shows the cover), find_free_copy, download_book. Only legal sources: Open Library, Project Gutenberg, Standard Ebooks, Internet Archive public-domain scans, Google Books free ebooks. Never look for or link pirated copies (Z-Library, Library Genesis, Anna's Archive and the like); for books under copyright, point to libraries, borrowing on Open Library, or shops.
+- Read receipts: message_read_status says whether the user's messages were read (and when, in private chats; who viewed them, in small groups). Telegram never reveals whether someone opened a chat, or whether they blocked the user: say so rather than guess. online_alert / list_online_alerts notify the user when someone comes online.
+- Music: music_search (songs, albums or artists, with 30-second previews), music_album (tracks), music_artist (bio, origin, albums). Movies: movie_search, movie_details (synopsis, director, rating, trailer, Wikipedia summary). TV: tv_search, tv_show (seasons, cast, next episode; season for its episodes). Free public catalogues; nothing is downloaded. Don't quote song lyrics.
 - YouTube: youtube_search, youtube_video (details, description, chapters, thumbnail), youtube_transcript (often refused by YouTube; then work from the description), youtube_channel, youtube_playlist. Videos aren't downloaded.
 - X (Twitter): x_post and x_profile read public posts and profiles without an account. Timelines, search and posting need the user signed in to x.com in the app's browser (browser_open).
 - Some tools may be turned off by the user. Work with the ones you have.
@@ -1533,7 +1617,10 @@ How to answer:
                     ? '${r.substring(0, 6000)}… [trimmed]'
                     : r,
               });
-              if (t.name == 'view_image' && !old) {
+              // view_image, view_profile_photo and any tool that hands
+              // back pictures (_images) for the model to look at.
+              if (!old &&
+                  (t.name == 'view_image' || t.name == 'view_profile_photo')) {
                 try {
                   final j = jsonDecode(r);
                   if (j is Map && j['_images'] is List)
@@ -1543,11 +1630,17 @@ How to answer:
             }
             // Tool results can't carry pictures, so what view_image fetched
             // follows as a message of its own.
-            if (seen.isNotEmpty) {
+            final sees =
+                ref
+                    .read(modelCatalogProvider)
+                    .byId(ref.read(settingsProvider).model)
+                    ?.vision ??
+                true;
+            if (seen.isNotEmpty && sees) {
               final parts = <Map<String, dynamic>>[
                 {
                   'type': 'text',
-                  'text': 'The images you asked to see (view_image), in order:',
+                  'text': 'The images you asked to see, in order:',
                 },
               ];
               for (final path in seen) {

@@ -29,6 +29,7 @@ import 'link_preview_card.dart';
 import 'content_canvas_screen.dart' show saveToCanvas;
 import 'forward_sheet.dart';
 import 'poll_view.dart';
+import 'rich_message_view.dart';
 import 'stars_sheet.dart';
 import 'translate_sheet.dart';
 import 'td_image.dart';
@@ -78,6 +79,7 @@ class MessageTile extends ConsumerWidget {
     required this.chatTitle,
     this.grouped = false,
     this.findMessage,
+    this.onJumpTo,
     this.onReply,
     this.playlist,
     this.lastReadOutbox = 0,
@@ -92,6 +94,9 @@ class MessageTile extends ConsumerWidget {
   /// first, shown together as one post. [message] is the one with the
   /// caption.
   final List<td.Message> album;
+
+  /// Scrolls the chat to a message (a tapped reply or quote).
+  final void Function(int messageId)? onJumpTo;
 
   static bool _isVisual(td.MessageContent c) => c is td.MessagePhoto || c is td.MessageVideo || c is td.MessageAnimation;
 
@@ -158,7 +163,9 @@ class MessageTile extends ConsumerWidget {
   Widget _tile(BuildContext context, WidgetRef ref) {
     final store = ref.watch(telegramStoreProvider);
     final m = message;
-    final g = gistOf(m.content);
+    // Ephemeral content (seen only by this account) replaces the message's own.
+    final shown = m.ephemeralContent?.content ?? m.content;
+    final g = gistOf(shown);
     final time = clockTime(DateTime.fromMillisecondsSinceEpoch(m.date * 1000));
     final sender = m.isOutgoing ? 'You' : store.senderName(m.senderId);
     void open() {
@@ -217,7 +224,7 @@ class MessageTile extends ConsumerWidget {
         m.content is td.MessageAnimation;
     final textSpan = switch (g.formatted) {
       final f? when f.text.isNotEmpty => formattedSpan(f),
-      _ => g.text.isEmpty || g.kind == 'poll' || g.kind == 'sticker' ? null : TextSpan(text: g.text),
+      _ => g.text.isEmpty || g.kind == 'poll' || g.kind == 'sticker' || g.kind == 'rich' ? null : TextSpan(text: g.text),
     };
 
     final preview = switch (m.content) {
@@ -273,18 +280,54 @@ class MessageTile extends ConsumerWidget {
         if (kind == ChatKind.group && !m.isOutgoing && !grouped)
           Padding(
             padding: const EdgeInsets.only(bottom: 3),
-            child: Text(
-              sender,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: nameColor(sender),
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    sender,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: nameColor(sender),
+                    ),
+                  ),
+                ),
+                // The sender's member tag, as Telegram shows it by the name.
+                if (m.senderTag.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    m.senderTag,
+                    style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ],
             ),
           ),
         if (m.forwardInfo case final f?) ForwardHeader(origin: f.origin),
+        if (m.ephemeralContent != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Radii.s),
+              // Back to what everyone else sees.
+              onTap: () => ref
+                  .read(telegramClientProvider)
+                  .send<td.Ok>(td.DeleteMessageEphemeralContent(chatId: m.chatId, messageId: m.id))
+                  .catchError((Object _) => const td.Ok()),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.visibility_outlined, size: 13, color: AppColors.text3),
+                  SizedBox(width: 4),
+                  Text('Only you can see this · tap to dismiss', style: TextStyle(fontSize: 11.5, color: AppColors.text3)),
+                ],
+              ),
+            ),
+          ),
         if (m.replyTo case final td.MessageReplyToMessage r?)
-          _ReplyPreview(reply: r, findMessage: findMessage),
+          _ReplyPreview(reply: r, findMessage: findMessage, chatId: m.chatId, onJumpTo: onJumpTo),
         if (album.length > 1) ...[
           // An album: one post, its photos and videos in a grid, its files
           // and songs one under another, and one caption.
@@ -329,6 +372,8 @@ class MessageTile extends ConsumerWidget {
             ),
           ),
         if (preview != null && !preview.showAboveText) LinkPreviewCard(preview: preview),
+        if (shown case td.MessageRichMessage(:final message))
+          RichMessageView(message: message, chatId: m.chatId, messageId: m.id, title: chatTitle),
         if (m.content case td.MessagePoll(:final poll))
           ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 240),
@@ -516,9 +561,13 @@ class ForwardHeader extends ConsumerWidget {
 }
 
 class _ReplyPreview extends ConsumerStatefulWidget {
-  const _ReplyPreview({required this.reply, this.findMessage});
+  const _ReplyPreview({required this.reply, this.findMessage, required this.chatId, this.onJumpTo});
   final td.MessageReplyToMessage reply;
   final td.Message? Function(int messageId)? findMessage;
+
+  /// The chat the replying message is in.
+  final int chatId;
+  final void Function(int messageId)? onJumpTo;
 
   @override
   ConsumerState<_ReplyPreview> createState() => _ReplyPreviewState();
@@ -566,7 +615,37 @@ class _ReplyPreviewState extends ConsumerState<_ReplyPreview> {
               ? '…'
               : (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind)));
     final color = MessageTile.nameColor(who);
-    return Container(
+    // A reply in the same chat scrolls to the original; one to another chat
+    // (or a channel post) opens it.
+    void open() {
+      if (r.messageId == 0) return;
+      if ((r.chatId == 0 || r.chatId == widget.chatId) && widget.onJumpTo != null) {
+        widget.onJumpTo!(r.messageId);
+        return;
+      }
+      final original = m;
+      if (original != null) {
+        final chatTitle = store.chat(original.chatId)?.title ?? 'Chat';
+        showPost(context, snapshotOf(original, chatTitle, original.isOutgoing ? 'You' : store.senderName(original.senderId)));
+      } else if (r.chatId != 0) {
+        ref
+            .read(telegramClientProvider)
+            .send<td.Message>(td.GetMessage(chatId: r.chatId, messageId: r.messageId), limited: true)
+            .then((x) {
+              if (!context.mounted) return;
+              final chatTitle = store.chat(x.chatId)?.title ?? 'Chat';
+              showPost(context, snapshotOf(x, chatTitle, x.isOutgoing ? 'You' : store.senderName(x.senderId)));
+            })
+            .catchError((Object _) {
+              if (context.mounted) showSnack(context, 'That message isn\'t available', icon: Icons.info_outline_rounded);
+            });
+      }
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: open,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: BoxDecoration(
@@ -596,6 +675,7 @@ class _ReplyPreviewState extends ConsumerState<_ReplyPreview> {
           ),
         ],
       ),
+    ),
     );
   }
 }

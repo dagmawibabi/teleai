@@ -1,10 +1,15 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../../../app/theme.dart';
+import '../../canvas/canvas_export.dart';
 import '../../canvas/canvas_store.dart';
 import '../../chat/data/chat_controller.dart';
 import '../../chat/domain/chat_models.dart';
@@ -13,6 +18,118 @@ import '../data/message_content.dart';
 import '../data/telegram_store.dart';
 import 'chat_actions.dart' show confirmAction;
 import 'tg_avatar.dart';
+
+/// Exports [folder]: pick a format, then open the file or save a copy.
+Future<void> showCanvasExport(BuildContext context, WidgetRef ref, CanvasFolder folder) async {
+  final s = ref.read(canvasProvider);
+  final hasChildren = s.childrenOf(folder.id).isNotEmpty;
+  var subfolders = true;
+  final format = await showModalBottomSheet<CanvasExportFormat>(
+    context: context,
+    showDragHandle: true,
+    builder: (c) => StatefulBuilder(
+      builder: (c, set) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Export “${folder.name}”', style: c.text.titleMedium),
+              const SizedBox(height: 2),
+              Text(
+                '${hasChildren && subfolders ? s.countDeep(folder.id) : s.itemsIn(folder.id).length} items · saved to Files',
+                style: c.text.bodySmall,
+              ),
+              const SizedBox(height: Space.m),
+              for (final (f, icon, about) in [
+                (CanvasExportFormat.pdf, Icons.picture_as_pdf_outlined, 'To read, print or share'),
+                (CanvasExportFormat.html, Icons.language_rounded, 'A web page, light and dark'),
+                (CanvasExportFormat.markdown, Icons.notes_rounded, 'For notes apps like Obsidian'),
+                (CanvasExportFormat.json, Icons.data_object_rounded, 'Everything, for other apps'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Space.s),
+                  child: Material(
+                    color: AppColors.surface2,
+                    borderRadius: BorderRadius.circular(Radii.m),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.m)),
+                      leading: Icon(icon, color: AppColors.accent),
+                      title: Text(f.label),
+                      subtitle: Text(about, style: c.text.bodySmall),
+                      trailing: Text('.${f.extension}', style: c.text.labelSmall),
+                      onTap: () => Navigator.pop(c, f),
+                    ),
+                  ),
+                ),
+              if (hasChildren)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Include subfolders'),
+                  value: subfolders,
+                  onChanged: (v) => set(() => subfolders = v),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  if (format == null || !context.mounted) return;
+  final File file;
+  try {
+    file = await exportCanvasFolder(s, folder, format, subfolders: subfolders);
+  } catch (e) {
+    if (context.mounted) showSnack(context, 'Export failed: $e', icon: Icons.error_outline_rounded);
+    return;
+  }
+  if (!context.mounted) return;
+  final name = file.path.split(RegExp(r'[\\/]')).last;
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (c) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 36),
+            const SizedBox(height: Space.s),
+            Text('Exported', style: c.text.titleMedium, textAlign: TextAlign.center),
+            const SizedBox(height: 2),
+            Text(name, style: c.text.bodySmall, textAlign: TextAlign.center),
+            const SizedBox(height: Space.l),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(c);
+                OpenFilex.open(file.path);
+              },
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: const Text('Open'),
+            ),
+            const SizedBox(height: Space.s),
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(c);
+                final saved = await FilePicker.saveFile(
+                  dialogTitle: 'Save a copy',
+                  fileName: name,
+                  bytes: await file.readAsBytes(),
+                );
+                if (saved != null && context.mounted) showSnack(context, 'Saved a copy');
+              },
+              icon: const Icon(Icons.save_alt_rounded),
+              label: const Text('Save a copy…'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 const canvasColors = [
   Color(0xFF8AB4FF),
@@ -191,6 +308,8 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
                     if (d != null) await store.updateFolder(folder.copyWith(description: d));
                   case 'color':
                     await store.updateFolder(folder.copyWith(color: (folder.color + 1) % canvasColors.length));
+                  case 'export':
+                    await showCanvasExport(context, ref, folder);
                   case 'ai':
                     final controller = ref.read(chatControllerProvider.notifier);
                     controller.newChat();
@@ -217,6 +336,7 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
                 PopupMenuItem(value: 'rename', child: Text('Rename')),
                 PopupMenuItem(value: 'describe', child: Text('Edit description')),
                 PopupMenuItem(value: 'color', child: Text('Change colour')),
+                PopupMenuItem(value: 'export', child: Text('Export…')),
                 PopupMenuItem(value: 'ai', child: Text('Ask AI about this folder')),
                 PopupMenuItem(value: 'delete', child: Text('Delete folder')),
               ],

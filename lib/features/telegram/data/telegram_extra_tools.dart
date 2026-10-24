@@ -121,7 +121,7 @@ extension _ExtraToolRuns on TelegramToolRunner {
       for (final id in ids.take(20)) {
         try {
           final s = await _client.send<td.Story>(
-            td.GetStory(storySenderChatId: c.id, storyId: id, onlyLocal: false),
+            td.GetStory(storyPosterChatId: c.id, storyId: id, onlyLocal: false),
             limited: true,
           );
           stories.add(_storyJson(s));
@@ -142,7 +142,8 @@ extension _ExtraToolRuns on TelegramToolRunner {
       if (userId != null) {
         await _client.send<td.Ok>(
           td.AddContact(
-            contact: td.Contact(phoneNumber: phone, firstName: first, lastName: last, vcard: '', userId: userId),
+            userId: userId,
+            contact: td.ImportedContact(phoneNumber: phone, firstName: first, lastName: last, note: null),
             sharePhoneNumber: args['share_phone'] == true,
           ),
           limited: true,
@@ -152,7 +153,7 @@ extension _ExtraToolRuns on TelegramToolRunner {
       if (phone.isEmpty) throw ArgumentError('Give user_id or phone.');
       final r = await _client.send<td.ImportedContacts>(
         td.ImportContacts(
-          contacts: [td.Contact(phoneNumber: phone, firstName: first, lastName: last, vcard: '', userId: 0)],
+          contacts: [td.ImportedContact(phoneNumber: phone, firstName: first, lastName: last, note: null)],
         ),
         limited: true,
       );
@@ -168,18 +169,18 @@ extension _ExtraToolRuns on TelegramToolRunner {
       await _client.send<td.Ok>(
         td.SetChatDraftMessage(
           chatId: c.id,
-          messageThreadId: TelegramToolRunner._intOrNull(args, 'topic_id') ?? 0,
+          topicId: topicOf(c.id, TelegramToolRunner._intOrNull(args, 'topic_id') ?? 0),
           draftMessage: text.isEmpty
               ? null
               : td.DraftMessage(
                   replyTo: null,
                   date: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-                  inputMessageText: td.InputMessageText(
+                  content: td.DraftMessageContentText(
                     text: td.FormattedText(text: text, entities: const []),
                     linkPreviewOptions: null,
-                    clearDraft: false,
                   ),
                   effectId: 0,
+                  suggestedPostInfo: null,
                 ),
         ),
         limited: true,

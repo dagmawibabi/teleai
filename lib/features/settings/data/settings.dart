@@ -113,9 +113,22 @@ class AppSettings {
     this.customInstructions = '',
     this.approvalMode = ApprovalMode.ask,
     this.proactive = true,
+    this.watchResponseDelaySeconds = 12,
     this.notifications = true,
     this.keepAlive = true,
     this.mentionAlerts = true,
+    this.aiReadOnReply = false,
+    this.aiReadOnView = false,
+    this.backgroundAlways = false,
+    this.startOnBoot = false,
+    this.drawerChats = true,
+    this.drawerFolders = true,
+    this.drawerTools = true,
+    this.drawerChatsOpen = true,
+    this.drawerFoldersOpen = true,
+    this.drawerToolsOpen = true,
+    this.rainbowLogo = false,
+    this.haptics = true,
     this.appearOnline = true,
     this.showMessageUsage = true,
     this.briefsScheduled = true,
@@ -148,6 +161,10 @@ class AppSettings {
 
   /// Watches and routines may run. Off pauses all of them.
   final bool proactive;
+
+  /// How long a message-triggered watch waits after the newest message before
+  /// it starts its AI run. Zero means respond as soon as Telegram delivers it.
+  final int watchResponseDelaySeconds;
   final bool notifications;
 
   /// Keeps the app alive in the background (a quiet ongoing notification)
@@ -156,6 +173,42 @@ class AppSettings {
 
   /// A notification when someone mentions or replies to the account.
   final bool mentionAlerts;
+
+  /// Marks a chat read when the assistant replies or sends in it.
+  final bool aiReadOnReply;
+
+  /// Marks a chat read when the assistant reads its messages.
+  final bool aiReadOnView;
+
+  /// Keeps the app running in the background from the moment it opens, watches or not.
+  final bool backgroundAlways;
+
+  /// Starts the app in the background when the phone restarts (read natively by BootReceiver).
+  final bool startOnBoot;
+
+  /// The drawer shows the Chats section.
+  final bool drawerChats;
+
+  /// The drawer shows the Folders section.
+  final bool drawerFolders;
+
+  /// The drawer shows Files, Brief, Canvas, Search and Browser.
+  final bool drawerTools;
+
+  /// Whether the drawer's Chats section is expanded.
+  final bool drawerChatsOpen;
+
+  /// Whether the drawer's Folders section is expanded.
+  final bool drawerFoldersOpen;
+
+  /// Whether the drawer's Tools section is expanded.
+  final bool drawerToolsOpen;
+
+  /// A fun one: the logo slowly cycles through colours.
+  final bool rainbowLogo;
+
+  /// A light tap of the phone when sending and approving.
+  final bool haptics;
 
   /// Shows the account as online while the app is on screen, which is what
   /// lets Telegram send typing indicators and live status.
@@ -262,18 +315,22 @@ class AppSettings {
     }
 
     final now = DateTime.now();
-    final m = now.hour * 60 + now.minute, a = mins(quietStart), b = mins(quietEnd);
+    final m = now.hour * 60 + now.minute,
+        a = mins(quietStart),
+        b = mins(quietEnd);
     return a <= b ? (m >= a && m < b) : (m >= a || m < b);
   }
 
   /// The user's switch for a tool.
-  bool toolChosen(String name, {bool destructive = false}) =>
-      destructive ? enabledDangerTools.contains(name) : !disabledTools.contains(name);
+  bool toolChosen(String name, {bool destructive = false}) => destructive
+      ? enabledDangerTools.contains(name)
+      : !disabledTools.contains(name);
 
   /// Whether the assistant gets the tool: its switch, unless read-only mode
   /// rules it out because it [writes].
   bool toolOn(String name, {bool destructive = false, bool writes = false}) =>
-      toolChosen(name, destructive: destructive) && !(readOnlyMode && (writes || destructive));
+      toolChosen(name, destructive: destructive) &&
+      !(readOnlyMode && (writes || destructive));
 
   /// Download these as soon as they show up; otherwise they wait for a tap.
   final bool autoPhotos;
@@ -313,9 +370,22 @@ class AppSettings {
     String? customInstructions,
     ApprovalMode? approvalMode,
     bool? proactive,
+    int? watchResponseDelaySeconds,
     bool? notifications,
     bool? keepAlive,
     bool? mentionAlerts,
+    bool? aiReadOnReply,
+    bool? aiReadOnView,
+    bool? backgroundAlways,
+    bool? startOnBoot,
+    bool? drawerChats,
+    bool? drawerFolders,
+    bool? drawerTools,
+    bool? drawerChatsOpen,
+    bool? drawerFoldersOpen,
+    bool? drawerToolsOpen,
+    bool? rainbowLogo,
+    bool? haptics,
     bool? appearOnline,
     bool? showMessageUsage,
     bool? briefsScheduled,
@@ -366,9 +436,23 @@ class AppSettings {
     customInstructions: customInstructions ?? this.customInstructions,
     approvalMode: approvalMode ?? this.approvalMode,
     proactive: proactive ?? this.proactive,
+    watchResponseDelaySeconds:
+        watchResponseDelaySeconds ?? this.watchResponseDelaySeconds,
     notifications: notifications ?? this.notifications,
     keepAlive: keepAlive ?? this.keepAlive,
     mentionAlerts: mentionAlerts ?? this.mentionAlerts,
+    aiReadOnReply: aiReadOnReply ?? this.aiReadOnReply,
+    aiReadOnView: aiReadOnView ?? this.aiReadOnView,
+    backgroundAlways: backgroundAlways ?? this.backgroundAlways,
+    startOnBoot: startOnBoot ?? this.startOnBoot,
+    drawerChats: drawerChats ?? this.drawerChats,
+    drawerFolders: drawerFolders ?? this.drawerFolders,
+    drawerTools: drawerTools ?? this.drawerTools,
+    drawerChatsOpen: drawerChatsOpen ?? this.drawerChatsOpen,
+    drawerFoldersOpen: drawerFoldersOpen ?? this.drawerFoldersOpen,
+    drawerToolsOpen: drawerToolsOpen ?? this.drawerToolsOpen,
+    rainbowLogo: rainbowLogo ?? this.rainbowLogo,
+    haptics: haptics ?? this.haptics,
     appearOnline: appearOnline ?? this.appearOnline,
     showMessageUsage: showMessageUsage ?? this.showMessageUsage,
     briefsScheduled: briefsScheduled ?? this.briefsScheduled,
@@ -458,15 +542,33 @@ class SettingsController extends Notifier<AppSettings> {
           ApprovalMode.values.asNameMap()[p.getString('approval_mode')] ??
           d.approvalMode,
       proactive: p.getBool('proactive') ?? d.proactive,
+      watchResponseDelaySeconds:
+          p.getInt('watch_response_delay_seconds') ??
+          d.watchResponseDelaySeconds,
       notifications: p.getBool('notifications') ?? d.notifications,
       keepAlive: p.getBool('keep_alive') ?? d.keepAlive,
       mentionAlerts: p.getBool('mention_alerts') ?? d.mentionAlerts,
+      aiReadOnReply: p.getBool('ai_read_on_reply') ?? d.aiReadOnReply,
+      aiReadOnView: p.getBool('ai_read_on_view') ?? d.aiReadOnView,
+      backgroundAlways: p.getBool('background_always') ?? d.backgroundAlways,
+      startOnBoot: p.getBool('start_on_boot') ?? d.startOnBoot,
+      drawerChats: p.getBool('drawer_chats') ?? d.drawerChats,
+      drawerFolders: p.getBool('drawer_folders') ?? d.drawerFolders,
+      drawerTools: p.getBool('drawer_tools') ?? d.drawerTools,
+      drawerChatsOpen: p.getBool('drawer_chats_open') ?? d.drawerChatsOpen,
+      drawerFoldersOpen:
+          p.getBool('drawer_folders_open') ?? d.drawerFoldersOpen,
+      drawerToolsOpen: p.getBool('drawer_tools_open') ?? d.drawerToolsOpen,
+      rainbowLogo: p.getBool('rainbow_logo') ?? d.rainbowLogo,
+      haptics: p.getBool('haptics') ?? d.haptics,
       appearOnline: p.getBool('appear_online') ?? d.appearOnline,
       showMessageUsage: p.getBool('show_message_usage') ?? d.showMessageUsage,
       briefsScheduled: p.getBool('briefs_scheduled') ?? d.briefsScheduled,
       translateTo: p.getString('translate_to') ?? d.translateTo,
       showLinkPreviews: p.getBool('link_previews') ?? d.showLinkPreviews,
-      answerStyle: AnswerStyle.values.asNameMap()[p.getString('answer_style')] ?? d.answerStyle,
+      answerStyle:
+          AnswerStyle.values.asNameMap()[p.getString('answer_style')] ??
+          d.answerStyle,
       answerLanguage: p.getString('answer_language') ?? d.answerLanguage,
       maxSteps: p.getInt('max_steps') ?? d.maxSteps,
       showThinking: p.getBool('show_thinking') ?? d.showThinking,
@@ -629,13 +731,27 @@ class SettingsController extends Notifier<AppSettings> {
     await _write('proactive', v);
   }
 
+  Future<void> setWatchResponseDelay(Duration value) async {
+    final seconds = value.inSeconds.clamp(0, 24 * 60 * 60).toInt();
+    state = state.copyWith(watchResponseDelaySeconds: seconds);
+    await _write('watch_response_delay_seconds', seconds);
+  }
+
   Future<void> setNotifications(bool v) async {
     state = state.copyWith(notifications: v);
     await _write('notifications', v);
   }
 
-  Future<void> setBriefs({bool? scheduled, String? morning, String? night}) async {
-    state = state.copyWith(briefsScheduled: scheduled, briefMorning: morning, briefNight: night);
+  Future<void> setBriefs({
+    bool? scheduled,
+    String? morning,
+    String? night,
+  }) async {
+    state = state.copyWith(
+      briefsScheduled: scheduled,
+      briefMorning: morning,
+      briefNight: night,
+    );
     if (scheduled != null) await _write('briefs_scheduled', scheduled);
     if (morning != null) await _write('brief_morning', morning);
     if (night != null) await _write('brief_night', night);
@@ -657,18 +773,30 @@ class SettingsController extends Notifier<AppSettings> {
     await _write(key, value);
   }
 
-  Future<void> setAnswerStyle(AnswerStyle v) => customize(state.copyWith(answerStyle: v), 'answer_style', v.name);
-  Future<void> setAnswerLanguage(String v) => customize(state.copyWith(answerLanguage: v), 'answer_language', v);
-  Future<void> setMaxSteps(int v) => customize(state.copyWith(maxSteps: v), 'max_steps', v);
-  Future<void> setShowThinking(bool v) => customize(state.copyWith(showThinking: v), 'show_thinking', v);
-  Future<void> setShowToolCalls(bool v) => customize(state.copyWith(showToolCalls: v), 'show_tool_calls', v);
-  Future<void> setUse24h(bool v) => customize(state.copyWith(use24h: v), 'use_24h', v);
-  Future<void> setGroupAvatars(bool v) => customize(state.copyWith(groupAvatars: v), 'group_avatars', v);
-  Future<void> setCompactList(bool v) => customize(state.copyWith(compactList: v), 'compact_list', v);
-  Future<void> setMarkReadOnOpen(bool v) => customize(state.copyWith(markReadOnOpen: v), 'mark_read_on_open', v);
-  Future<void> setQuietHours(bool v) => customize(state.copyWith(quietHours: v), 'quiet_hours', v);
-  Future<void> setQuietStart(String v) => customize(state.copyWith(quietStart: v), 'quiet_start', v);
-  Future<void> setQuietEnd(String v) => customize(state.copyWith(quietEnd: v), 'quiet_end', v);
+  Future<void> setAnswerStyle(AnswerStyle v) =>
+      customize(state.copyWith(answerStyle: v), 'answer_style', v.name);
+  Future<void> setAnswerLanguage(String v) =>
+      customize(state.copyWith(answerLanguage: v), 'answer_language', v);
+  Future<void> setMaxSteps(int v) =>
+      customize(state.copyWith(maxSteps: v), 'max_steps', v);
+  Future<void> setShowThinking(bool v) =>
+      customize(state.copyWith(showThinking: v), 'show_thinking', v);
+  Future<void> setShowToolCalls(bool v) =>
+      customize(state.copyWith(showToolCalls: v), 'show_tool_calls', v);
+  Future<void> setUse24h(bool v) =>
+      customize(state.copyWith(use24h: v), 'use_24h', v);
+  Future<void> setGroupAvatars(bool v) =>
+      customize(state.copyWith(groupAvatars: v), 'group_avatars', v);
+  Future<void> setCompactList(bool v) =>
+      customize(state.copyWith(compactList: v), 'compact_list', v);
+  Future<void> setMarkReadOnOpen(bool v) =>
+      customize(state.copyWith(markReadOnOpen: v), 'mark_read_on_open', v);
+  Future<void> setQuietHours(bool v) =>
+      customize(state.copyWith(quietHours: v), 'quiet_hours', v);
+  Future<void> setQuietStart(String v) =>
+      customize(state.copyWith(quietStart: v), 'quiet_start', v);
+  Future<void> setQuietEnd(String v) =>
+      customize(state.copyWith(quietEnd: v), 'quiet_end', v);
 
   /// Every preference back to its default; keys are kept.
   Future<void> resetPreferences() async {
@@ -706,6 +834,66 @@ class SettingsController extends Notifier<AppSettings> {
     await _write('keep_alive', v);
   }
 
+  Future<void> setBackgroundAlways(bool v) async {
+    state = state.copyWith(backgroundAlways: v);
+    await _write('background_always', v);
+  }
+
+  Future<void> setStartOnBoot(bool v) async {
+    state = state.copyWith(startOnBoot: v);
+    await _write('start_on_boot', v);
+  }
+
+  Future<void> setDrawerChats(bool v) async {
+    state = state.copyWith(drawerChats: v);
+    await _write('drawer_chats', v);
+  }
+
+  Future<void> setDrawerFolders(bool v) async {
+    state = state.copyWith(drawerFolders: v);
+    await _write('drawer_folders', v);
+  }
+
+  Future<void> setDrawerTools(bool v) async {
+    state = state.copyWith(drawerTools: v);
+    await _write('drawer_tools', v);
+  }
+
+  Future<void> setDrawerChatsOpen(bool v) async {
+    state = state.copyWith(drawerChatsOpen: v);
+    await _write('drawer_chats_open', v);
+  }
+
+  Future<void> setDrawerFoldersOpen(bool v) async {
+    state = state.copyWith(drawerFoldersOpen: v);
+    await _write('drawer_folders_open', v);
+  }
+
+  Future<void> setDrawerToolsOpen(bool v) async {
+    state = state.copyWith(drawerToolsOpen: v);
+    await _write('drawer_tools_open', v);
+  }
+
+  Future<void> setRainbowLogo(bool v) async {
+    state = state.copyWith(rainbowLogo: v);
+    await _write('rainbow_logo', v);
+  }
+
+  Future<void> setHaptics(bool v) async {
+    state = state.copyWith(haptics: v);
+    await _write('haptics', v);
+  }
+
+  Future<void> setAiReadOnReply(bool v) async {
+    state = state.copyWith(aiReadOnReply: v);
+    await _write('ai_read_on_reply', v);
+  }
+
+  Future<void> setAiReadOnView(bool v) async {
+    state = state.copyWith(aiReadOnView: v);
+    await _write('ai_read_on_view', v);
+  }
+
   Future<void> setMentionAlerts(bool v) async {
     state = state.copyWith(mentionAlerts: v);
     await _write('mention_alerts', v);
@@ -717,7 +905,11 @@ class SettingsController extends Notifier<AppSettings> {
   }
 
   /// Turns a set of tools on or off at once.
-  Future<void> setToolsEnabled(Iterable<String> names, bool enabled, {bool destructive = false}) async {
+  Future<void> setToolsEnabled(
+    Iterable<String> names,
+    bool enabled, {
+    bool destructive = false,
+  }) async {
     if (destructive) {
       final next = {...state.enabledDangerTools};
       enabled ? next.addAll(names) : next.removeAll(names);
@@ -731,7 +923,11 @@ class SettingsController extends Notifier<AppSettings> {
     }
   }
 
-  Future<void> setToolEnabled(String name, bool enabled, {bool destructive = false}) async {
+  Future<void> setToolEnabled(
+    String name,
+    bool enabled, {
+    bool destructive = false,
+  }) async {
     if (destructive) {
       final next = {...state.enabledDangerTools};
       enabled ? next.add(name) : next.remove(name);

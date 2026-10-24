@@ -88,17 +88,41 @@ extension TelegramChatList on TelegramToolRunner {
   /// Telegram's translation of [m]; throws when the account can't use it.
   Future<String> translateMessage(td.Message m, String toLanguage) async {
     final r = await _client.send<td.FormattedText>(
-      td.TranslateMessageText(chatId: m.chatId, messageId: m.id, toLanguageCode: toLanguage),
+      td.TranslateMessageText(chatId: m.chatId, messageId: m.id, toLanguageCode: toLanguage, tone: ''),
       limited: true,
     );
     return r.text;
   }
 
-  Future<void> markRead(ChatInfo c) async {
+  /// Marks a chat read up to its newest incoming message, the way opening
+  /// it in Telegram does, and clears its unread mark and mentions.
+  ///
+  /// The view is reported as chat history explicitly: with no source TDLib
+  /// guesses from whether the chat is open, and the assistant (or the chat
+  /// list's menu) marks chats that aren't, which then stayed unread. The
+  /// newest *incoming* message is the one read up to: after the assistant
+  /// replies, the chat's last message is its own. [seen] are messages just
+  /// read, a quicker way to find it.
+  Future<void> markRead(ChatInfo c, {Iterable<td.Message> seen = const []}) async {
+    int? newest;
+    for (final m in seen) {
+      if (m.chatId == c.id && !m.isOutgoing && (newest == null || m.id > newest)) newest = m.id;
+    }
     final last = c.lastMessage;
-    if (last != null) {
+    if (last != null && !last.isOutgoing && (newest == null || last.id > newest)) newest = last.id;
+    if (newest == null) {
+      try {
+        final r = await _client.send<td.Messages>(
+          td.GetChatHistory(chatId: c.id, fromMessageId: 0, offset: 0, limit: 20, onlyLocal: false),
+          limited: true,
+        );
+        newest = r.messages.whereType<td.Message>().where((m) => !m.isOutgoing).firstOrNull?.id;
+      } catch (_) {}
+    }
+    final ids = {?newest, ?last?.id}.toList();
+    if (ids.isNotEmpty) {
       await _client.send<td.Ok>(
-        td.ViewMessages(chatId: c.id, messageIds: [last.id], source: null, forceRead: true),
+        td.ViewMessages(chatId: c.id, messageIds: ids, source: const td.MessageSourceChatHistory(), forceRead: true),
         limited: true,
       );
     }

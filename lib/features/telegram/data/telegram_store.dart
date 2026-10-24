@@ -6,6 +6,7 @@ import 'package:handy_tdlib/api.dart' as td;
 
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../../infrastructure/telegram/telegram_exception.dart';
+import '../../../infrastructure/telegram/td_compat.dart';
 
 enum ChatKind { private, bot, group, channel, secret, saved }
 
@@ -74,6 +75,15 @@ class TelegramStore extends ChangeNotifier {
 
   /// How many members of an open group are online right now.
   final Map<int, int> onlineMembers = {};
+
+  /// Channel direct-messages topics by chat, then topic id.
+  final Map<int, Map<int, td.DirectMessagesChatTopic>> directMessagesTopics = {};
+
+  /// Welcome messages of chats the account manages, once loaded.
+  final Map<int, List<td.WelcomeMessage>> welcomeMessages = {};
+
+  /// A bot's reply being written, shown live until the real message lands.
+  final Map<int, td.UpdatePendingMessage> pendingMessages = {};
 
   /// The account's chat folders, in Telegram's order.
   List<FolderInfo> folders = const [];
@@ -290,6 +300,12 @@ class TelegramStore extends ChangeNotifier {
   };
 
   /// A supergroup with topics.
+  /// A channel's direct messages group: one topic per person writing in.
+  bool isDirectMessagesGroup(ChatInfo c) => switch (c.type) {
+    td.ChatTypeSupergroup(:final supergroupId) => supergroups[supergroupId]?.isDirectMessagesGroup ?? false,
+    _ => false,
+  };
+
   bool isForum(ChatInfo c) => switch (c.type) {
     td.ChatTypeSupergroup(:final supergroupId) => supergroups[supergroupId]?.isForum ?? false,
     _ => false,
@@ -441,6 +457,14 @@ class TelegramStore extends ChangeNotifier {
         if (u != null) users[userId] = u.copyWith(status: status);
       case td.UpdateChatOnlineMemberCount(:final chatId, :final onlineMemberCount):
         onlineMembers[chatId] = onlineMemberCount;
+      case td.UpdateDirectMessagesChatTopic(:final topic):
+        (directMessagesTopics[topic.chatId] ??= {})[topic.id] = topic;
+      case td.UpdateChatWelcomeMessages(:final chatId, :final messages):
+        welcomeMessages[chatId] = messages;
+      case td.UpdatePendingMessage(:final chatId):
+        pendingMessages[chatId] = u;
+      case td.UpdateNewMessage(:final message) when !message.isOutgoing && pendingMessages.containsKey(message.chatId):
+        pendingMessages.remove(message.chatId);
       case td.UpdateSupergroup(:final supergroup):
         supergroups[supergroup.id] = supergroup;
       case td.UpdateChatFolders(:final chatFolders):

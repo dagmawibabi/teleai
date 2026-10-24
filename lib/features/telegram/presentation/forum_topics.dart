@@ -12,6 +12,7 @@ import '../data/message_content.dart';
 import '../data/telegram_store.dart';
 import 'chat_list_screen.dart' show shortTime;
 import 'chat_view_screen.dart';
+import '../../../infrastructure/telegram/td_compat.dart';
 
 /// A forum group's topics, pinned first, then by latest activity.
 class ForumTopicsList extends ConsumerStatefulWidget {
@@ -48,13 +49,13 @@ class _ForumTopicsListState extends ConsumerState<ForumTopicsList> {
               query: '',
               offsetDate: _offset.$1,
               offsetMessageId: _offset.$2,
-              offsetMessageThreadId: _offset.$3,
+              offsetForumTopicId: _offset.$3,
               limit: 50,
             ),
             limited: true,
           );
       _topics.addAll(r.topics.where((t) => _topics.every((x) => x.info.messageThreadId != t.info.messageThreadId)));
-      _offset = (r.nextOffsetDate, r.nextOffsetMessageId, r.nextOffsetMessageThreadId);
+      _offset = (r.nextOffsetDate, r.nextOffsetMessageId, r.nextOffsetForumTopicId);
       if (r.topics.isEmpty || r.nextOffsetDate == 0) _end = true;
     } catch (e) {
       _error = '$e';

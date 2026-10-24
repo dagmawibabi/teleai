@@ -408,7 +408,7 @@ extension _ManageTools on TelegramToolRunner {
   }
 
   Future<td.Story> _story(int chatId, int storyId) =>
-      _client.send<td.Story>(td.GetStory(storySenderChatId: chatId, storyId: storyId, onlyLocal: false), limited: true);
+      _client.send<td.Story>(td.GetStory(storyPosterChatId: chatId, storyId: storyId, onlyLocal: false), limited: true);
 
   Future<ToolOutput> _listStories(Map<String, dynamic> args) async {
     final chatId = _storyChat(args);
@@ -444,8 +444,8 @@ extension _ManageTools on TelegramToolRunner {
     final s = await _story(chatId, id);
     if (args['peek'] != true && chatId != _store.me?.id) {
       try {
-        await _client.send<td.Ok>(td.OpenStory(storySenderChatId: chatId, storyId: id), limited: true);
-        await _client.send<td.Ok>(td.CloseStory(storySenderChatId: chatId, storyId: id));
+        await _client.send<td.Ok>(td.OpenStory(storyPosterChatId: chatId, storyId: id), limited: true);
+        await _client.send<td.Ok>(td.CloseStory(storyPosterChatId: chatId, storyId: id));
       } catch (_) {}
     }
     final picture = switch (s.content) {
@@ -490,7 +490,7 @@ extension _ManageTools on TelegramToolRunner {
     } else {
       r = await _client.send<td.StoryInteractions>(
         td.GetChatStoryInteractions(
-          storySenderChatId: chatId,
+          storyPosterChatId: chatId,
           storyId: id,
           reactionType: null,
           preferForwards: false,
@@ -566,10 +566,11 @@ extension _ManageTools on TelegramToolRunner {
     final caption = '${args['caption'] ?? ''}'.trim();
     final hours = TelegramToolRunner._int(args, 'active_hours', fallback: 24, min: 6, max: 48);
     final s = await _client.send<td.Story>(
-      td.SendStory(
+      td.PostStory(
         chatId: chatId,
         content: await _storyContent(args),
         areas: null,
+        albumIds: const [],
         caption: caption.isEmpty ? null : td.FormattedText(text: caption, entities: const []),
         privacySettings: _storyPrivacy(args),
         activePeriod: const [6, 12, 24, 48].reduce((a, b) => (a - hours).abs() <= (b - hours).abs() ? a : b) * 3600,
@@ -592,7 +593,7 @@ extension _ManageTools on TelegramToolRunner {
     if (hasMedia || args['caption'] != null) {
       await _client.send<td.Ok>(
         td.EditStory(
-          storySenderChatId: chatId,
+          storyPosterChatId: chatId,
           storyId: id,
           content: hasMedia ? await _storyContent(args) : null,
           areas: null,
@@ -607,7 +608,7 @@ extension _ManageTools on TelegramToolRunner {
     }
     if (args['keep_on_profile'] is bool) {
       await _client.send<td.Ok>(
-        td.ToggleStoryIsPostedToChatPage(storySenderChatId: chatId, storyId: id, isPostedToChatPage: args['keep_on_profile'] as bool),
+        td.ToggleStoryIsPostedToChatPage(storyPosterChatId: chatId, storyId: id, isPostedToChatPage: args['keep_on_profile'] as bool),
         limited: true,
       );
     }
@@ -618,7 +619,7 @@ extension _ManageTools on TelegramToolRunner {
   Future<ToolOutput> _deleteStory(Map<String, dynamic> args) async {
     final id = TelegramToolRunner._intOrNull(args, 'story_id');
     if (id == null) throw ArgumentError('story_id is required');
-    await _client.send<td.Ok>(td.DeleteStory(storySenderChatId: _storyChat(args), storyId: id), limited: true);
+    await _client.send<td.Ok>(td.DeleteStory(storyPosterChatId: _storyChat(args), storyId: id), limited: true);
     return ToolOutput({'done': true, 'deleted': id});
   }
 
@@ -629,7 +630,7 @@ extension _ManageTools on TelegramToolRunner {
     final emoji = '${args['emoji'] ?? ''}'.trim();
     await _client.send<td.Ok>(
       td.SetStoryReaction(
-        storySenderChatId: _storyChat(args),
+        storyPosterChatId: _storyChat(args),
         storyId: id,
         reactionType: emoji.isEmpty ? null : td.ReactionTypeEmoji(emoji: emoji),
         updateRecentReactions: true,
@@ -680,7 +681,7 @@ extension _ManageTools on TelegramToolRunner {
     if (title.isEmpty) throw ArgumentError('A folder needs a title.');
     if (title.length > 12) throw ArgumentError('Folder names can be at most 12 characters: "$title" is ${title.length}.');
     final folder = td.ChatFolder(
-      title: title,
+      name: folderName(title),
       icon: args['icon'] != null ? td.ChatFolderIcon(name: '${args['icon']}') : base?.icon,
       colorId: base?.colorId ?? -1,
       isShareable: base?.isShareable ?? false,
@@ -816,7 +817,7 @@ extension _ManageTools on TelegramToolRunner {
     await step('protect_content', () => ok(td.ToggleChatHasProtectedContent(chatId: c.id, hasProtectedContent: b('protect_content'))));
     await step('translatable', () => ok(td.ToggleChatIsTranslatable(chatId: c.id, isTranslatable: b('translatable'))));
     await step('history_for_new_members', () => ok(needSg((id) => td.ToggleSupergroupIsAllHistoryAvailable(supergroupId: id, isAllHistoryAvailable: b('history_for_new_members')))));
-    await step('join_by_request', () => ok(needSg((id) => td.ToggleSupergroupJoinByRequest(supergroupId: id, joinByRequest: b('join_by_request')))));
+    await step('join_by_request', () => ok(needSg((id) => td.ToggleSupergroupJoinByRequest(supergroupId: id, joinByRequest: b('join_by_request'), guardBotUserId: 0, applyToInviteLinks: false))));
     await step('join_to_send', () => ok(needSg((id) => td.ToggleSupergroupJoinToSendMessages(supergroupId: id, joinToSendMessages: b('join_to_send')))));
     if (args.containsKey('sign_messages') || args.containsKey('show_author')) {
       await step(
@@ -867,22 +868,22 @@ extension _ManageTools on TelegramToolRunner {
       final name = '${args['name'] ?? ''}'.trim();
       if (name.isEmpty) throw ArgumentError('Give the new topic a name.');
       final t = await _client.send<td.ForumTopicInfo>(
-        td.CreateForumTopic(chatId: c.id, name: name, icon: const td.ForumTopicIcon(color: 0x6FB9F0, customEmojiId: 0)),
+        td.CreateForumTopic(chatId: c.id, name: name, isNameImplicit: false, icon: const td.ForumTopicIcon(color: 0x6FB9F0, customEmojiId: 0)),
         limited: true,
       );
       return ToolOutput({'done': true, 'created': true, 'topic_id': t.messageThreadId, 'name': t.name});
     }
     if (args['name'] != null) {
       await _client.send<td.Ok>(
-        td.EditForumTopic(chatId: c.id, messageThreadId: topic, name: '${args['name']}', editIconCustomEmoji: false, iconCustomEmojiId: 0),
+        td.EditForumTopic(chatId: c.id, forumTopicId: topic, name: '${args['name']}', editIconCustomEmoji: false, iconCustomEmojiId: 0),
         limited: true,
       );
     }
     if (args['closed'] is bool) {
-      await _client.send<td.Ok>(td.ToggleForumTopicIsClosed(chatId: c.id, messageThreadId: topic, isClosed: args['closed'] as bool), limited: true);
+      await _client.send<td.Ok>(td.ToggleForumTopicIsClosed(chatId: c.id, forumTopicId: topic, isClosed: args['closed'] as bool), limited: true);
     }
     if (args['pinned'] is bool) {
-      await _client.send<td.Ok>(td.ToggleForumTopicIsPinned(chatId: c.id, messageThreadId: topic, isPinned: args['pinned'] as bool), limited: true);
+      await _client.send<td.Ok>(td.ToggleForumTopicIsPinned(chatId: c.id, forumTopicId: topic, isPinned: args['pinned'] as bool), limited: true);
     }
     return ToolOutput({'done': true, 'topic_id': topic});
   }
@@ -892,7 +893,7 @@ extension _ManageTools on TelegramToolRunner {
     final c = _requireChat(args);
     final topic = TelegramToolRunner._intOrNull(args, 'topic_id');
     if (topic == null) throw ArgumentError('topic_id is required');
-    await _client.send<td.Ok>(td.DeleteForumTopic(chatId: c.id, messageThreadId: topic), limited: true);
+    await _client.send<td.Ok>(td.DeleteForumTopic(chatId: c.id, forumTopicId: topic), limited: true);
     return ToolOutput({'done': true, 'deleted_topic': topic});
   }
 

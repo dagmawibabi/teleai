@@ -1,8 +1,10 @@
 part of 'telegram_tools.dart';
 
-// Making and running bots. Telegram makes bots only through @BotFather, so
-// creating one is a short conversation with it; a bot the user owns can
-// also have its name, descriptions and photo changed directly.
+// Making and running bots. TDLib now lists the user's bots and creates new
+// ones directly (createBot, with @BotFather as the managing bot); the
+// BotFather chat stays for what has no API (commands, inline mode, tokens).
+// A bot the user owns can have its name, descriptions and photo changed
+// directly.
 
 final _botFatherTools = <TelegramTool>[
   TelegramTool(
@@ -10,7 +12,7 @@ final _botFatherTools = <TelegramTool>[
     label: 'Listing your bots',
     category: ToolCategory.account,
     cost: ToolCost.local,
-    description: 'Bots the user owns (made with BotFather), with user_id and username.',
+    description: 'Bots the user owns, with user_id, username and whether the assistant can act as it (connect_bot).',
     parameters: _obj({}),
   ),
   TelegramTool(
@@ -44,11 +46,13 @@ final _botFatherTools = <TelegramTool>[
     category: ToolCategory.actions,
     requiresApproval: true,
     description:
-        'Creates a new bot through @BotFather with a display name and a username ending in "bot". The token stays '
-        'in the BotFather chat (it is not shown here). Needs approval.',
+        'Creates a new bot with a display name and a username ending in "bot". Its token is kept in the phone\'s '
+        'secure storage (never shown) so connect: true lets the assistant drive it through the Bot API. Needs '
+        'approval.',
     parameters: _obj({
       'name': {'type': 'string'},
       'username': {'type': 'string', 'description': 'Must end in "bot", e.g. "weather_helper_bot".'},
+      'connect': {'type': 'boolean', 'description': 'Also keep its token so bot_api works (default true).'},
     }, ['name', 'username']),
   ),
   TelegramTool(
@@ -76,12 +80,18 @@ extension _BotFatherRuns on TelegramToolRunner {
   Future<int> _botFatherChat() async =>
       (await _client.send<td.Chat>(const td.SearchPublicChat(username: 'BotFather'), limited: true)).id;
 
-  /// Sends [text] to BotFather and waits (up to [wait]) for its answer.
-  Future<String> _askBotFather(int chatId, String text, {Duration wait = const Duration(seconds: 15)}) async {
+  /// Sends [text] to BotFather and waits (up to [wait]) for its answer,
+  /// tokens hidden.
+  Future<String> _askBotFather(int chatId, String text, {Duration wait = const Duration(seconds: 15)}) async =>
+      (await _askBotFatherRaw(chatId, text, wait: wait)).replaceAll(_token, '[token hidden]');
+
+  /// BotFather's answer as it is, tokens included: only for code that
+  /// stores them, never for the model.
+  Future<String> _askBotFatherRaw(int chatId, String text, {Duration wait = const Duration(seconds: 15)}) async {
     final sent = await _client.send<td.Message>(
       td.SendMessage(
         chatId: chatId,
-        messageThreadId: 0,
+        topicId: null,
         replyTo: null,
         options: null,
         replyMarkup: null,
@@ -102,7 +112,7 @@ extension _BotFatherRuns on TelegramToolRunner {
       );
       final reply = r.messages.whereType<td.Message>().where((m) => !m.isOutgoing && m.date >= sent.date).toList();
       if (reply.isNotEmpty) {
-        return [for (final m in reply.reversed) gistOf(m.content).text].join('\n').replaceAll(_token, '[token hidden]');
+        return [for (final m in reply.reversed) gistOf(m.content).text].join('\n');
       }
     }
     return '(no answer from BotFather yet)';
@@ -115,7 +125,14 @@ extension _BotFatherRuns on TelegramToolRunner {
 
   Future<ToolOutput>? _runBotFather(String name, Map<String, dynamic> args) => switch (name) {
     'list_my_bots' => () async {
-      final ids = _ownedBotIds();
+      var ids = _ownedBotIds();
+      try {
+        final owned = await _client.send<td.Users>(const td.GetOwnedBots(), limited: true);
+        ids = {...owned.userIds, ...ids}.toList();
+      } catch (_) {
+        // Older servers: fall back to the bots already seen.
+      }
+      final connected = {for (final id in ids) id: await _BotTokens.read(id) != null};
       return ToolOutput({
         'count': ids.length,
         'bots': [
@@ -125,6 +142,7 @@ extension _BotFatherRuns on TelegramToolRunner {
               'name': _store.userName(id),
               if (_store.users[id] case final u? when _store.username(u.usernames) != null)
                 'username': '@${_store.username(u.usernames)}',
+              if (connected[id] == true) 'connected': true,
             },
         ],
         if (ids.isEmpty) 'note': 'No owned bots seen yet. Bots appear here once their chat has been opened.',
@@ -182,18 +200,54 @@ extension _BotFatherRuns on TelegramToolRunner {
       final username = '${args['username'] ?? ''}'.trim().replaceFirst('@', '');
       if (display.isEmpty || username.isEmpty) throw ArgumentError('name and username are required');
       if (!username.toLowerCase().endsWith('bot')) throw ArgumentError('The username must end in "bot".');
+      final connect = args['connect'] != false;
       final chat = await _botFatherChat();
+      // TDLib's createBot, with BotFather managing the new bot.
+      try {
+        final father = (await _client.send<td.Chat>(const td.SearchPublicChat(username: 'BotFather'), limited: true)).type;
+        if (father case td.ChatTypePrivate(:final userId)) {
+          final check = await _client.send<td.CheckChatUsernameResult>(
+            td.CheckBotUsername(username: username, isSecondary: false),
+            limited: true,
+          );
+          if (check is! td.CheckChatUsernameResultOk) {
+            throw ArgumentError('@$username can\'t be used: ${check.runtimeType.toString().replaceFirst('CheckChatUsernameResult', '')}.');
+          }
+          final bot = await _client.send<td.User>(
+            td.CreateBot(managerBotUserId: userId, name: display, username: username, viaLink: false),
+            limited: true,
+          );
+          final out = <String, dynamic>{'created': true, 'user_id': bot.id, 'username': '@$username'};
+          if (connect) {
+            final r = await _connectBot({'bot_user_id': bot.id});
+            out['connected'] = r.json['connected'] == true;
+          }
+          return ToolOutput(out);
+        }
+      } on ArgumentError {
+        rethrow;
+      } catch (_) {
+        // Not available to this account: do it the old way, in the chat.
+      }
       final steps = <String, String>{};
       steps['/newbot'] = await _askBotFather(chat, '/newbot');
       steps[display] = await _askBotFather(chat, display);
-      final last = await _askBotFather(chat, username);
+      final raw = await _askBotFatherRaw(chat, username);
+      final last = raw.replaceAll(_token, '[token hidden]');
       steps[username] = last;
-      final ok = last.toLowerCase().contains('done') || last.contains('[token hidden]');
+      final token = _token.firstMatch(raw)?[0];
+      final ok = token != null || last.toLowerCase().contains('done');
+      int? botId;
+      if (token != null) {
+        botId = int.tryParse(token.split(':').first);
+        if (connect && botId != null) await _BotTokens.write(botId, token);
+      }
       return ToolOutput({
         'created': ok,
         'username': '@$username',
+        'user_id': ?botId,
+        if (connect && token != null) 'connected': true,
         'botfather_said': last,
-        if (ok) 'note': 'The token is in the user\'s BotFather chat. Find the bot with list_my_bots after opening it.',
         if (!ok) 'conversation': steps,
       });
     }(),

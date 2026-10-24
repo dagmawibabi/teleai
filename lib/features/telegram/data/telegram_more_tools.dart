@@ -271,11 +271,11 @@ extension MoreTdTools on TelegramToolRunner {
           if (i.chatId != 0) 'chat_id': i.chatId,
           'already_member': i.chatId != 0 && _store.chat(i.chatId)?.isListed == true,
           if (i.createsJoinRequest) 'needs_approval_to_join': true,
-          if (i.isScam || i.isFake) 'warning': 'Telegram marks this chat as scam or fake.',
+          if (i.verificationStatus?.isScam == true || i.verificationStatus?.isFake == true) 'warning': 'Telegram marks this chat as scam or fake.',
           'note': 'Join with join_chat (invite_link) only if the user asks.',
         };
-      case td.InternalLinkTypeStory(:final storySenderUsername, :final storyId):
-        final chat = await chatByName(storySenderUsername);
+      case td.InternalLinkTypeStory(:final storyPosterUsername, :final storyId):
+        final chat = await chatByName(storyPosterUsername);
         return {'kind': 'story', 'story_id': storyId, ...chat, 'note': 'Open it with view_story.'};
       case td.InternalLinkTypeBotStart(:final botUsername, :final startParameter):
         return {'kind': 'bot_start', ...await chatByName(botUsername), 'start_parameter': startParameter, 'note': 'start_bot runs it.'};
@@ -343,8 +343,7 @@ extension MoreTdTools on TelegramToolRunner {
           offset: 0,
           limit: limit,
           filter: filter,
-          messageThreadId: 0,
-          savedMessagesTopicId: 0,
+          topicId: null,
         ),
         limited: true,
       );
@@ -357,7 +356,7 @@ extension MoreTdTools on TelegramToolRunner {
     final r = await _client.send<td.FoundMessages>(
       td.SearchMessages(
         chatList: folderId != null ? td.ChatListFolder(chatFolderId: folderId) : (archived ? const td.ChatListArchive() : null),
-        onlyInChannels: channelsOnly,
+        chatTypeFilter: channelsOnly ? const td.SearchMessagesChatTypeFilterChannel() : null,
         query: query,
         offset: offset,
         limit: limit,
@@ -446,8 +445,8 @@ extension MoreTdTools on TelegramToolRunner {
     final m = await _client.send<td.Message>(
       td.SendInlineQueryResultMessage(
         chatId: c.id,
-        messageThreadId: 0,
-        replyTo: reply == null ? null : td.InputMessageReplyToMessage(messageId: reply, quote: null),
+        topicId: null,
+        replyTo: reply == null ? null : replyToMessage(reply),
         options: null,
         queryId: queryId,
         resultId: '${args['result_id']}',
@@ -514,8 +513,7 @@ extension MoreTdTools on TelegramToolRunner {
           offset: 0,
           limit: 100,
           filter: null,
-          messageThreadId: 0,
-          savedMessagesTopicId: 0,
+          topicId: null,
         ),
         limited: true,
       );
@@ -537,8 +535,7 @@ extension MoreTdTools on TelegramToolRunner {
             offset: 0,
             limit: 20,
             filter: const td.SearchMessagesFilterUnreadReaction(),
-            messageThreadId: 0,
-            savedMessagesTopicId: 0,
+            topicId: null,
           ),
           limited: true,
         );
@@ -605,13 +602,13 @@ extension MoreTdTools on TelegramToolRunner {
       case 'end':
         await _client.send<td.Ok>(td.EndGroupCall(groupCallId: callId), limited: true);
       case 'rename':
-        await _client.send<td.Ok>(td.SetGroupCallTitle(groupCallId: callId, title: '${args['title'] ?? ''}'), limited: true);
+        await _client.send<td.Ok>(td.SetVideoChatTitle(groupCallId: callId, title: '${args['title'] ?? ''}'), limited: true);
       case 'invite':
-        await _client.send<td.Ok>(td.InviteGroupCallParticipants(groupCallId: callId, userIds: _argIds(args, 'user_ids')), limited: true);
+        await _client.send<td.Ok>(td.InviteVideoChatParticipants(groupCallId: callId, userIds: _argIds(args, 'user_ids')), limited: true);
       case 'mute_new' || 'unmute_new':
-        await _client.send<td.Ok>(td.ToggleGroupCallMuteNewParticipants(groupCallId: callId, muteNewParticipants: action == 'mute_new'), limited: true);
+        await _client.send<td.Ok>(td.ToggleVideoChatMuteNewParticipants(groupCallId: callId, muteNewParticipants: action == 'mute_new'), limited: true);
       case 'link':
-        final l = await _client.send<td.HttpUrl>(td.GetGroupCallInviteLink(groupCallId: callId, canSelfUnmute: true), limited: true);
+        final l = await _client.send<td.HttpUrl>(td.GetVideoChatInviteLink(groupCallId: callId, canSelfUnmute: true), limited: true);
         return ToolOutput({'chat': c.title, 'link': l.url});
     }
     return ToolOutput({'done': true, 'chat': c.title, 'action': action});

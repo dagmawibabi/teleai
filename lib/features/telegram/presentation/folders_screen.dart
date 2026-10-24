@@ -6,6 +6,7 @@ import '../../../app/theme.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../data/telegram_store.dart';
 import '../data/telegram_tools.dart';
+import '../../../infrastructure/telegram/td_compat.dart';
 
 /// The account's chat folders: reorder by dragging, rename, choose what
 /// goes in, delete, or create one (also from Telegram's suggestions).

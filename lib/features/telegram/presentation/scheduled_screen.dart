@@ -422,7 +422,7 @@ class _ScheduledTile extends ConsumerWidget {
                       final when = DateTime(day.year, day.month, day.day, time.hour, time.minute);
                       Navigator.pop(sheet);
                       await setWhen(
-                        td.MessageSchedulingStateSendAtDate(sendDate: when.millisecondsSinceEpoch ~/ 1000),
+                        td.MessageSchedulingStateSendAtDate(sendDate: when.millisecondsSinceEpoch ~/ 1000, repeatPeriod: 0),
                         'Rescheduled for ${DateFormat('d MMM HH:mm').format(when)}',
                       );
                     },

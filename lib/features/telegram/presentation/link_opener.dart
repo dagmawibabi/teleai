@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:url_launcher/url_launcher.dart';
@@ -9,7 +10,9 @@ import '../../chat/domain/chat_models.dart';
 import '../../chat/presentation/widgets/post_viewer.dart';
 import '../data/telegram_store.dart';
 import '../data/telegram_tools.dart';
+import 'chat_profile_screen.dart';
 import 'chat_view_screen.dart';
+import 'search_screen.dart';
 
 /// The navigator, for links tapped where no context is at hand (inside
 /// formatted text).
@@ -18,6 +21,36 @@ final appNavigatorKey = GlobalKey<NavigatorState>();
 final _telegramLink = RegExp(r'^(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/|tg://)', caseSensitive: false);
 
 bool isTelegramLink(String url) => _telegramLink.hasMatch(url.trim());
+
+/// A tapped #hashtag or $cashtag: searches every chat for it.
+Future<void> openHashtag(String tag) async {
+  final nav = appNavigatorKey.currentState;
+  if (nav == null) return;
+  await nav.push(MaterialPageRoute<void>(builder: (_) => SearchScreen(initialQuery: tag)));
+}
+
+/// A tapped mention of someone without a username: their profile.
+Future<void> openUser(int userId) async {
+  final ctx = appNavigatorKey.currentContext;
+  if (ctx == null) return;
+  final container = ProviderScope.containerOf(ctx, listen: false);
+  final nav = Navigator.of(ctx);
+  try {
+    final chat = await container
+        .read(telegramClientProvider)
+        .send<td.Chat>(td.CreatePrivateChat(userId: userId, force: false), limited: true);
+    if (nav.mounted) await nav.push(MaterialPageRoute<void>(builder: (_) => ChatProfileScreen(chatId: chat.id)));
+  } catch (e) {
+    if (nav.mounted) showSnack(nav.context, 'Couldn\'t open that profile', icon: Icons.error_outline_rounded);
+  }
+}
+
+/// A tapped /command: copied, to paste in the bot's chat.
+Future<void> copyBotCommand(String command) async {
+  await Clipboard.setData(ClipboardData(text: command));
+  final ctx = appNavigatorKey.currentContext;
+  if (ctx != null && ctx.mounted) showSnack(ctx, 'Copied $command');
+}
 
 /// Opens [url]: Telegram links inside the app (the chat, the post, an
 /// invite to look at before joining), everything else in the browser.

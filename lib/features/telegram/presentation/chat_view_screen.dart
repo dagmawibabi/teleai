@@ -27,11 +27,14 @@ import 'chat_background.dart';
 import 'expression_panel.dart';
 import 'chat_profile_screen.dart';
 import 'content_canvas_screen.dart' show saveManyToCanvas;
+import 'direct_messages_topics.dart';
+import 'pending_draft.dart';
 import 'forum_topics.dart';
 import 'forward_sheet.dart';
 import 'members_screen.dart';
 import 'message_tile.dart';
 import 'tg_avatar.dart';
+import '../../../infrastructure/telegram/td_compat.dart';
 
 /// A chat's messages, live, with a composer for writing yourself. Opening
 /// it doesn't mark anything as read (unless that setting is on): it reads
@@ -63,6 +66,15 @@ class ChatViewScreen extends ConsumerStatefulWidget {
 
 class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   final List<td.Message> _messages = [];
+
+  /// One key per post (an album's messages share it), to scroll to a
+  /// replied-to or quoted message.
+  final Map<int, GlobalKey> _postKeys = {};
+  GlobalKey _keyFor(int id) => _postKeys[id] ??= GlobalKey();
+
+  /// The post just jumped to, lit up for a moment.
+  int? _highlight;
+  Timer? _highlightClock;
   final _scroll = ScrollController();
   StreamSubscription<td.TdObject>? _updates;
   bool _loading = false;
@@ -90,7 +102,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   bool get _isForumRoot {
     final store = ref.read(telegramStoreProvider);
     final chat = store.chat(widget.chatId);
-    return widget.threadId == null && !widget.generalTopic && chat != null && store.isForum(chat);
+    return widget.threadId == null &&
+        !widget.generalTopic &&
+        chat != null &&
+        (store.isForum(chat) || store.isDirectMessagesGroup(chat));
   }
 
   @override
@@ -117,6 +132,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _updates?.cancel();
     _activityExpiry?.cancel();
     _reactionsClock?.cancel();
+    _highlightClock?.cancel();
     unawaited(ref.read(openChatsProvider).release(widget.chatId, _openChatOwner));
     _scroll.dispose();
     super.dispose();
@@ -150,8 +166,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       case td.UpdateMessageContent(:final chatId, :final messageId, :final newContent) when chatId == widget.chatId:
         final i = index(messageId);
         if (i >= 0) setState(() => _messages[i] = _messages[i].copyWith(content: newContent));
-      case td.UpdateChatAction(:final chatId, :final messageThreadId, :final senderId, :final action)
-          when chatId == widget.chatId && (widget.threadId == null || messageThreadId == widget.threadId):
+      case td.UpdateChatAction(:final chatId, :final topicId, :final senderId, :final action)
+          when chatId == widget.chatId && (widget.threadId == null || topicNumber(topicId) == widget.threadId):
         final key = _senderKey(senderId);
         if (action is td.ChatActionCancel) {
           setState(() => _activities.remove(key));
@@ -270,6 +286,42 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
   td.Message? _find(int id) => _messages.where((m) => m.id == id).firstOrNull;
 
+  /// Scrolls to message [id], loading older history until it's there, and
+  /// lights it up: what tapping a reply or a quote does.
+  Future<void> _jumpTo(int id) async {
+    for (var page = 0; page < 25 && _find(id) == null && !_end; page++) {
+      while (_loading) {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      }
+      if (_find(id) != null) break;
+      await _loadMore();
+    }
+    if (!mounted) return;
+    if (_find(id) == null) {
+      showSnack(context, 'That message is no longer in this chat', icon: Icons.info_outline_rounded);
+      return;
+    }
+    setState(() => _highlight = id);
+    // The list builds lazily: move towards older posts until the target is
+    // built, then centre it.
+    for (var step = 0; step < 60 && mounted; step++) {
+      await WidgetsBinding.instance.endOfFrame;
+      final ctx = _postKeys[id]?.currentContext;
+      if (ctx != null && ctx.mounted) {
+        await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic, alignment: 0.4);
+        break;
+      }
+      if (!_scroll.hasClients) break;
+      final pos = _scroll.position;
+      if (pos.pixels >= pos.maxScrollExtent) break;
+      _scroll.jumpTo((pos.pixels + pos.viewportDimension * 0.8).clamp(0, pos.maxScrollExtent));
+    }
+    _highlightClock?.cancel();
+    _highlightClock = Timer(const Duration(milliseconds: 1800), () {
+      if (mounted) setState(() => _highlight = null);
+    });
+  }
+
   List<Track> _playlist() {
     final store = ref.read(telegramStoreProvider);
     return [for (final m in _messages.reversed) ?Track.of(m, store)];
@@ -291,7 +343,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
     Widget body;
     if (forumRoot) {
-      body = ForumTopicsList(chatId: widget.chatId, topPadding: headerHeight + Space.s);
+      body = chat != null && store.isDirectMessagesGroup(chat)
+          ? DirectMessagesTopicsList(chatId: widget.chatId, topPadding: headerHeight + Space.s)
+          : ForumTopicsList(chatId: widget.chatId, topPadding: headerHeight + Space.s);
     } else if (_messages.isEmpty && widget.commentsOn == null) {
       body = Center(
         child: _loading
@@ -309,12 +363,20 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           posts.add([m]);
         }
       }
+      // A bot's reply as it is being written (draft streaming), newest of all.
+      final pending = switch (store.pendingMessages[widget.chatId]) {
+        final p? when p.forumTopicId == (widget.threadId ?? 0) || widget.threadId == null => p,
+        _ => null,
+      };
+      final lead = pending == null ? 0 : 1;
       body = ListView.builder(
         controller: _scroll,
         reverse: true,
         padding: EdgeInsets.fromLTRB(Space.m, Space.m, Space.m, headerHeight + Space.xxl + 40),
-        itemCount: posts.length + 1,
-        itemBuilder: (context, i) {
+        itemCount: posts.length + 1 + lead,
+        itemBuilder: (context, index) {
+          if (pending != null && index == 0) return PendingDraftBubble(update: pending);
+          final i = index - lead;
           if (i == posts.length && widget.commentsOn != null && (_end || _messages.isEmpty)) {
             return _CommentedPost(post: widget.commentsOn!, loading: _loading);
           }
@@ -338,10 +400,22 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           final older = i + 1 < posts.length ? posts[i + 1].first : null;
           final newDay = older == null || !_sameDay(older.date, m.date);
           final grouped = older != null && !newDay && _sameSender(older, m) && m.date - older.date < 300;
+          final key = _keyFor(post.first.id);
+          for (final x in post.skip(1)) {
+            _postKeys[x.id] = key;
+          }
+          final lit = _highlight != null && post.any((x) => x.id == _highlight);
           return Column(
+            key: key,
             children: [
               if (newDay) _DaySeparator(unix: m.date),
-              MessageTile(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  color: lit ? AppColors.accent.withValues(alpha: 0.14) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(Radii.m),
+                ),
+                child: MessageTile(
                 key: ValueKey(m.id),
                 message: m,
                 album: album,
@@ -349,6 +423,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 chatTitle: chat?.title ?? title,
                 grouped: grouped,
                 findMessage: _find,
+                onJumpTo: _jumpTo,
                 onReply: chat != null && (store.canPost(chat) || widget.commentsOn != null)
                     ? (m) => setState(() => _replyTo = m)
                     : null,
@@ -365,6 +440,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                       }),
                 selecting: _selecting,
                 selected: _selected.contains(m.id),
+              ),
               ),
             ],
           );

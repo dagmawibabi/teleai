@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:intl/intl.dart';
 
 import '../../../app/theme.dart';
@@ -7,6 +8,7 @@ import '../../chat/data/chat_controller.dart';
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/presentation/tg_avatar.dart';
+import '../online_alerts.dart';
 import '../reminders.dart';
 import '../watch_engine.dart';
 import '../watches.dart';
@@ -73,6 +75,27 @@ class WatchesScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: Space.xs),
+                  Row(
+                    children: [
+                      Icon(
+                        st.background ? Icons.nightlight_round : Icons.phone_android_rounded,
+                        size: 14,
+                        color: st.background ? AppColors.success : AppColors.text3,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          st.background
+                              ? 'Keeps running in the background${s.notifications ? '' : ' · notifications off, watches still run'}'
+                              : (s.keepAlive || s.backgroundAlways)
+                              ? 'Background service not running yet; it starts when a watch is on'
+                              : 'Only while the app is open: "Keep running in the background" is off',
+                          style: context.text.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
                   if (st.last != null) ...[
                     const SizedBox(height: Space.xs),
                     Text('Last match: ${st.last}', style: context.text.bodySmall),
@@ -105,6 +128,7 @@ class WatchesScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          const _OnlineAlerts(),
           if (watches.isEmpty)
             Padding(
               padding: const EdgeInsets.all(Space.x4),
@@ -267,6 +291,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
   late String? _dailyAt = widget.watch?.dailyAt ?? '08:00';
   late int? _every = widget.watch?.everyMinutes;
   late bool _includeMuted = widget.watch?.includeMuted ?? true;
+  late bool _notify = widget.watch?.notify ?? true;
 
   @override
   void dispose() {
@@ -295,6 +320,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
           folderId: _folderId,
           instructions: _instructions.text.trim(),
           includeMuted: _includeMuted,
+          notify: _notify,
           dailyAt: schedule && _every == null ? _dailyAt : null,
           everyMinutes: schedule ? _every : null,
           createdAt: DateTime.now(),
@@ -313,6 +339,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
           folderId: _folderId,
           instructions: _instructions.text.trim(),
           includeMuted: _includeMuted,
+          notify: _notify,
           dailyAt: schedule && _every == null ? _dailyAt : null,
           everyMinutes: schedule ? _every : null,
           conversationId: w.conversationId,
@@ -507,6 +534,20 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
               ),
             ],
           ],
+          const SizedBox(height: Space.m),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: Icon(_notify ? Icons.notifications_active_outlined : Icons.notifications_off_outlined),
+            title: const Text('Notify me'),
+            subtitle: Text(
+              _notify
+                  ? 'A notification each time it fires'
+                  : 'Runs quietly in the background; results wait in its conversation',
+              style: context.text.bodySmall,
+            ),
+            value: _notify,
+            onChanged: (v) => setState(() => _notify = v),
+          ),
           const SizedBox(height: Space.xxl),
           FilledButton(onPressed: _save, child: const Text('Save')),
         ],
@@ -516,8 +557,11 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
 }
 
 class _ChatPicker extends ConsumerStatefulWidget {
-  const _ChatPicker({required this.selected});
+  const _ChatPicker({required this.selected, this.peopleOnly = false});
   final List<int> selected;
+
+  /// Only one-to-one chats with people (for online alerts).
+  final bool peopleOnly;
 
   @override
   ConsumerState<_ChatPicker> createState() => _ChatPickerState();
@@ -532,6 +576,7 @@ class _ChatPickerState extends ConsumerState<_ChatPicker> {
     final store = ref.watch(telegramStoreProvider);
     final chats = store.chats.values
         .where((c) => c.isListed && c.title.isNotEmpty && (_q.isEmpty || c.title.toLowerCase().contains(_q)))
+        .where((c) => !widget.peopleOnly || store.kindOf(c) == ChatKind.private)
         .toList()
       ..sort((a, b) {
         final pa = _picked.contains(a.id), pb = _picked.contains(b.id);
@@ -571,6 +616,120 @@ class _ChatPickerState extends ConsumerState<_ChatPicker> {
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// People the user wants to hear about when they come online.
+class _OnlineAlerts extends ConsumerWidget {
+  const _OnlineAlerts();
+
+  Future<void> _add(BuildContext context, WidgetRef ref) async {
+    final store = ref.read(telegramStoreProvider);
+    final picked = await Navigator.of(context).push<List<int>>(
+      MaterialPageRoute(builder: (_) => const _ChatPicker(selected: [], peopleOnly: true)),
+    );
+    if (picked == null) return;
+    for (final chatId in picked) {
+      if (store.chat(chatId)?.type case td.ChatTypePrivate(:final userId)) {
+        await ref.read(onlineAlertStoreProvider.notifier).add(userId, store.userName(userId));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final alerts = ref.watch(onlineAlertStoreProvider);
+    final store = ref.watch(telegramStoreProvider);
+    return Container(
+      margin: const EdgeInsets.only(bottom: Space.m),
+      decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.l)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Space.m, Space.m, Space.s, Space.xs),
+            child: Row(
+              children: [
+                const Icon(Icons.circle_notifications_outlined, size: 18, color: AppColors.text2),
+                const SizedBox(width: Space.s),
+                Expanded(child: Text('Online alerts', style: context.text.titleSmall)),
+                TextButton.icon(
+                  onPressed: () => _add(context, ref),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+          ),
+          if (alerts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.m, 0, Space.m, Space.m),
+              child: Text(
+                'Get a notification when someone comes online. Works for people who let you see their last seen.',
+                style: context.text.bodySmall,
+              ),
+            ),
+          for (final a in alerts)
+            Builder(
+              builder: (context) {
+                final user = store.users[a.userId];
+                final name = user == null ? a.name : store.userName(a.userId);
+                final status = user?.status;
+                final online = status is td.UserStatusOnline;
+                final hidden = status is td.UserStatusRecently ||
+                    status is td.UserStatusLastWeek ||
+                    status is td.UserStatusLastMonth ||
+                    status is td.UserStatusEmpty;
+                return ListTile(
+                  leading: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      TgAvatar(userId: a.userId, title: name, size: 38),
+                      Positioned(
+                        right: -1,
+                        bottom: -1,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: online ? AppColors.success : AppColors.text3,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.surface2, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(
+                    [
+                      online ? 'Online now' : (hidden ? 'Hides last seen; may not work' : 'Offline'),
+                      a.once ? 'once' : 'every time',
+                      if (a.fired > 0) 'alerted ${a.fired}×',
+                    ].join(' · '),
+                    style: context.text.bodySmall?.copyWith(color: hidden ? AppColors.warning : null),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: a.once ? 'Alert every time' : 'Alert once',
+                        icon: Icon(a.once ? Icons.looks_one_outlined : Icons.repeat_rounded, size: 20),
+                        onPressed: () => ref.read(onlineAlertStoreProvider.notifier).add(a.userId, a.name, once: !a.once),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove',
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => ref.read(onlineAlertStoreProvider.notifier).remove(a.userId),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );

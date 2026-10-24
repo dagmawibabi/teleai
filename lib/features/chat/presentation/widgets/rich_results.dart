@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:audioplayers/audioplayers.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -106,6 +108,30 @@ Widget? richResultFor(ToolPart part) {
       full: j,
     ),
     'github_read' when j['text'] != null => _CodeCard(file: j),
+    'music_search' => switch (j['type']) {
+      'album' => _Carousel(
+        height: 206,
+        children: [for (final a in list(j['results'])) _AlbumTile(album: a)],
+      ),
+      'artist' => Column(
+        children: [for (final a in list(j['results'])) _ArtistRow(artist: a)],
+      ),
+      _ => Column(
+        children: [for (final t in list(j['results']).take(10)) _SongRow(song: t)],
+      ),
+    },
+    'music_album' => _AlbumHero(album: j),
+    'music_artist' => _ArtistHero(artist: j),
+    'movie_search' => _Carousel(
+      height: 250,
+      children: [for (final m in list(j['results'])) _PosterTile(item: m, movie: true)],
+    ),
+    'movie_details' => _ScreenHero(item: j, movie: true),
+    'tv_search' => _Carousel(
+      height: 250,
+      children: [for (final m in list(j['results'])) _PosterTile(item: m, movie: false)],
+    ),
+    'tv_show' => _ScreenHero(item: j, movie: false),
     'fetch_url' ||
     'browser_open' ||
     'browser_read' ||
@@ -2607,6 +2633,748 @@ class _PageSheetState extends State<_PageSheet> {
                   child: WebViewWidget(controller: _web),
                 ),
         ),
+      ],
+    );
+  }
+}
+
+
+// ---- music ---------------------------------------------------------------------
+
+/// One 30-second preview at a time, app-wide.
+final _preview = AudioPlayer();
+final _previewing = ValueNotifier<String?>(null);
+bool _previewHooked = false;
+
+Future<void> _togglePreview(String url) async {
+  if (!_previewHooked) {
+    _previewHooked = true;
+    _preview.onPlayerComplete.listen((_) => _previewing.value = null);
+  }
+  if (_previewing.value == url) {
+    await _preview.stop();
+    _previewing.value = null;
+    return;
+  }
+  _previewing.value = url;
+  try {
+    await _preview.stop();
+    await _preview.play(UrlSource(url));
+  } catch (_) {
+    _previewing.value = null;
+  }
+}
+
+class _PreviewButton extends StatelessWidget {
+  const _PreviewButton(this.url);
+  final String? url;
+  static const double size = 36;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = url;
+    if (u == null || u.isEmpty) return SizedBox(width: size);
+    return ValueListenableBuilder<String?>(
+      valueListenable: _previewing,
+      builder: (_, playing, _) => IconButton(
+        tooltip: playing == u ? 'Stop preview' : 'Play a 30-second preview',
+        iconSize: size * 0.62,
+        constraints: BoxConstraints.tight(Size.square(size)),
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          backgroundColor: playing == u ? AppColors.accent : AppColors.surface3,
+          foregroundColor: playing == u ? AppColors.bg : AppColors.text,
+        ),
+        icon: Icon(playing == u ? Icons.stop_rounded : Icons.play_arrow_rounded),
+        onPressed: () => _togglePreview(u),
+      ),
+    );
+  }
+}
+
+class _SongRow extends StatelessWidget {
+  const _SongRow({required this.song, this.showArt = true});
+  final Map<String, dynamic> song;
+  final bool showArt;
+
+  @override
+  Widget build(BuildContext context) => _Shell(
+    padding: const EdgeInsets.all(Space.s),
+    onTap: song['album_id'] == null
+        ? () => _open(_listenUrl('youtube', '${song['title']} ${song['artist'] ?? ''}'))
+        : () => showAlbum(context, song),
+    child: Row(
+      children: [
+        if (showArt)
+          _Net(song['artwork'] as String?, width: 52, height: 52, placeholder: Icons.music_note_rounded)
+        else
+          SizedBox(
+            width: 28,
+            child: Text('${song['track'] ?? ''}', textAlign: TextAlign.center, style: context.text.labelSmall),
+          ),
+        const SizedBox(width: Space.m),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${song['title']}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              Text(
+                [
+                  if (showArt) song['artist'],
+                  if (showArt && song['album'] != null) song['album'],
+                  if (song['length'] != null) song['length'],
+                ].whereType<Object>().join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.text.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        if (song['explicit'] == true) const Padding(padding: EdgeInsets.only(right: 6), child: _Chip('E')),
+        _PreviewButton(song['preview'] as String?),
+      ],
+    ),
+  );
+}
+
+class _AlbumTile extends StatelessWidget {
+  const _AlbumTile({required this.album});
+  final Map<String, dynamic> album;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 148,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(Radii.m),
+      onTap: () => showAlbum(context, album),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _Net(album['artwork'] as String?, width: 148, height: 148, placeholder: Icons.album_outlined),
+          const SizedBox(height: 6),
+          Text(
+            '${album['title']}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          Text(
+            [album['artist'], album['year']].whereType<Object>().join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.text.bodySmall,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ArtistRow extends StatelessWidget {
+  const _ArtistRow({required this.artist});
+  final Map<String, dynamic> artist;
+
+  @override
+  Widget build(BuildContext context) => _Shell(
+    padding: const EdgeInsets.all(Space.s),
+    onTap: () => showArtist(context, artist),
+    child: Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: const BoxDecoration(color: AppColors.surface3, shape: BoxShape.circle),
+          child: const Icon(Icons.mic_external_on_outlined, color: AppColors.text2),
+        ),
+        const SizedBox(width: Space.m),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${artist['name']}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              if (artist['genre'] != null) Text('${artist['genre']}', style: context.text.bodySmall),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+      ],
+    ),
+  );
+}
+
+class _AlbumHero extends StatelessWidget {
+  const _AlbumHero({required this.album});
+  final Map<String, dynamic> album;
+
+  @override
+  Widget build(BuildContext context) {
+    final tracks = [for (final t in (album['track_list'] as List? ?? const [])) if (t is Map) Map<String, dynamic>.from(t)];
+    return _Shell(
+      onTap: () => showAlbum(context, album),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _Net(album['artwork'] as String?, width: 88, height: 88, placeholder: Icons.album_outlined),
+              const SizedBox(width: Space.m),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${album['title']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: context.text.titleMedium),
+                    Text('${album['artist'] ?? ''}', style: context.text.bodySmall),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (album['year'] != null) _Chip('${album['year']}', icon: Icons.event_outlined),
+                        if (album['genre'] != null) _Chip('${album['genre']}'),
+                        if (album['tracks'] != null) _Chip('${album['tracks']} tracks', icon: Icons.queue_music_rounded),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (tracks.isNotEmpty) ...[
+            const SizedBox(height: Space.s),
+            for (final t in tracks.take(4)) _SongRow(song: t, showArt: false),
+            if (tracks.length > 4)
+              Text('+ ${tracks.length - 4} more · tap for all', textAlign: TextAlign.center, style: context.text.labelSmall),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+void showAlbum(BuildContext context, Map<String, dynamic> item) => _sheet(
+  context,
+  (scroll) => _Loaded(
+    tool: 'music_album',
+    args: {'album_id': item['album_id']},
+    initial: {
+      'title': item['album'] ?? item['title'],
+      'artist': item['artist'],
+      'artwork': item['artwork'],
+      'album_id': item['album_id'],
+    },
+    builder: (a, loading) {
+      final tracks = [for (final t in (a['track_list'] as List? ?? const [])) if (t is Map) Map<String, dynamic>.from(t)];
+      return ListView(
+        controller: scroll,
+        padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.x4),
+        children: [
+          Center(child: _Net(a['artwork'] as String?, width: 220, height: 220, radius: Radii.l, placeholder: Icons.album_outlined)),
+          const SizedBox(height: Space.m),
+          Text('${a['title'] ?? ''}', textAlign: TextAlign.center, style: context.text.titleLarge),
+          InkWell(
+            onTap: a['artist_id'] == null ? null : () => showArtist(context, {'artist_id': a['artist_id'], 'name': a['artist']}),
+            child: Text(
+              '${a['artist'] ?? ''}',
+              textAlign: TextAlign.center,
+              style: context.text.bodyMedium?.copyWith(color: AppColors.accent),
+            ),
+          ),
+          const SizedBox(height: Space.s),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (a['released'] != null) _Chip('${a['released']}', icon: Icons.event_outlined),
+              if (a['genre'] != null) _Chip('${a['genre']}'),
+              if (tracks.isNotEmpty) _Chip('${tracks.length} tracks', icon: Icons.queue_music_rounded),
+              if (a['explicit'] == true) const _Chip('Explicit'),
+            ],
+          ),
+          if (loading) const Padding(padding: EdgeInsets.all(Space.l), child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+          const SizedBox(height: Space.m),
+          for (final t in tracks) _SongRow(song: t, showArt: false),
+          if (a['label'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.s),
+              child: Text('${a['label']}', textAlign: TextAlign.center, style: context.text.labelSmall),
+            ),
+          _ListenOn(query: '${a['title'] ?? ''} ${a['artist'] ?? ''}', apple: a['url'] as String?),
+        ],
+      );
+    },
+  ),
+);
+
+class _ArtistHero extends StatelessWidget {
+  const _ArtistHero({required this.artist});
+  final Map<String, dynamic> artist;
+
+  @override
+  Widget build(BuildContext context) => _Shell(
+    onTap: () => showArtist(context, artist),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipOval(child: _Net((artist['image'] ?? artist['artwork']) as String?, width: 72, height: 72, radius: 0, placeholder: Icons.person_outline_rounded)),
+        const SizedBox(width: Space.m),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${artist['name']}', style: context.text.titleMedium),
+              Text(
+                [artist['kind'], artist['from'], artist['genre']].whereType<Object>().join(' · '),
+                style: context.text.bodySmall,
+              ),
+              if (artist['summary'] != null) ...[
+                const SizedBox(height: 6),
+                Text('${artist['summary']}', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: AppColors.text2)),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+void showArtist(BuildContext context, Map<String, dynamic> item) => _sheet(
+  context,
+  (scroll) => _Loaded(
+    tool: 'music_artist',
+    args: {if (item['artist_id'] != null) 'artist_id': item['artist_id'] else 'name': item['name']},
+    initial: {'name': item['name'], 'genre': item['genre']},
+    builder: (a, loading) {
+      final albums = [for (final x in (a['albums'] as List? ?? const [])) if (x is Map) Map<String, dynamic>.from(x)];
+      final tags = [for (final t in (a['tags'] as List? ?? const [])) '$t'];
+      return ListView(
+        controller: scroll,
+        padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.x4),
+        children: [
+          Center(
+            child: ClipOval(
+              child: _Net((a['image'] ?? a['artwork']) as String?, width: 140, height: 140, radius: 0, placeholder: Icons.person_outline_rounded),
+            ),
+          ),
+          const SizedBox(height: Space.m),
+          Text('${a['name'] ?? ''}', textAlign: TextAlign.center, style: context.text.titleLarge),
+          if (a['known_as'] != null) Text('${a['known_as']}', textAlign: TextAlign.center, style: context.text.bodySmall),
+          const SizedBox(height: Space.s),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (a['kind'] != null) _Chip('${a['kind']}', icon: Icons.groups_2_outlined),
+              if ((a['origin'] ?? a['from']) != null) _Chip('${a['origin'] ?? a['from']}', icon: Icons.place_outlined),
+              if (a['active_since'] != null)
+                _Chip('${_yearOf(a['active_since'])}–${a['until'] == null ? 'now' : _yearOf(a['until'])}', icon: Icons.timeline_rounded),
+              if (a['genre'] != null) _Chip('${a['genre']}'),
+              for (final t in tags.take(4)) _Chip(t, color: AppColors.accent),
+            ],
+          ),
+          if (loading) const Padding(padding: EdgeInsets.all(Space.l), child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+          if (a['summary'] != null) ...[
+            const SizedBox(height: Space.m),
+            _Expandable('${a['summary']}'),
+          ],
+          if (albums.isNotEmpty) ...[
+            const SizedBox(height: Space.m),
+            Text('ALBUMS · ${albums.length}', style: context.text.labelSmall),
+            const SizedBox(height: Space.s),
+            _Carousel(height: 206, children: [for (final al in albums) _AlbumTile(album: al)]),
+          ],
+          _ListenOn(query: '${a['name'] ?? ''}', apple: a['url'] as String?),
+          _Buttons([
+            if (a['wikipedia'] != null)
+              OutlinedButton.icon(
+                onPressed: () => _open(a['wikipedia'] as String?),
+                icon: const Icon(Icons.menu_book_outlined, size: 18),
+                label: const Text('Wikipedia'),
+              ),
+          ]),
+        ],
+      );
+    },
+  ),
+);
+
+/// A search for [query] on a music service; Android opens its app when it's
+/// installed, else the website.
+String _listenUrl(String service, String query) {
+  final q = Uri.encodeComponent(query.trim());
+  return switch (service) {
+    'spotify' => 'https://open.spotify.com/search/$q',
+    _ => 'https://music.youtube.com/search?q=$q',
+  };
+}
+
+/// Where to listen: YouTube Music and Spotify first (what Android phones
+/// have), Apple Music last, for those who use it.
+class _ListenOn extends StatelessWidget {
+  const _ListenOn({required this.query, this.apple});
+  final String query;
+  final String? apple;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: Space.m),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('LISTEN ON', style: context.text.labelSmall),
+        const SizedBox(height: Space.s),
+        Wrap(
+          spacing: Space.s,
+          runSpacing: Space.s,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: () => _open(_listenUrl('youtube', query)),
+              icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+              label: const Text('YouTube Music'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => _open(_listenUrl('spotify', query)),
+              icon: const Icon(Icons.graphic_eq_rounded, size: 18),
+              label: const Text('Spotify'),
+            ),
+            if (apple != null)
+              OutlinedButton.icon(
+                onPressed: () => _open(apple),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: const Text('Apple Music'),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+String _yearOf(Object? date) => '$date'.length >= 4 ? '$date'.substring(0, 4) : '$date';
+
+// ---- movies and TV -------------------------------------------------------------
+
+class _PosterTile extends StatelessWidget {
+  const _PosterTile({required this.item, required this.movie});
+  final Map<String, dynamic> item;
+  final bool movie;
+
+  @override
+  Widget build(BuildContext context) {
+    final year = movie ? item['year'] : _yearOf(item['premiered'] ?? '');
+    final rating = movie ? item['runtime'] : item['rating'];
+    return SizedBox(
+      width: 132,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Radii.m),
+        onTap: () => showScreen(context, item, movie: movie),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                _Net(item['poster'] as String?, width: 132, height: 192, placeholder: movie ? Icons.movie_outlined : Icons.live_tv_rounded),
+                if (rating != null)
+                  Positioned(
+                    left: 6,
+                    top: 6,
+                    child: _Chip(
+                      '$rating',
+                      icon: movie ? null : Icons.star_rounded,
+                      color: movie ? AppColors.text : AppColors.warning,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${item['title']}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.2),
+            ),
+            Text(
+              [if ('$year'.isNotEmpty) year, movie ? item['genre'] : item['network']].whereType<Object>().join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.text.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScreenHero extends StatelessWidget {
+  const _ScreenHero({required this.item, required this.movie});
+  final Map<String, dynamic> item;
+  final bool movie;
+
+  @override
+  Widget build(BuildContext context) => _Shell(
+    onTap: () => showScreen(context, item, movie: movie),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Net(item['poster'] as String?, width: 88, height: 130, placeholder: movie ? Icons.movie_outlined : Icons.live_tv_rounded),
+        const SizedBox(width: Space.m),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${item['title']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: context.text.titleMedium),
+              Text(
+                movie
+                    ? [item['year'], item['director'], item['runtime']].whereType<Object>().join(' · ')
+                    : [item['network'], item['status']].whereType<Object>().join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.text.bodySmall,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${item['synopsis'] ?? item['summary'] ?? ''}',
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: AppColors.text2),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+void showScreen(BuildContext context, Map<String, dynamic> item, {required bool movie}) => _sheet(
+  context,
+  (scroll) => _Loaded(
+    tool: movie ? 'movie_details' : 'tv_show',
+    args: movie ? {'movie_id': item['movie_id']} : {'show_id': item['show_id']},
+    initial: item,
+    builder: (m, loading) => movie ? _MovieSheet(m: m, loading: loading, scroll: scroll) : _ShowSheet(s: m, loading: loading, scroll: scroll),
+  ),
+);
+
+class _MovieSheet extends StatelessWidget {
+  const _MovieSheet({required this.m, required this.loading, required this.scroll});
+  final Map<String, dynamic> m;
+  final bool loading;
+  final ScrollController scroll;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    controller: scroll,
+    padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.x4),
+    children: [
+      Center(child: _Net(m['poster'] as String?, width: 170, height: 252, radius: Radii.l, placeholder: Icons.movie_outlined)),
+      const SizedBox(height: Space.m),
+      Text('${m['title']}', textAlign: TextAlign.center, style: context.text.titleLarge),
+      if (m['director'] != null)
+        Text('Directed by ${m['director']}', textAlign: TextAlign.center, style: context.text.bodyMedium?.copyWith(color: AppColors.text2)),
+      const SizedBox(height: Space.s),
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          if (m['released'] != null) _Chip('${m['released']}', icon: Icons.event_outlined),
+          if (m['runtime'] != null) _Chip('${m['runtime']}', icon: Icons.schedule_rounded),
+          if (m['genre'] != null) _Chip('${m['genre']}'),
+          if (m['rated'] != null) _Chip('Rated ${m['rated']}', icon: Icons.shield_outlined),
+        ],
+      ),
+      if (loading) const Padding(padding: EdgeInsets.all(Space.l), child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+      _Buttons([
+        if (m['trailer'] != null)
+          FilledButton.icon(
+            onPressed: () => _open(m['trailer'] as String?),
+            icon: const Icon(Icons.play_circle_outline_rounded),
+            label: const Text('Watch the trailer'),
+          ),
+        if (m['imdb'] != null)
+          OutlinedButton.icon(
+            onPressed: () => _open(m['imdb'] as String?),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: const Text('IMDb'),
+          ),
+        if (m['wikipedia'] != null)
+          OutlinedButton.icon(
+            onPressed: () => _open(m['wikipedia'] as String?),
+            icon: const Icon(Icons.menu_book_outlined, size: 18),
+            label: const Text('Wikipedia'),
+          ),
+      ]),
+      if (m['synopsis'] != null) ...[
+        Text('SYNOPSIS', style: context.text.labelSmall),
+        const SizedBox(height: Space.xs),
+        _Expandable('${m['synopsis']}'),
+      ],
+      if ((m['cast'] as List?)?.isNotEmpty == true) ...[
+        const SizedBox(height: Space.m),
+        Text('CAST', style: context.text.labelSmall),
+        const SizedBox(height: Space.xs),
+        Wrap(spacing: 6, runSpacing: 6, children: [for (final c in m['cast'] as List) _Chip('$c', icon: Icons.person_outline_rounded)]),
+      ],
+      const SizedBox(height: Space.m),
+      for (final (label, key) in const [
+        ('Written by', 'writers'),
+        ('Country', 'country'),
+        ('Language', 'language'),
+        ('Budget', 'budget'),
+        ('Box office', 'box_office'),
+      ])
+        if (m[key] != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 96, child: Text(label, style: context.text.bodySmall)),
+                Expanded(child: Text('${m[key]}', style: const TextStyle(fontSize: 13.5))),
+              ],
+            ),
+          ),
+    ],
+  );
+}
+
+class _ShowSheet extends StatelessWidget {
+  const _ShowSheet({required this.s, required this.loading, required this.scroll});
+  final Map<String, dynamic> s;
+  final bool loading;
+  final ScrollController scroll;
+
+  @override
+  Widget build(BuildContext context) {
+    final seasons = [for (final x in (s['seasons'] as List? ?? const [])) if (x is Map) Map<String, dynamic>.from(x)];
+    final cast = [for (final x in (s['cast'] as List? ?? const [])) if (x is Map) Map<String, dynamic>.from(x)];
+    final next = s['next_episode'] is Map ? Map<String, dynamic>.from(s['next_episode'] as Map) : null;
+    final genres = [for (final g in (s['genres'] as List? ?? const [])) '$g'];
+    return ListView(
+      controller: scroll,
+      padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.x4),
+      children: [
+        Center(child: _Net(s['poster'] as String?, width: 170, height: 250, radius: Radii.l, placeholder: Icons.live_tv_rounded)),
+        const SizedBox(height: Space.m),
+        Text('${s['title']}', textAlign: TextAlign.center, style: context.text.titleLarge),
+        Text(
+          [s['network'], '${_yearOf(s['premiered'] ?? '')}${s['ended'] != null ? '–${_yearOf(s['ended'])}' : (s['status'] == 'Running' ? '–now' : '')}']
+              .whereType<Object>()
+              .where((x) => '$x'.isNotEmpty)
+              .join(' · '),
+          textAlign: TextAlign.center,
+          style: context.text.bodyMedium?.copyWith(color: AppColors.text2),
+        ),
+        const SizedBox(height: Space.s),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            if (s['rating'] != null) _Chip('${s['rating']}', icon: Icons.star_rounded, color: AppColors.warning),
+            if (s['status'] != null) _Chip('${s['status']}', color: s['status'] == 'Running' ? AppColors.success : null),
+            if (s['episode_length'] != null) _Chip('${s['episode_length']}', icon: Icons.schedule_rounded),
+            for (final g in genres) _Chip(g),
+          ],
+        ),
+        if (loading) const Padding(padding: EdgeInsets.all(Space.l), child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+        if (next != null)
+          Container(
+            margin: const EdgeInsets.only(top: Space.m),
+            padding: const EdgeInsets.all(Space.m),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(Radii.m),
+              border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.upcoming_outlined, color: AppColors.success),
+                const SizedBox(width: Space.m),
+                Expanded(
+                  child: Text(
+                    'Next: S${next['season']}E${next['episode']} “${next['title']}”${next['airs'] != null ? ' · ${next['airs']}' : ''}',
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (s['summary'] != null) ...[
+          const SizedBox(height: Space.m),
+          _Expandable('${s['summary']}'),
+        ],
+        if (cast.isNotEmpty) ...[
+          const SizedBox(height: Space.m),
+          Text('CAST', style: context.text.labelSmall),
+          const SizedBox(height: Space.s),
+          SizedBox(
+            height: 128,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: cast.length,
+              separatorBuilder: (_, _) => const SizedBox(width: Space.m),
+              itemBuilder: (_, i) => SizedBox(
+                width: 76,
+                child: Column(
+                  children: [
+                    ClipOval(child: _Net(cast[i]['photo'] as String?, width: 64, height: 64, radius: 0, placeholder: Icons.person_outline_rounded)),
+                    const SizedBox(height: 4),
+                    Text('${cast[i]['actor'] ?? ''}', maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    Text('${cast[i]['as'] ?? ''}', maxLines: 1, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: context.text.labelSmall),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+        if (seasons.isNotEmpty) ...[
+          const SizedBox(height: Space.m),
+          Text('SEASONS · ${seasons.length}', style: context.text.labelSmall),
+          const SizedBox(height: Space.s),
+          for (final x in seasons)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  _Net(x['poster'] as String?, width: 36, height: 52, radius: Radii.s, placeholder: Icons.live_tv_rounded),
+                  const SizedBox(width: Space.m),
+                  Expanded(child: Text('Season ${x['season']}', style: const TextStyle(fontWeight: FontWeight.w600))),
+                  Text(
+                    [
+                      if (x['episodes'] != null) '${x['episodes']} episodes',
+                      if (x['from'] != null) _yearOf(x['from']),
+                    ].join(' · '),
+                    style: context.text.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+        ],
+        _Buttons([
+          if (s['url'] != null)
+            OutlinedButton.icon(
+              onPressed: () => _open(s['url'] as String?),
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const Text('TVmaze'),
+            ),
+          if (s['official_site'] != null)
+            OutlinedButton.icon(
+              onPressed: () => _open(s['official_site'] as String?),
+              icon: const Icon(Icons.public_rounded, size: 18),
+              label: const Text('Official site'),
+            ),
+        ]),
       ],
     );
   }

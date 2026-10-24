@@ -6,7 +6,12 @@ import '../../app/theme.dart';
 
 /// The mark: a white triangle on black, the same as the launcher icon.
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.size = 32, this.color = Colors.white, this.background = Colors.black});
+  const BrandMark({
+    super.key,
+    this.size = 32,
+    this.color = Colors.white,
+    this.background = Colors.black,
+  });
   final double size;
   final Color color;
 
@@ -25,6 +30,46 @@ class BrandMark extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
     child: CustomPaint(painter: _TrianglePainter(color)),
+  );
+}
+
+/// The mark's optional little bit of mischief. It is kept separate from
+/// [BrandMark] so the app's normal, quiet branding never animates unless the
+/// person explicitly turns it on in Settings.
+class RainbowBrandMark extends StatefulWidget {
+  const RainbowBrandMark({
+    super.key,
+    this.size = 32,
+    this.background = Colors.black,
+  });
+  final double size;
+  final Color? background;
+
+  @override
+  State<RainbowBrandMark> createState() => _RainbowBrandMarkState();
+}
+
+class _RainbowBrandMarkState extends State<RainbowBrandMark>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _hue = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 7),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _hue.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _hue,
+    builder: (_, _) => BrandMark(
+      size: widget.size,
+      background: widget.background,
+      color: HSVColor.fromAHSV(1, _hue.value * 360, 0.72, 1).toColor(),
+    ),
   );
 }
 
@@ -50,8 +95,17 @@ class _TrianglePainter extends CustomPainter {
     final side = size.width * 0.52;
     final inradius = side / (2 * math.sqrt(3));
     final stroke = math.max(1.2, side * 0.085);
-    final outline = Path.combine(PathOperation.difference, tri(side), tri(side * (inradius - stroke) / inradius));
-    canvas.drawPath(outline, Paint()..color = color..isAntiAlias = true);
+    final outline = Path.combine(
+      PathOperation.difference,
+      tri(side),
+      tri(side * (inradius - stroke) / inradius),
+    );
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..color = color
+        ..isAntiAlias = true,
+    );
   }
 
   @override
@@ -69,7 +123,10 @@ class BrandLockup extends StatelessWidget {
       children: [
         BrandMark(size: markSize),
         const SizedBox(width: Space.s + 2),
-        Text('TeleAI', style: context.text.titleMedium?.copyWith(letterSpacing: -0.2)),
+        Text(
+          'TeleAI',
+          style: context.text.titleMedium?.copyWith(letterSpacing: -0.2),
+        ),
       ],
     );
   }
@@ -84,7 +141,9 @@ class PencilIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomPaint(
     size: Size.square(size),
-    painter: _PencilPainter(color ?? IconTheme.of(context).color ?? AppColors.text),
+    painter: _PencilPainter(
+      color ?? IconTheme.of(context).color ?? AppColors.text,
+    ),
   );
 }
 

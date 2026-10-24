@@ -305,7 +305,7 @@ extension AccountTools on TelegramToolRunner {
         await _client.send<td.Ok>(td.SetReadDatePrivacySettings(settings: td.ReadDatePrivacySettings(showReadDate: on)), limited: true);
       } else {
         await _client.send<td.Ok>(
-          td.SetNewChatPrivacySettings(settings: td.NewChatPrivacySettings(allowNewChatsFromUnknownUsers: on)),
+          td.SetNewChatPrivacySettings(settings: td.NewChatPrivacySettings(allowNewChatsFromUnknownUsers: on, incomingPaidMessageStarCount: 0)),
           limited: true,
         );
       }

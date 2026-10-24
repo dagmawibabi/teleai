@@ -67,9 +67,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _reportVisibility();
   }
 
+  /// Whether the app was closed outright (swiped away or backed out of).
+  bool _closed = false;
+
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) =>
-      _reportVisibility();
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _reportVisibility();
+    switch (state) {
+      case AppLifecycleState.detached:
+        // The engine lives on (for watches), but to the person the app was
+        // closed: opening it again starts a new chat. Switching to another
+        // app and back keeps the chat that was open, however long it took.
+        _closed = true;
+      case AppLifecycleState.resumed when _closed:
+        _closed = false;
+        ref.read(chatControllerProvider.notifier).freshStart();
+        _input.clear();
+      default:
+        break;
+    }
+  }
 
   final _input = TextEditingController();
   final _focus = FocusNode();
@@ -474,6 +491,18 @@ class _EmptyState extends StatelessWidget {
     (Icons.smart_display_outlined, 'What are the latest videos on the Flutter YouTube channel?'),
     (Icons.ondemand_video_rounded, 'Summarise this YouTube video from its description and chapters.'),
     (Icons.alternate_email_rounded, 'Show me the X profile of @NASA.'),
+    (Icons.table_chart_outlined, 'Send my Saved Messages a table comparing the last 3 iPhones.'),
+    (Icons.forum_outlined, 'Who has messaged my channel directly? Any unanswered?'),
+    (Icons.waving_hand_outlined, 'Set a friendly welcome message for new members of my group.'),
+    (Icons.sticky_note_2_outlined, 'Add a private note to my last contact: met at the hackathon.'),
+    (Icons.library_music_outlined, 'What songs are on my profile music?'),
+    (Icons.stream_rounded, 'Have my bot send me a message, typed out live.'),
+    (Icons.label_outline_rounded, 'Tag the admins in my group as "Mod".'),
+    (Icons.done_all_rounded, 'Did Liya read my last message? When?'),
+    (Icons.circle_notifications_outlined, 'Tell me when my brother comes online.'),
+    (Icons.library_music_outlined, 'Play me previews of Tems\' best songs.'),
+    (Icons.movie_outlined, 'Tell me about the movie Arrival: cast, runtime, trailer.'),
+    (Icons.live_tv_rounded, 'When is the next episode of Severance?'),
   ];
 
   List<(IconData, String)> get _suggestions {

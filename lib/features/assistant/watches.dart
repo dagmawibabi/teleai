@@ -44,6 +44,7 @@ class Watch {
     this.folderId,
     this.instructions = '',
     this.includeMuted = true,
+    this.notify = true,
     this.dailyAt,
     this.everyMinutes,
     this.conversationId,
@@ -64,6 +65,10 @@ class Watch {
   final String instructions;
   final bool includeMuted;
 
+  /// Alerts the person when it fires. Off, it runs quietly in the
+  /// background: results land in its conversation, with no notification.
+  final bool notify;
+
   /// For [WatchScope.schedule]: "HH:MM" local time each day, or a period.
   final String? dailyAt;
   final int? everyMinutes;
@@ -83,6 +88,7 @@ class Watch {
     int? folderId,
     String? instructions,
     bool? includeMuted,
+    bool? notify,
     String? dailyAt,
     int? everyMinutes,
     String? conversationId,
@@ -98,6 +104,7 @@ class Watch {
     folderId: folderId ?? this.folderId,
     instructions: instructions ?? this.instructions,
     includeMuted: includeMuted ?? this.includeMuted,
+    notify: notify ?? this.notify,
     dailyAt: dailyAt ?? this.dailyAt,
     everyMinutes: everyMinutes ?? this.everyMinutes,
     conversationId: conversationId ?? this.conversationId,
@@ -116,6 +123,7 @@ class Watch {
     'folder_id': folderId,
     'instructions': instructions,
     'include_muted': includeMuted,
+    'notify': notify,
     'daily_at': dailyAt,
     'every_minutes': everyMinutes,
     'conversation_id': conversationId,
@@ -134,6 +142,7 @@ class Watch {
     folderId: (j['folder_id'] as num?)?.toInt(),
     instructions: j['instructions'] ?? '',
     includeMuted: j['include_muted'] ?? true,
+    notify: j['notify'] ?? true,
     dailyAt: j['daily_at'],
     everyMinutes: (j['every_minutes'] as num?)?.toInt(),
     conversationId: j['conversation_id'],
@@ -155,6 +164,7 @@ class Watch {
     'mode': mode.name,
     if (instructions.isNotEmpty) 'instructions': instructions,
     if (!includeMuted) 'include_muted': false,
+    if (!notify) 'notify': false,
     'runs': runs,
     if (lastRunAt != null) 'last_run': lastRunAt!.toIso8601String().substring(0, 16),
   };

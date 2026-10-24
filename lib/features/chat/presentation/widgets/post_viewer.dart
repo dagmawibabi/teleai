@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +23,8 @@ import '../../../telegram/presentation/link_preview_card.dart';
 import '../../../telegram/presentation/media_viewer.dart';
 import '../../../telegram/presentation/message_tile.dart';
 import '../../domain/chat_models.dart';
-import '../../../telegram/presentation/link_opener.dart';
+import '../../../telegram/presentation/formatted_text.dart';
+import '../../../../infrastructure/telegram/td_compat.dart';
 
 IconData kindIcon(String kind) => switch (kind) {
   'photo' => Icons.image_outlined,
@@ -477,7 +477,7 @@ class _PostViewState extends ConsumerState<PostView> {
             Text(gist.detail!, style: context.text.bodyMedium?.copyWith(color: AppColors.text2)),
           ],
         ] else if (gist?.formatted != null && gist!.formatted!.text.isNotEmpty)
-          SelectableText.rich(_formatted(gist.formatted!), style: context.text.bodyLarge)
+          SelectableText.rich(formattedSpan(gist.formatted!, selectable: true), style: context.text.bodyLarge)
         else if (bodyText.isNotEmpty)
           SelectableText(bodyText, style: context.text.bodyLarge),
         if (preview != null) LinkPreviewCard(preview: preview),
@@ -554,7 +554,7 @@ class _PostViewState extends ConsumerState<PostView> {
             _Detail('Disappears', m.selfDestructIn > 0 ? 'in ${m.selfDestructIn.round()}s' : 'after opening'),
           if (m.autoDeleteIn > 0) _Detail('Auto-deletes', 'in ${_span(m.autoDeleteIn.round())}'),
           if (!m.canBeSaved) const _Detail('Protected', 'Can\'t be forwarded or saved'),
-          if (m.hasSensitiveContent) const _Detail('Sensitive', 'Marked sensitive'),
+          if (m.restrictionInfo?.hasSensitiveContent == true) const _Detail('Sensitive', 'Marked sensitive'),
           if (m.restrictionReason.isNotEmpty) _Detail('Restricted', m.restrictionReason),
           if (m.factCheck case final fc?) _Detail('Fact check', fc.text.text),
           if (m.containsUnreadMention) const _Detail('Mention', 'Unread mention of you'),
@@ -624,70 +624,6 @@ class _PostViewState extends ConsumerState<PostView> {
       '${store.chat(chatId)?.title ?? chatId}, post $messageId${authorSignature.isEmpty ? '' : ' ($authorSignature)'}',
   };
 
-  /// Telegram's entities as text styles; links open in the browser.
-  TextSpan _formatted(td.FormattedText f) {
-    final text = f.text;
-    if (f.entities.isEmpty) return TextSpan(text: text);
-    final spans = <InlineSpan>[];
-    var at = 0;
-    final entities = [...f.entities]
-      ..sort((a, b) => a.offset.compareTo(b.offset));
-    for (final e in entities) {
-      if (e.offset < at || e.offset + e.length > text.length) continue;
-      if (e.offset > at)
-        spans.add(TextSpan(text: text.substring(at, e.offset)));
-      final piece = text.substring(e.offset, e.offset + e.length);
-      String? url;
-      TextStyle? style;
-      switch (e.type) {
-        case td.TextEntityTypeBold():
-          style = const TextStyle(fontWeight: FontWeight.w700);
-        case td.TextEntityTypeItalic():
-          style = const TextStyle(fontStyle: FontStyle.italic);
-        case td.TextEntityTypeUnderline():
-          style = const TextStyle(decoration: TextDecoration.underline);
-        case td.TextEntityTypeStrikethrough():
-          style = const TextStyle(decoration: TextDecoration.lineThrough);
-        case td.TextEntityTypeCode() ||
-            td.TextEntityTypePre() ||
-            td.TextEntityTypePreCode():
-          style = const TextStyle(
-            fontFamily: 'monospace',
-            backgroundColor: AppColors.surface2,
-          );
-        case td.TextEntityTypeUrl():
-          url = piece.startsWith('http') ? piece : 'https://$piece';
-        case td.TextEntityTypeTextUrl(url: final u):
-          url = u;
-        case td.TextEntityTypeMention():
-          url = 'https://t.me/${piece.replaceFirst('@', '')}';
-        case td.TextEntityTypeBlockQuote() ||
-            td.TextEntityTypeExpandableBlockQuote():
-          style = const TextStyle(
-            color: AppColors.text2,
-            fontStyle: FontStyle.italic,
-          );
-        default:
-          break;
-      }
-      if (url != null) {
-        final target = url;
-        spans.add(
-          TextSpan(
-            text: piece,
-            style: TextStyle(color: AppColors.accent),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () => openUrl(target),
-          ),
-        );
-      } else {
-        spans.add(TextSpan(text: piece, style: style));
-      }
-      at = e.offset + e.length;
-    }
-    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
-    return TextSpan(children: spans);
-  }
 }
 
 /// A full player inside an AI-cited post, backed by the same queue and

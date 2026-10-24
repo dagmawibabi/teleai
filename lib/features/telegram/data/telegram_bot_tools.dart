@@ -48,6 +48,8 @@ String _inlineKind(td.InlineKeyboardButtonType t) => switch (t) {
   td.InlineKeyboardButtonTypeSwitchInline() => 'switch_inline',
   td.InlineKeyboardButtonTypeBuy() => 'buy',
   td.InlineKeyboardButtonTypeUser() => 'user',
+  td.InlineKeyboardButtonTypeCopyText() => 'copy_text',
+  td.InlineKeyboardButtonTypeDisabled() => 'disabled',
 };
 
 /// The buttons a message carries, flattened.
@@ -81,7 +83,7 @@ extension TelegramBots on TelegramToolRunner {
       final sent = await _client.send<td.Message>(
         td.SendMessage(
           chatId: m.chatId,
-          messageThreadId: m.messageThreadId,
+          topicId: m.topicId,
           replyTo: null,
           options: null,
           replyMarkup: null,

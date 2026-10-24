@@ -192,3 +192,175 @@ Future<bool> confirm(
       ),
     ) ??
     false;
+
+/// A row in a [Group], lined up with its dividers: a 36px badge 16px in,
+/// text at 64px, and a trailing slot. ListTile's spacing doesn't match the
+/// dividers' indent, so the pages use this instead.
+class Tile extends StatelessWidget {
+  const Tile({
+    super.key,
+    required this.leading,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.below,
+    this.onTap,
+    this.titleColor,
+  });
+  final Widget leading;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+
+  /// Under the text, full width of it: a meter, chips…
+  final Widget? below;
+  final VoidCallback? onTap;
+  final Color? titleColor;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.m, Space.m),
+      child: Row(
+        children: [
+          SizedBox(width: 36, child: Center(child: leading)),
+          const SizedBox(width: Space.m),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.text.bodyLarge?.copyWith(color: titleColor, fontSize: 15),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(subtitle!, style: context.text.bodySmall),
+                ],
+                if (below != null) ...[const SizedBox(height: 7), below!],
+              ],
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: Space.s), trailing!],
+        ],
+      ),
+    ),
+  );
+}
+
+/// A figure in a fixed-width, right-aligned column, so rows line up.
+class Figure extends StatelessWidget {
+  const Figure(this.text, {super.key, this.width = 72, this.color, this.bold = false});
+  final String text;
+  final double width;
+  final Color? color;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: width,
+    child: Text(
+      text,
+      textAlign: TextAlign.right,
+      maxLines: 1,
+      style: context.text.bodySmall?.copyWith(
+        color: color ?? AppColors.text2,
+        fontFeatures: tabularFigures,
+        fontWeight: bold ? FontWeight.w600 : null,
+      ),
+    ),
+  );
+}
+
+/// A coloured dot, a name and a figure: a chart's legend line.
+class LegendRow extends StatelessWidget {
+  const LegendRow({super.key, required this.color, required this.label, required this.value});
+  final Color color;
+  final String label, value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: Space.s),
+        Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.text.bodySmall)),
+        Text(value, style: context.text.bodySmall?.copyWith(color: AppColors.text, fontFeatures: tabularFigures)),
+      ],
+    ),
+  );
+}
+
+/// Small figures side by side under a summary: value over label.
+class StatStrip extends StatelessWidget {
+  const StatStrip({super.key, required this.stats});
+  final List<(String, String)> stats;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: Space.m),
+    decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.m)),
+    child: Row(
+      children: [
+        for (final (i, (value, label)) in stats.indexed) ...[
+          if (i > 0) Container(width: 1, height: 28, color: AppColors.line),
+          Expanded(
+            child: Column(
+              children: [
+                Text(value, style: context.text.titleSmall?.copyWith(fontFeatures: tabularFigures)),
+                const SizedBox(height: 2),
+                Text(label, style: context.text.labelSmall, textAlign: TextAlign.center),
+              ],
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+/// Waiting for something, centred.
+class LoadingState extends StatelessWidget {
+  const LoadingState(this.label, {super.key});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2)),
+        const SizedBox(height: Space.m),
+        Text(label, style: context.text.bodySmall),
+      ],
+    ),
+  );
+}
+
+/// Something failed, with a way to try again.
+class ErrorState extends StatelessWidget {
+  const ErrorState(this.message, {super.key, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_rounded, size: 36, color: AppColors.text3),
+          const SizedBox(height: Space.m),
+          Text(message, textAlign: TextAlign.center, style: context.text.bodySmall),
+          const SizedBox(height: Space.m),
+          OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+        ],
+      ),
+    ),
+  );
+}

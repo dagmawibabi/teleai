@@ -1,4 +1,5 @@
 import 'package:handy_tdlib/api.dart' as td;
+import 'rich_message.dart';
 
 /// A message's content reduced to what a reader (or the model) needs.
 class MessageGist {
@@ -19,6 +20,11 @@ class MessageGist {
 }
 
 MessageGist gistOf(td.MessageContent content) => switch (content) {
+  td.MessageRichMessage(:final message) => MessageGist(
+    kind: 'rich',
+    text: richMessageMarkdown(message),
+    detail: richMessagePreview(message),
+  ),
   td.MessageText(:final text, :final linkPreview) => MessageGist(
     kind: 'text',
     text: text.text,
@@ -173,6 +179,7 @@ td.InputTextQuote? buildQuote(td.FormattedText body, String wanted, {int maxLeng
   ];
   return td.InputTextQuote(
     text: td.FormattedText(text: source.substring(start, end), entities: entities),
+    richTexts: const [],
     position: start,
   );
 }

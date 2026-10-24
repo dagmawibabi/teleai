@@ -1,6 +1,8 @@
 import '../brief/brief_store.dart';
+
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +18,10 @@ import '../telegram/data/message_content.dart';
 import '../telegram/data/telegram_store.dart';
 import '../voice/speaker.dart';
 import 'notifications.dart';
+import 'online_alerts.dart';
 import 'reminders.dart';
 import 'watches.dart';
+import '../../infrastructure/telegram/td_compat.dart';
 
 /// What the engine has been doing, for the Watches screen.
 @immutable
@@ -29,8 +33,12 @@ class WatchStatus {
     this.opened = 0,
     this.last,
     this.error,
+    this.background = false,
   });
   final bool listening;
+
+  /// Whether the background service is keeping the app alive.
+  final bool background;
 
   /// New messages from others seen since the app started.
   final int heard;
@@ -48,7 +56,9 @@ class WatchStatus {
     int? opened,
     String? last,
     String? error,
+    bool? background,
   }) => WatchStatus(
+    background: background ?? this.background,
     listening: listening ?? this.listening,
     heard: heard ?? this.heard,
     matched: matched ?? this.matched,
@@ -91,10 +101,20 @@ class WatchEngine {
   final Set<int> _opened = {};
   final Object _openChatOwner = Object();
 
-  /// A burst of messages is handled together once it goes quiet for this
-  /// long, but never later than [_maxWait] after the first.
-  static const _quiet = Duration(seconds: 12);
-  static const _maxWait = Duration(seconds: 45);
+  /// A burst of messages is handled together once it goes quiet for the
+  /// response delay chosen in Automation. A sustained burst still gets a
+  /// response after at most four such windows (at least 45 seconds, at most
+  /// a day), and never sooner than the delay itself.
+  Duration get _quiet =>
+      Duration(seconds: _ref.read(settingsProvider).watchResponseDelaySeconds);
+  Duration get _maxWait {
+    final q = _quiet.inSeconds;
+    return Duration(seconds: math.max(q, (4 * q).clamp(45, 24 * 60 * 60).toInt()));
+  }
+
+  /// How soon a batch that arrived while its watch was busy is tried again.
+  /// Never zero: with "Immediately" that would spin until the run ends.
+  Duration get _busyRetry => _quiet < const Duration(seconds: 3) ? const Duration(seconds: 3) : _quiet;
 
   /// AI runs per watch per hour, so a busy group can't run up the bill.
   static const _maxRunsPerHour = 30;
@@ -112,6 +132,7 @@ class WatchEngine {
     _clock = Timer.periodic(const Duration(seconds: 30), (_) => _tick());
     _ref.listen(watchStoreProvider, (_, _) => _sync(), fireImmediately: true);
     _ref.listen(reminderStoreProvider, (_, _) => _sync());
+    _ref.listen(onlineAlertStoreProvider, (_, _) => _seedOnline(), fireImmediately: true);
     _ref.listen(settingsProvider, (_, _) => _sync());
     unawaited(_ref.read(appNotifierProvider).init());
     _ref.read(reminderStoreProvider.notifier).runJob = _runJob;
@@ -130,26 +151,37 @@ class WatchEngine {
       conversationId: r.conversationId,
       createdAt: r.createdAt,
     );
-    final result = await _ref.read(chatControllerProvider.notifier).runAutomatic(
-      job,
-      'Scheduled job "${r.text}" is due now${r.cron == null ? '' : ' (${Cron.describe(r.cron!)})'}. Do this: ${r.prompt}',
-    );
+    final result = await _ref
+        .read(chatControllerProvider.notifier)
+        .runAutomatic(
+          job,
+          'Scheduled job "${r.text}" is due now${r.cron == null ? '' : ' (${Cron.describe(r.cron!)})'}. Do this: ${r.prompt}',
+        );
     if (result == null) {
-      await _ref.read(appNotifierProvider).show(r.text, 'Couldn\'t run: add an AI key in Settings.');
+      await _ref
+          .read(appNotifierProvider)
+          .show(r.text, 'Couldn\'t run: add an AI key in Settings.');
       return;
     }
     if (r.conversationId == null) {
       await _ref
           .read(reminderStoreProvider.notifier)
-          .update(r.id, (x) => x.copyWith(conversationId: result.conversationId));
+          .update(
+            r.id,
+            (x) => x.copyWith(conversationId: result.conversationId),
+          );
     }
     if (result.seen) return;
     final text = Speaker.clean(result.text);
-    await _ref.read(appNotifierProvider).show(
-      r.text,
-      text.isEmpty ? 'Done.' : (text.length > 400 ? '${text.substring(0, 400)}…' : text),
-      conversationId: result.conversationId,
-    );
+    await _ref
+        .read(appNotifierProvider)
+        .show(
+          r.text,
+          text.isEmpty
+              ? 'Done.'
+              : (text.length > 400 ? '${text.substring(0, 400)}…' : text),
+          conversationId: result.conversationId,
+        );
   }
 
   void dispose() {
@@ -171,16 +203,10 @@ class WatchEngine {
     final s = _ref.read(settingsProvider);
     if (!s.loaded) return;
     final active = _active;
-    // Assistant jobs need the app alive at their time, like watches do.
-    final jobs = _ref.read(reminderStoreProvider).where((r) => r.enabled && r.isJob).length;
     final notifier = _ref.read(appNotifierProvider);
-    if ((active.isNotEmpty && s.notifications) || s.mentionAlerts)
+    if ((active.any((w) => w.notify) && s.notifications) || s.mentionAlerts)
       await notifier.requestPermission();
-    // Mention alerts need the app alive too, to hear the mention.
-    await notifier.keepAlive(
-      s.keepAlive && (active.isNotEmpty || (s.proactive && jobs > 0) || s.mentionAlerts),
-      watches: active.length + (s.proactive ? jobs : 0),
-    );
+    await _syncKeepAlive();
     final store = _ref.read(telegramStoreProvider);
     for (final w in active.where(
       (w) => w.scope == WatchScope.folder && w.folderId != null,
@@ -188,6 +214,32 @@ class WatchEngine {
       await store.loadFolder(w.folderId!).then((_) {}, onError: (_) {});
     }
     await _syncOpenChats();
+  }
+
+  /// Keeps the background service running when anything needs the app
+  /// alive: watches, jobs or mention alerts (which need it to hear the
+  /// mention), or always when the person asked for that. Watches don't
+  /// depend on the Notifications setting: that only decides whether they
+  /// alert.
+  Future<void> _syncKeepAlive() async {
+    final s = _ref.read(settingsProvider);
+    if (!s.loaded) return;
+    final active = _active;
+    final jobs = s.proactive
+        ? _ref
+              .read(reminderStoreProvider)
+              .where((r) => r.enabled && r.isJob)
+              .length
+        : 0;
+    final notifier = _ref.read(appNotifierProvider);
+    // Online alerts need the app alive too, to hear the status change.
+    final needed = active.isNotEmpty || jobs > 0 || s.mentionAlerts || _ref.read(onlineAlertStoreProvider).isNotEmpty;
+    await notifier.keepAlive(
+      s.backgroundAlways || (s.keepAlive && needed),
+      watches: active.length + jobs,
+    );
+    if (status.value.background != notifier.alive)
+      status.value = status.value.copyWith(background: notifier.alive);
   }
 
   /// Opens the groups and channels the watches cover, and closes ones no
@@ -268,17 +320,65 @@ class WatchEngine {
     };
   }
 
+  // ---- online alerts -------------------------------------------------------
+
+  /// Whether each alerted person was online at the last status heard, so
+  /// an alert fires when they come online, not every time Telegram repeats
+  /// that they are.
+  final Map<int, bool> _wasOnline = {};
+
+  /// New alerts start from what the app knows now: someone already online
+  /// when the alert is made fires next time they come online.
+  void _seedOnline() {
+    final store = _ref.read(telegramStoreProvider);
+    for (final a in _ref.read(onlineAlertStoreProvider)) {
+      _wasOnline.putIfAbsent(a.userId, () => store.users[a.userId]?.status is td.UserStatusOnline);
+    }
+    unawaited(_syncKeepAlive());
+  }
+
+  Future<void> _statusChanged(int userId, td.UserStatus status) async {
+    final online = status is td.UserStatusOnline;
+    final was = _wasOnline[userId] ?? false;
+    _wasOnline[userId] = online;
+    if (!online || was) return;
+    final alerts = _ref.read(onlineAlertStoreProvider.notifier);
+    final a = alerts.of(userId);
+    if (a == null) return;
+    // A repeating alert stays quiet for a while after it fires.
+    if (!a.once && a.lastFired != null && DateTime.now().difference(a.lastFired!) < const Duration(minutes: 15)) return;
+    final name = _ref.read(telegramStoreProvider).users.containsKey(userId)
+        ? _ref.read(telegramStoreProvider).userName(userId)
+        : a.name;
+    await alerts.fired(userId);
+    await _ref.read(appNotifierProvider).show(
+      '$name is online',
+      a.once ? 'Tap to open your chat.' : 'Tap to open your chat. You\'ll hear again next time they come online.',
+      // A private chat's id is the user's id.
+      conversationId: 'chat:$userId',
+    );
+  }
+
   void _onUpdate(td.TdObject u) {
     switch (u) {
+      case td.UpdateUserStatus(:final userId, :final status) when _wasOnline.containsKey(userId) || _ref.read(onlineAlertStoreProvider.notifier).of(userId) != null:
+        unawaited(_statusChanged(userId, status));
       case td.UpdateNewMessage(:final message):
         _consider(message);
-        if (message.containsUnreadMention && !message.isOutgoing) unawaited(_mentioned(message));
+        if (message.containsUnreadMention && !message.isOutgoing)
+          unawaited(_mentioned(message));
       case td.UpdateChatLastMessage(:final lastMessage?):
         _consider(lastMessage);
-      case td.UpdateChatUnreadMentionCount(:final chatId, :final unreadMentionCount):
+      case td.UpdateChatUnreadMentionCount(
+        :final chatId,
+        :final unreadMentionCount,
+      ):
         // Groups the app hasn't opened don't send their messages, but the
         // mention count always arrives: a rise means a new mention.
-        final before = _mentionCounts[chatId] ?? _ref.read(telegramStoreProvider).chat(chatId)?.unreadMentionCount ?? 0;
+        final before =
+            _mentionCounts[chatId] ??
+            _ref.read(telegramStoreProvider).chat(chatId)?.unreadMentionCount ??
+            0;
         _mentionCounts[chatId] = unreadMentionCount;
         if (unreadMentionCount > before) unawaited(_latestMention(chatId));
       default:
@@ -291,20 +391,21 @@ class WatchEngine {
 
   Future<void> _latestMention(int chatId) async {
     try {
-      final r = await _ref.read(telegramClientProvider).send<td.FoundChatMessages>(
-        td.SearchChatMessages(
-          chatId: chatId,
-          query: '',
-          senderId: null,
-          fromMessageId: 0,
-          offset: 0,
-          limit: 1,
-          filter: const td.SearchMessagesFilterUnreadMention(),
-          messageThreadId: 0,
-          savedMessagesTopicId: 0,
-        ),
-        limited: true,
-      );
+      final r = await _ref
+          .read(telegramClientProvider)
+          .send<td.FoundChatMessages>(
+            td.SearchChatMessages(
+              chatId: chatId,
+              query: '',
+              senderId: null,
+              fromMessageId: 0,
+              offset: 0,
+              limit: 1,
+              filter: const td.SearchMessagesFilterUnreadMention(),
+              topicId: null,
+            ),
+            limited: true,
+          );
       if (r.messages.isNotEmpty) await _mentioned(r.messages.first);
     } catch (e) {
       debugPrint('[Mentions] $chatId: $e');
@@ -323,11 +424,13 @@ class WatchEngine {
     final who = store.senderName(m.senderId);
     final g = gistOf(m.content);
     final text = g.text.isNotEmpty ? g.text : (g.detail ?? g.kind);
-    await _ref.read(appNotifierProvider).show(
-      '$who mentioned you in $chat',
-      text.length > 300 ? '${text.substring(0, 300)}…' : text,
-      conversationId: 'chat:${m.chatId}',
-    );
+    await _ref
+        .read(appNotifierProvider)
+        .show(
+          '$who mentioned you in $chat',
+          text.length > 300 ? '${text.substring(0, 300)}…' : text,
+          conversationId: 'chat:${m.chatId}',
+        );
   }
 
   void _consider(td.Message m) {
@@ -366,6 +469,7 @@ class WatchEngine {
   }
 
   void _tick() {
+    unawaited(_syncKeepAlive());
     unawaited(_syncOpenChats());
     unawaited(_ref.read(briefStoreProvider.notifier).tick());
     unawaited(_ref.read(reminderStoreProvider.notifier).tick());
@@ -405,7 +509,7 @@ class WatchEngine {
       _pending[key] = [...messages, ...?_pending[key]];
       _firstPending[key] ??= DateTime.now();
       _debounce[key]?.cancel();
-      _debounce[key] = Timer(_quiet, () => _flush(key));
+      _debounce[key] = Timer(_busyRetry, () => _flush(key));
       return;
     }
     await _fire(w, messages);
@@ -442,7 +546,32 @@ class WatchEngine {
     final kind = chat == null ? null : store.kindOf(chat);
     final who = kind == ChatKind.channel ? null : store.senderName(m.senderId);
     final text = g.text.isNotEmpty ? g.text : (g.detail ?? g.kind);
-    return '${who == null ? '' : '$who: '}${g.kind == 'text' ? '' : '[${g.kind}] '}$text';
+    return '${who == null ? '' : '$who: '}${g.kind == 'text' ? '' : '[${g.kind}] '}$text${_replied[m.id] ?? ''}';
+  }
+
+  /// What each pending message replies to, as " (replying to …)".
+  final Map<int, String> _replied = {};
+
+  /// Looks up the messages [messages] reply to, so the assistant knows what
+  /// someone is answering ("yes" to which question?).
+  Future<void> _loadReplies(List<td.Message> messages, TelegramStore store) async {
+    final client = _ref.read(telegramClientProvider);
+    for (final m in messages.take(12)) {
+      final r = m.replyTo;
+      if (r is! td.MessageReplyToMessage || r.messageId == 0 || _replied.containsKey(m.id)) continue;
+      final quote = r.quote?.text.text ?? '';
+      try {
+        final o = await client.send<td.Message>(td.GetRepliedMessage(chatId: m.chatId, messageId: m.id), limited: true);
+        final g = gistOf(o.content);
+        final said = g.text.isNotEmpty ? g.text : (g.detail ?? g.kind);
+        final who = o.isOutgoing ? 'you (the user)' : store.senderName(o.senderId);
+        _replied[m.id] =
+            ' (replying to $who, message_id ${o.id}: "${_clip(said, 160)}"${quote.isEmpty ? '' : ', quoting "${_clip(quote, 120)}"'})';
+      } catch (_) {
+        if (quote.isNotEmpty) _replied[m.id] = ' (replying, quoting "${_clip(quote, 120)}")';
+      }
+    }
+    if (_replied.length > 500) _replied.remove(_replied.keys.first);
   }
 
   PostSnapshot _snapshot(td.Message m, TelegramStore store) {
@@ -479,6 +608,7 @@ class WatchEngine {
             w.id,
             (x) => x.copyWith(lastRunAt: DateTime.now(), runs: x.runs + 1),
           );
+      await _loadReplies(messages, store);
       final chats = {for (final m in messages) m.chatId};
       final where = chats.length == 1
           ? (store.chat(chats.first)?.title ?? 'a chat')
@@ -499,7 +629,7 @@ class WatchEngine {
         final placed = await controller.postNotice(w, event, markdown, [
           for (final m in messages) _snapshot(m, store),
         ]);
-        if (settings.notifications && !placed.seen) {
+        if (settings.notifications && w.notify && !placed.seen) {
           final body = [
             for (final m in messages.take(6))
               '${chats.length > 1 ? '${store.chat(m.chatId)?.title ?? ''} · ' : ''}${_line(m, store)}',
@@ -520,7 +650,7 @@ class WatchEngine {
         status.value = status.value.copyWith(
           error: '${w.name} paused for this hour after $_maxRunsPerHour runs',
         );
-        if (settings.notifications)
+        if (settings.notifications && w.notify)
           await notifier.show(
             w.name,
             'Paused for this hour: it already ran $_maxRunsPerHour times.',
@@ -544,7 +674,7 @@ class WatchEngine {
         );
         return;
       }
-      if (!settings.notifications || result.seen) return;
+      if (!settings.notifications || !w.notify || result.seen) return;
       final text = Speaker.clean(result.text);
       await notifier.show(
         w.name,

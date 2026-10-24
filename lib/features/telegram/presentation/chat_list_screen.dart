@@ -366,7 +366,7 @@ class ChatTile extends ConsumerWidget {
     String preview = '';
     if (last != null) {
       final g = gistOf(last.content);
-      final body = g.text.isNotEmpty ? g.text : (g.detail ?? g.kind);
+      final body = g.kind == 'rich' ? (g.detail ?? '') : (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind));
       final who = kind == ChatKind.group
           ? (last.isOutgoing
                 ? 'You: '
@@ -488,6 +488,7 @@ class ChatTile extends ConsumerWidget {
     'audio' => '🎵',
     'document' => '📎',
     'poll' => '📊',
+    'rich' => '📰',
     'sticker' => '',
     _ => '',
   };

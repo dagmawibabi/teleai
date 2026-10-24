@@ -147,27 +147,59 @@ extension StarTools on TelegramToolRunner {
     return ToolOutput(out);
   }
 
-  String _partner(td.StarTransactionPartner p) => switch (p) {
-    td.StarTransactionPartnerTelegram() => 'Telegram',
-    td.StarTransactionPartnerAppStore() => 'App Store purchase',
-    td.StarTransactionPartnerGooglePlay() => 'Google Play purchase',
-    td.StarTransactionPartnerFragment() => 'Fragment',
-    td.StarTransactionPartnerTelegramAds() => 'Telegram Ads',
-    td.StarTransactionPartnerBot(:final userId, :final purpose) => '${_store.userName(userId)} (bot, ${switch (purpose) {
-      td.BotTransactionPurposePaidMedia() => 'paid media',
-      td.BotTransactionPurposeInvoicePayment() => 'payment',
-    }})',
-    td.StarTransactionPartnerBusiness(:final userId) => '${_store.userName(userId)} (paid media)',
-    td.StarTransactionPartnerChat(:final chatId, :final purpose) => '${_store.chat(chatId)?.title ?? 'chat $chatId'} (${switch (purpose) {
-      td.ChatTransactionPurposePaidMedia() => 'paid media',
-      td.ChatTransactionPurposeJoin() => 'subscription',
-      td.ChatTransactionPurposeReaction() => 'star reaction',
-      td.ChatTransactionPurposeGiveaway() => 'giveaway',
-    }})',
-    td.StarTransactionPartnerUser(:final userId, :final sticker) =>
-      '${_store.userName(userId)}${sticker == null ? '' : ' (gift ${sticker.emoji})'}',
-    td.StarTransactionPartnerUnsupported() => 'other',
-  };
+  /// What a Star transaction was, in a few words.
+  String _transaction(td.StarTransactionType t) {
+    String user(int id) => _store.userName(id);
+    String chat(int id) => _store.chat(id)?.title ?? 'chat $id';
+    String sender(td.MessageSender s) => _store.senderName(s);
+    return switch (t) {
+      td.StarTransactionTypePremiumBotDeposit() => 'Bought from @PremiumBot',
+      td.StarTransactionTypeAppStoreDeposit() => 'Bought on the App Store',
+      td.StarTransactionTypeGooglePlayDeposit() => 'Bought on Google Play',
+      td.StarTransactionTypeFragmentDeposit() => 'Bought on Fragment',
+      td.StarTransactionTypeUserDeposit(:final userId) => 'Gift from ${user(userId)}',
+      td.StarTransactionTypeGiveawayDeposit(:final chatId) => 'Giveaway in ${chat(chatId)}',
+      td.StarTransactionTypeFragmentWithdrawal() => 'Withdrawn to Fragment',
+      td.StarTransactionTypeTelegramAdsWithdrawal() => 'Moved to Telegram Ads',
+      td.StarTransactionTypeTelegramApiUsage(:final requestCount) => 'Telegram API use ($requestCount requests)',
+      td.StarTransactionTypeBotPaidMediaPurchase(:final userId) => 'Paid media from bot ${user(userId)}',
+      td.StarTransactionTypeBotPaidMediaSale(:final userId) => 'Paid media sold to ${user(userId)}',
+      td.StarTransactionTypeChannelPaidMediaPurchase(:final chatId) => 'Paid media in ${chat(chatId)}',
+      td.StarTransactionTypeChannelPaidMediaSale(:final userId) => 'Paid media sold to ${user(userId)}',
+      td.StarTransactionTypeBotInvoicePurchase(:final userId) => 'Payment to bot ${user(userId)}',
+      td.StarTransactionTypeBotInvoiceSale(:final userId) => 'Payment from ${user(userId)}',
+      td.StarTransactionTypeBotSubscriptionPurchase(:final userId) => 'Subscription to bot ${user(userId)}',
+      td.StarTransactionTypeBotSubscriptionSale(:final userId) => 'Subscription from ${user(userId)}',
+      td.StarTransactionTypeChannelSubscriptionPurchase(:final chatId) => 'Subscription to ${chat(chatId)}',
+      td.StarTransactionTypeChannelSubscriptionSale(:final userId) => 'Subscription from ${user(userId)}',
+      td.StarTransactionTypeGiftAuctionBid(:final ownerId) => 'Gift auction bid for ${sender(ownerId)}',
+      td.StarTransactionTypeGiftPurchase(:final ownerId) => 'Gift for ${sender(ownerId)}',
+      td.StarTransactionTypeGiftPurchaseOffer() => 'Offer for a collectible gift',
+      td.StarTransactionTypeGiftTransfer(:final ownerId) => 'Gift transferred to ${sender(ownerId)}',
+      td.StarTransactionTypeGiftOriginalDetailsDrop() => 'Gift details removed',
+      td.StarTransactionTypeGiftSale(:final userId) => 'Gift from ${user(userId)} converted to Stars',
+      td.StarTransactionTypeGiftUpgrade(:final userId) => 'Gift upgrade from ${user(userId)}',
+      td.StarTransactionTypeGiftUpgradePurchase(:final ownerId) => 'Gift upgrade for ${sender(ownerId)}',
+      td.StarTransactionTypeUpgradedGiftPurchase(:final userId) => 'Collectible gift bought from ${user(userId)}',
+      td.StarTransactionTypeUpgradedGiftSale(:final userId) => 'Collectible gift sold to ${user(userId)}',
+      td.StarTransactionTypeChannelPaidReactionSend(:final chatId) => 'Star reaction in ${chat(chatId)}',
+      td.StarTransactionTypeChannelPaidReactionReceive(:final userId) => 'Star reaction from ${user(userId)}',
+      td.StarTransactionTypeAffiliateProgramCommission(:final chatId) => 'Affiliate commission from ${chat(chatId)}',
+      td.StarTransactionTypePaidMessageSend(:final chatId, :final messageCount) => 'Paid messages to ${chat(chatId)} ($messageCount)',
+      td.StarTransactionTypePaidMessageReceive(:final senderId, :final messageCount) => 'Paid messages from ${sender(senderId)} ($messageCount)',
+      td.StarTransactionTypePaidGroupCallMessageSend(:final chatId) => 'Paid message in a call of ${chat(chatId)}',
+      td.StarTransactionTypePaidGroupCallMessageReceive(:final senderId) => 'Paid call message from ${sender(senderId)}',
+      td.StarTransactionTypePaidGroupCallReactionSend(:final chatId) => 'Paid reaction in a call of ${chat(chatId)}',
+      td.StarTransactionTypePaidGroupCallReactionReceive(:final senderId) => 'Paid call reaction from ${sender(senderId)}',
+      td.StarTransactionTypeSuggestedPostPaymentSend(:final chatId) => 'Suggested post in ${chat(chatId)}',
+      td.StarTransactionTypeSuggestedPostPaymentReceive(:final userId) => 'Suggested post from ${user(userId)}',
+      td.StarTransactionTypePremiumPurchase(:final userId, :final monthCount) => '$monthCount months of Premium for ${user(userId)}',
+      td.StarTransactionTypeBusinessBotTransferSend(:final userId) => 'Sent to business bot ${user(userId)}',
+      td.StarTransactionTypeBusinessBotTransferReceive(:final userId) => 'From business bot ${user(userId)}',
+      td.StarTransactionTypePublicPostSearch() => 'Public post search',
+      _ => 'Other',
+    };
+  }
 
   Future<ToolOutput> _starTransactions(Map<String, dynamic> args) async {
     final r = await _client.send<td.StarTransactions>(
@@ -175,8 +207,8 @@ extension StarTools on TelegramToolRunner {
         ownerId: _meSender,
         subscriptionId: '',
         direction: switch ('${args['direction'] ?? 'all'}') {
-          'incoming' => const td.StarTransactionDirectionIncoming(),
-          'outgoing' => const td.StarTransactionDirectionOutgoing(),
+          'incoming' => const td.TransactionDirectionIncoming(),
+          'outgoing' => const td.TransactionDirectionOutgoing(),
           _ => null,
         },
         offset: '${args['offset'] ?? ''}',
@@ -185,14 +217,14 @@ extension StarTools on TelegramToolRunner {
       limited: true,
     );
     return ToolOutput({
-      'stars': r.starCount,
+      'stars': r.starAmount.starCount,
       'count': r.transactions.length,
       'transactions': [
         for (final t in r.transactions)
           {
             'date': TelegramToolRunner._iso(t.date),
-            'stars': t.starCount,
-            'with': _partner(t.partner),
+            'stars': t.starAmount.starCount,
+            'what': _transaction(t.type),
             if (t.isRefund) 'refund': true,
           },
       ],
@@ -208,8 +240,8 @@ extension StarTools on TelegramToolRunner {
         chatId: chatId,
         messageId: messageId,
         starCount: stars,
-        useDefaultIsAnonymous: anonymous == null,
-        isAnonymous: anonymous ?? false,
+        // Null keeps the user's usual choice of showing up or not.
+        type: anonymous == null ? null : (anonymous ? const td.PaidReactionTypeAnonymous() : const td.PaidReactionTypeRegular()),
       ),
       limited: true,
     );
@@ -257,7 +289,7 @@ extension StarTools on TelegramToolRunner {
       limited: true,
     );
     return ToolOutput({
-      'stars': r.starCount,
+      'stars': r.starAmount.starCount,
       if (r.requiredStarCount > 0) 'stars_needed_for_renewals': r.requiredStarCount,
       'subscriptions': [
         for (final s in r.subscriptions)

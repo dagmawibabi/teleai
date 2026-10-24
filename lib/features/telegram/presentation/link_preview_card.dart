@@ -15,7 +15,8 @@ import 'link_opener.dart';
   return switch (t) {
     td.LinkPreviewTypeArticle(:final photo?) => fromPhoto(photo),
     td.LinkPreviewTypePhoto(photo: final p) => fromPhoto(p),
-    td.LinkPreviewTypeApp(photo: final p) || td.LinkPreviewTypeWebApp(photo: final p) => fromPhoto(p),
+    td.LinkPreviewTypeApp(photo: final p) => fromPhoto(p),
+    td.LinkPreviewTypeWebApp(photo: final p) => fromPhoto(p),
     td.LinkPreviewTypeEmbeddedVideoPlayer(:final thumbnail?) => fromPhoto(thumbnail, video: true),
     td.LinkPreviewTypeEmbeddedAnimationPlayer(:final thumbnail?) => fromPhoto(thumbnail, video: true),
     td.LinkPreviewTypeVideo(:final video) => fromThumb(video.thumbnail, video.minithumbnail, video: true),

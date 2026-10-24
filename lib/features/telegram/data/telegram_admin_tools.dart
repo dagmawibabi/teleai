@@ -54,6 +54,8 @@ td.ChatPermissions _permissionsFrom(td.ChatPermissions base, Map<String, dynamic
     canSendPolls: v('send_polls', base.canSendPolls),
     canSendOtherMessages: v('send_stickers_gifs', base.canSendOtherMessages),
     canAddLinkPreviews: v('add_link_previews', base.canAddLinkPreviews),
+    canReactToMessages: v('react', base.canReactToMessages),
+    canEditTag: v('edit_own_tag', base.canEditTag),
     canChangeInfo: v('change_info', base.canChangeInfo),
     canInviteUsers: v('invite_users', base.canInviteUsers),
     canPinMessages: v('pin_messages', base.canPinMessages),
@@ -63,15 +65,13 @@ td.ChatPermissions _permissionsFrom(td.ChatPermissions base, Map<String, dynamic
 
 /// A member's role and what it lets them do.
 Map<String, dynamic> memberStatusJson(td.ChatMemberStatus s) => switch (s) {
-  td.ChatMemberStatusCreator(:final customTitle, :final isAnonymous, :final isMember) => {
+  td.ChatMemberStatusCreator(:final isAnonymous, :final isMember) => {
     'role': 'owner',
-    if (customTitle.isNotEmpty) 'title': customTitle,
     if (isAnonymous) 'anonymous': true,
     if (!isMember) 'member': false,
   },
-  td.ChatMemberStatusAdministrator(:final customTitle, :final rights, :final canBeEdited) => {
+  td.ChatMemberStatusAdministrator(:final rights, :final canBeEdited) => {
     'role': 'admin',
-    if (customTitle.isNotEmpty) 'title': customTitle,
     'rights': adminRightsOf(rights),
     'you_can_edit': canBeEdited,
   },
@@ -190,15 +190,29 @@ final _adminTools = <TelegramTool>[
     category: ToolCategory.actions,
     requiresApproval: true,
     description:
-        'As an admin with that right: makes a member an admin with the given rights and custom title, or demotes '
-        'them back to a member with demote: true. Needs approval.',
+        'As an admin with that right: makes a member an admin with the given rights, or demotes them back to a '
+        'member with demote: true. title sets their member tag (the label by their name). Needs approval.',
     parameters: _obj({
       'chat_id': {'type': 'integer'},
       'user_id': {'type': 'integer'},
       'rights': _rightsSchema,
-      'title': {'type': 'string'},
+      'title': {'type': 'string', 'description': 'Member tag shown by their name, 0-16 characters, no emoji.'},
       'demote': {'type': 'boolean'},
     }, ['chat_id', 'user_id']),
+  ),
+  TelegramTool(
+    name: 'set_member_tag',
+    label: 'Tagging a member',
+    category: ToolCategory.actions,
+    requiresApproval: true,
+    description:
+        'Sets or clears (empty tag) the member tag shown next to someone\'s name in a group — what used to be an '
+        'admin\'s custom title, now for any member. Needs the right to manage tags. Read tags with get_members.',
+    parameters: _obj({
+      'chat_id': {'type': 'integer'},
+      'user_id': {'type': 'integer'},
+      'tag': {'type': 'string', 'description': '0-16 characters, no emoji; empty clears it.'},
+    }, ['chat_id', 'user_id', 'tag']),
   ),
   TelegramTool(
     name: 'restrict_member',
@@ -422,6 +436,7 @@ extension _AdminToolRuns on TelegramToolRunner {
         if (u.type is td.UserTypeBot) 'bot': true,
       },
     ...memberStatusJson(m.status),
+    if (m.tag.isNotEmpty) 'tag': m.tag,
     if (m.joinedChatDate > 0) 'joined': DateTime.fromMillisecondsSinceEpoch(m.joinedChatDate * 1000).toIso8601String().substring(0, 10),
     if (m.inviterUserId != 0) 'added_by': _store.userName(m.inviterUserId),
   };
@@ -449,6 +464,9 @@ extension _AdminToolRuns on TelegramToolRunner {
       canPostStories: s.contains('post_stories'),
       canEditStories: s.contains('edit_stories'),
       canDeleteStories: s.contains('delete_stories'),
+      canManageDirectMessages: s.contains('manage_direct_messages'),
+      canManageTags: s.contains('manage_tags'),
+      canSendWelcomeMessages: s.contains('send_welcome_messages'),
       isAnonymous: s.contains('anonymous'),
     );
   }
@@ -513,7 +531,6 @@ extension _AdminToolRuns on TelegramToolRunner {
       final status = args['demote'] == true
           ? const td.ChatMemberStatusMember(memberUntilDate: 0) as td.ChatMemberStatus
           : td.ChatMemberStatusAdministrator(
-              customTitle: '${args['title'] ?? ''}',
               canBeEdited: true,
               rights: _rights(args['rights'] as List? ?? const ['manage_chat', 'delete_messages', 'pin_messages']),
             );
@@ -521,7 +538,24 @@ extension _AdminToolRuns on TelegramToolRunner {
         td.SetChatMemberStatus(chatId: c.id, memberId: td.MessageSenderUser(userId: id), status: status),
         limited: true,
       );
-      return ToolOutput({'chat': c.title, 'user': _store.userName(id), ...memberStatusJson(status)});
+      final tag = '${args['title'] ?? ''}'.trim();
+      if (tag.isNotEmpty && args['demote'] != true) {
+        await _client.send<td.Ok>(td.SetChatMemberTag(chatId: c.id, userId: id, tag: tag), limited: true);
+      }
+      return ToolOutput({
+        'chat': c.title,
+        'user': _store.userName(id),
+        ...memberStatusJson(status),
+        if (tag.isNotEmpty && args['demote'] != true) 'tag': tag,
+      });
+    }(),
+    'set_member_tag' => () async {
+      final c = _requireChat(args);
+      final id = _need(args, 'user_id');
+      final tag = '${args['tag'] ?? ''}'.trim();
+      if (tag.length > 16) throw ArgumentError('Tags are at most 16 characters.');
+      await _client.send<td.Ok>(td.SetChatMemberTag(chatId: c.id, userId: id, tag: tag), limited: true);
+      return ToolOutput({'chat': c.title, 'user': _store.userName(id), 'tag': tag.isEmpty ? null : tag, 'cleared': tag.isEmpty});
     }(),
     'restrict_member' => () async {
       final c = _requireChat(args);
@@ -787,6 +821,10 @@ extension _AdminToolRuns on TelegramToolRunner {
             ? 'Remove ${user()} as admin of $title'
             : 'Make ${user()} an admin of $title${'${args['title'] ?? ''}'.isEmpty ? '' : ' titled “${args['title']}”'}'
                   ' with: ${(args['rights'] as List? ?? const ['manage_chat', 'delete_messages', 'pin_messages']).join(', ')}',
+      'set_member_tag' =>
+        '${args['tag'] ?? ''}'.trim().isEmpty
+            ? 'Clear ${user()}\'s member tag in $title'
+            : 'Tag ${user()} as “${args['tag']}” in $title',
       'restrict_member' =>
         args['lift'] == true
             ? 'Lift restrictions on ${user()} in $title'

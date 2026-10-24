@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../chat/domain/chat_models.dart';
 import '../telegram/data/telegram_tools.dart';
+import 'canvas_export.dart';
 import 'canvas_store.dart';
 
 final _ref = RegExp(r'post:(-?\d+):(\d+)');
@@ -83,6 +84,20 @@ Future<ToolOutput> runCanvasTool(Ref ref, String name, Map<String, dynamic> a) a
       );
       await store.updateFolder(next);
       return ToolOutput({'folder_id': f.id, 'path': ref.read(canvasProvider).pathOf(next)});
+    case 'canvas_export':
+      final f = need('folder');
+      final format = CanvasExportFormat.parse(str('format')) ??
+          (throw ArgumentError('format must be json, md, html or pdf'));
+      final file = await exportCanvasFolder(s, f, format, subfolders: a['subfolders'] != false);
+      return ToolOutput({
+        'exported': s.pathOf(f),
+        'format': format.label,
+        // file_path makes it sendable with send_message, like other made files.
+        'file_path': file.path,
+        'name': file.path.split(RegExp(r'[\\/]')).last,
+        'size_kb': ((await file.length()) / 1024).ceil(),
+        'items': a['subfolders'] == false ? s.itemsIn(f.id).length : s.countDeep(f.id),
+      });
     case 'canvas_delete_folder':
       final f = need('folder');
       final to = str('move_items_to').isEmpty ? null : await ensure(str('move_items_to'));

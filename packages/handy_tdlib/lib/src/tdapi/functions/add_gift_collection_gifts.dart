@@ -1,0 +1,76 @@
+part of '../tdapi.dart';
+
+/// **AddGiftCollectionGifts** *(addGiftCollectionGifts)* - TDLib function
+///
+/// Adds gifts to the beginning of a previously created collection. If the collection is owned by a channel chat, then requires can_post_messages administrator right in the channel chat. Returns the changed collection.
+///
+/// * [ownerId]: Identifier of the user or the channel chat that owns the collection.
+/// * [collectionId]: Identifier of the gift collection.
+/// * [receivedGiftIds]: Identifier of the gifts to add to the collection; 1-getOption("gift_collection_size_max") identifiers.. If after addition the collection has more than getOption("gift_collection_size_max") gifts, then the last ones are removed from the collection.
+///
+/// [GiftCollection] is returned on completion.
+final class AddGiftCollectionGifts extends TdFunction {
+  /// **AddGiftCollectionGifts** *(addGiftCollectionGifts)* - TDLib function
+  ///
+  /// Adds gifts to the beginning of a previously created collection. If the collection is owned by a channel chat, then requires can_post_messages administrator right in the channel chat. Returns the changed collection.
+  ///
+  /// * [ownerId]: Identifier of the user or the channel chat that owns the collection.
+  /// * [collectionId]: Identifier of the gift collection.
+  /// * [receivedGiftIds]: Identifier of the gifts to add to the collection; 1-getOption("gift_collection_size_max") identifiers.. If after addition the collection has more than getOption("gift_collection_size_max") gifts, then the last ones are removed from the collection.
+  ///
+  /// [GiftCollection] is returned on completion.
+  const AddGiftCollectionGifts({
+    required this.ownerId,
+    required this.collectionId,
+    required this.receivedGiftIds,
+  });
+
+  /// Identifier of the user or the channel chat that owns the collection
+  final MessageSender ownerId;
+
+  /// Identifier of the gift collection
+  final int collectionId;
+
+  /// Identifier of the gifts to add to the collection; 1-getOption("gift_collection_size_max") identifiers.. If after addition the collection has more than getOption("gift_collection_size_max") gifts, then the last ones are removed from the collection
+  final List<String> receivedGiftIds;
+
+  /// Convert model to TDLib JSON format
+  @override
+  Map<String, dynamic> toJson([dynamic extra]) {
+    return {
+      "@type": defaultObjectId,
+      "owner_id": ownerId.toJson(),
+      "collection_id": collectionId,
+      "received_gift_ids": receivedGiftIds.map((i) => i).toList(),
+      "@extra": extra,
+    };
+  }
+
+  /// Copy model with modified properties.
+  ///
+  /// Properties:
+  /// * [owner_id]: Identifier of the user or the channel chat that owns the collection
+  /// * [collection_id]: Identifier of the gift collection
+  /// * [received_gift_ids]: Identifier of the gifts to add to the collection; 1-getOption("gift_collection_size_max") identifiers.. If after addition the collection has more than getOption("gift_collection_size_max") gifts, then the last ones are removed from the collection
+  AddGiftCollectionGifts copyWith({
+    MessageSender? ownerId,
+    int? collectionId,
+    List<String>? receivedGiftIds,
+  }) =>
+      AddGiftCollectionGifts(
+        ownerId: ownerId ?? this.ownerId,
+        collectionId: collectionId ?? this.collectionId,
+        receivedGiftIds: receivedGiftIds ?? this.receivedGiftIds,
+      );
+
+  /// TDLib object type
+  static const String defaultObjectId = 'addGiftCollectionGifts';
+
+  /// Convert model to TDLib JSON format, encoded into String.
+  @override
+  String toString() => jsonEncode(toJson());
+
+  /// TDLib object type for current class instance
+  @override
+  String get currentObjectId => defaultObjectId;
+}

@@ -8,6 +8,7 @@ import '../../telegram/presentation/calls_screen.dart';
 import '../../telegram/presentation/chat_list_screen.dart';
 import '../../telegram/presentation/chat_profile_screen.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
+import '../../settings/data/settings.dart';
 
 import 'package:handy_tdlib/api.dart' as td;
 
@@ -32,9 +33,6 @@ class HistoryDrawer extends ConsumerStatefulWidget {
 }
 
 class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
-  bool _chatsExpanded = true;
-  bool _foldersExpanded = true;
-
   static String _bucket(DateTime d) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -116,6 +114,13 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
     final store = ref.watch(telegramStoreProvider);
     final me = store.me;
     final controller = ref.read(chatControllerProvider.notifier);
+    final settings = ref.watch(settingsProvider);
+    final prefs = ref.read(settingsProvider.notifier);
+    // Closes the drawer and opens a page.
+    void go(WidgetBuilder page) {
+      Navigator.pop(context);
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
+    }
 
     final groups = <String, List<ConversationSummary>>{};
     for (final c in state.history) {
@@ -157,145 +162,93 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: Space.s),
                 children: [
-                  ExpansionTile(
-                    key: const PageStorageKey('drawer-chats'),
-                    initiallyExpanded: _chatsExpanded,
-                    onExpansionChanged: (v) =>
-                        setState(() => _chatsExpanded = v),
-                    title: Text('Chats', style: context.text.titleSmall),
-                    trailing: Icon(
-                      _chatsExpanded
-                          ? Icons.expand_less_rounded
-                          : Icons.expand_more_rounded,
-                      color: AppColors.text3,
-                    ),
-                    children: [
-                      for (final section in BrowseSection.values)
-                        _BrowseTile(
-                          section: section,
-                          count: section == BrowseSection.contacts
-                              ? null
-                              : chatsIn(store, section).length,
-                          unread: section == BrowseSection.contacts
-                              ? 0
-                              : chatsIn(store, section)
-                                    .where((c) => c.hasUnread && !c.isMuted)
-                                    .length,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    ChatListScreen(section: section),
-                              ),
-                            );
-                          },
-                        ),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(Radii.s),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.call_outlined, size: 20, color: AppColors.text2),
-                              const SizedBox(width: Space.m + 2),
-                              Expanded(child: Text('Calls', style: context.text.bodyMedium)),
-                            ],
+                  if (settings.drawerChats)
+                    _DrawerSection(
+                      title: 'Chats',
+                      open: settings.drawerChatsOpen,
+                      onOpen: prefs.setDrawerChatsOpen,
+                      children: [
+                        for (final section in BrowseSection.values)
+                          _BrowseTile(
+                            section: section,
+                            count: section == BrowseSection.contacts ? null : chatsIn(store, section).length,
+                            unread: section == BrowseSection.contacts
+                                ? 0
+                                : chatsIn(store, section).where((c) => c.hasUnread && !c.isMuted).length,
+                            onTap: () => go((_) => ChatListScreen(section: section)),
                           ),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(Radii.s),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.call_outlined, size: 20, color: AppColors.text2),
+                                const SizedBox(width: Space.m + 2),
+                                Expanded(child: Text('Calls', style: context.text.bodyMedium)),
+                              ],
+                            ),
+                          ),
+                          onTap: () => go((_) => const CallsScreen()),
                         ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(builder: (_) => const CallsScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  if (store.folders.isNotEmpty) ...[
-                    ExpansionTile(
-                      key: const PageStorageKey('drawer-folders'),
-                      initiallyExpanded: _foldersExpanded,
-                      onExpansionChanged: (v) =>
-                          setState(() => _foldersExpanded = v),
-                      title: Text('Folders', style: context.text.titleSmall),
-                      trailing: Icon(
-                        _foldersExpanded
-                            ? Icons.expand_less_rounded
-                            : Icons.expand_more_rounded,
-                        color: AppColors.text3,
-                      ),
+                      ],
+                    ),
+                  if (settings.drawerFolders && store.folders.isNotEmpty)
+                    _DrawerSection(
+                      title: 'Folders',
+                      open: settings.drawerFoldersOpen,
+                      onOpen: prefs.setDrawerFoldersOpen,
                       children: [
                         for (final f in store.folders)
                           _FolderTile(
                             folder: f,
                             count: store.folderChats[f.id]?.length,
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => ChatListScreen(folder: f),
-                                ),
-                              );
-                            },
+                            onTap: () => go((_) => ChatListScreen(folder: f)),
                           ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: Space.xs),
-                  _DrawerActionTile(
-                    icon: Icons.folder_copy_outlined,
-                    title: 'Files',
-                    subtitle: 'Generated images and audio',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const GeneratedFilesScreen(),
+                  if (settings.drawerTools)
+                    _DrawerSection(
+                      title: 'Tools',
+                      open: settings.drawerToolsOpen,
+                      onOpen: prefs.setDrawerToolsOpen,
+                      children: [
+                        _DrawerActionTile(
+                          icon: Icons.folder_copy_outlined,
+                          title: 'Files',
+                          subtitle: 'Generated, downloaded and sandbox files',
+                          onTap: () => go((_) => const GeneratedFilesScreen()),
                         ),
-                      );
-                    },
-                  ),
-                  _DrawerActionTile(
-                    icon: Icons.wb_twilight_rounded,
-                    title: 'Brief',
-                    subtitle: briefSubtitle(ref.watch(briefStoreProvider).briefs),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(builder: (_) => const BriefScreen()),
-                      );
-                    },
-                  ),
-                  _DrawerActionTile(
-                    icon: Icons.dashboard_customize_outlined,
-                    title: 'Content Canvas',
-                    subtitle: '${ref.watch(canvasProvider).folders.length} folders · ${ref.watch(canvasProvider).items.length} saved',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(builder: (_) => const ContentCanvasScreen()),
-                      );
-                    },
-                  ),
-                  _DrawerActionTile(
-                    icon: Icons.manage_search_rounded,
-                    title: 'Search all chats',
-                    subtitle: 'Every photo, file, link or voice message',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SearchScreen()));
-                    },
-                  ),
-                  _DrawerActionTile(
-                    icon: Icons.public_rounded,
-                    title: 'Browser',
-                    subtitle: 'What the assistant has open on the web',
-                    onTap: () {
-                      Navigator.pop(context);
-                      BrowserScreen.open(context);
-                    },
-                  ),
+                        _DrawerActionTile(
+                          icon: Icons.wb_twilight_rounded,
+                          title: 'Brief',
+                          subtitle: briefSubtitle(ref.watch(briefStoreProvider).briefs),
+                          onTap: () => go((_) => const BriefScreen()),
+                        ),
+                        _DrawerActionTile(
+                          icon: Icons.dashboard_customize_outlined,
+                          title: 'Content Canvas',
+                          subtitle:
+                              '${ref.watch(canvasProvider).folders.length} folders · ${ref.watch(canvasProvider).items.length} saved',
+                          onTap: () => go((_) => const ContentCanvasScreen()),
+                        ),
+                        _DrawerActionTile(
+                          icon: Icons.manage_search_rounded,
+                          title: 'Search all chats',
+                          subtitle: 'Every photo, file, link or voice message',
+                          onTap: () => go((_) => const SearchScreen()),
+                        ),
+                        _DrawerActionTile(
+                          icon: Icons.public_rounded,
+                          title: 'Browser',
+                          subtitle: 'What the assistant has open on the web',
+                          onTap: () {
+                            Navigator.pop(context);
+                            BrowserScreen.open(context);
+                          },
+                        ),
+                      ],
+                    ),
                   if (state.history.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(Space.xl),
@@ -323,6 +276,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                       _HistoryTile(
                         summary: c,
                         selected: c.id == state.conversation.id,
+                        running: controller.runningIds.contains(c.id),
                         onTap: () {
                           controller.open(c.id);
                           Navigator.pop(context);
@@ -404,6 +358,28 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
   }
 }
 
+/// A collapsible drawer section whose open state is remembered.
+class _DrawerSection extends StatelessWidget {
+  const _DrawerSection({required this.title, required this.open, required this.onOpen, required this.children});
+  final String title;
+  final bool open;
+  final ValueChanged<bool> onOpen;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => ExpansionTile(
+    // Keyed by state so a change from Settings rebuilds it open or closed.
+    key: ValueKey('drawer-$title-$open'),
+    initiallyExpanded: open,
+    onExpansionChanged: onOpen,
+    shape: const Border(),
+    collapsedShape: const Border(),
+    title: Text(title, style: context.text.titleSmall),
+    trailing: Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppColors.text3),
+    children: children,
+  );
+}
+
 class _DrawerActionTile extends StatelessWidget {
   const _DrawerActionTile({
     required this.icon,
@@ -452,10 +428,14 @@ class _HistoryTile extends StatelessWidget {
     required this.onTap,
     required this.onRename,
     required this.onDelete,
+    this.running = false,
   });
 
   final ConversationSummary summary;
   final bool selected;
+
+  /// The assistant is still working in it (another chat is on screen).
+  final bool running;
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onDelete;
@@ -485,7 +465,12 @@ class _HistoryTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (summary.unread > 0 && !selected)
+              if (running)
+                const Padding(
+                  padding: EdgeInsets.only(left: Space.s),
+                  child: SizedBox.square(dimension: 12, child: CircularProgressIndicator(strokeWidth: 1.6)),
+                )
+              else if (summary.unread > 0 && !selected)
                 Container(
                   constraints: const BoxConstraints(minWidth: 20),
                   height: 20,

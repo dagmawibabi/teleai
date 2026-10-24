@@ -51,9 +51,14 @@ class AppNotifier {
 
   Future<void> requestPermission() async {
     await init();
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    } catch (e) {
+      // No screen to ask from (a background start).
+      debugPrint('[Notify] permission: $e');
+    }
   }
 
   /// Shows a notification; tapping it opens [conversationId] when given.
@@ -149,6 +154,9 @@ class AppNotifier {
   bool _asked = false;
   bool _taskReady = false;
 
+  /// Whether the background service is running, as last checked.
+  bool get alive => _alive;
+
   /// Starts or stops the ongoing notification that keeps the process
   /// running while the app is in the background. TDLib, the watches and the
   /// assistant all live in the app's process, so this is all they need.
@@ -158,6 +166,8 @@ class AppNotifier {
   /// running reliably when its ongoing notification may be shown and the
   /// app isn't battery-optimised, so both are asked for once here.
   Future<void> keepAlive(bool on, {int watches = 0}) async {
+    final title = watches > 0 ? 'TeleAI is watching' : 'TeleAI is running';
+    final text = watches > 0 ? '$watches watch${watches == 1 ? '' : 'es'} on' : 'Ready in the background';
     if (!Platform.isAndroid) return;
     try {
       if (!_taskReady) {
@@ -183,28 +193,31 @@ class AppNotifier {
       _alive = await FlutterForegroundTask.isRunningService;
       if (on && !_asked) {
         _asked = true;
-        if (await FlutterForegroundTask.checkNotificationPermission() != NotificationPermission.granted) {
-          await FlutterForegroundTask.requestNotificationPermission();
-        }
-        if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
-          await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+        try {
+          if (await FlutterForegroundTask.checkNotificationPermission() != NotificationPermission.granted) {
+            await FlutterForegroundTask.requestNotificationPermission();
+          }
+          if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+            await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+          }
+        } catch (e) {
+          // No screen to ask from (a background start); ask next time.
+          _asked = false;
+          debugPrint('[KeepAlive] permissions: $e');
         }
       }
       if (on && !_alive) {
         final r = await FlutterForegroundTask.startService(
           serviceId: 5107,
           serviceTypes: const [ForegroundServiceTypes.specialUse],
-          notificationTitle: 'TeleAI is watching',
-          notificationText: '$watches watch${watches == 1 ? '' : 'es'} on',
+          notificationTitle: title,
+          notificationText: text,
           notificationIcon: const NotificationIcon(metaDataName: 'com.teleai.STAT_ICON'),
           callback: keepAliveEntryPoint,
         );
         _alive = r is ServiceRequestSuccess;
       } else if (on && _alive) {
-        await FlutterForegroundTask.updateService(
-          notificationTitle: 'TeleAI is watching',
-          notificationText: '$watches watch${watches == 1 ? '' : 'es'} on',
-        );
+        await FlutterForegroundTask.updateService(notificationTitle: title, notificationText: text);
       } else if (!on && _alive) {
         await FlutterForegroundTask.stopService();
         _alive = false;
