@@ -114,7 +114,7 @@ object DeviceChannel {
                 val list = call.argument<List<String>>("permissions") ?: emptyList()
                 val a = activity
                 if (a == null) {
-                    result.error("background", "Open TeleAI to allow this.", null)
+                    result.error("background", "Open Triangle to allow this.", null)
                     return
                 }
                 val missing = list.filter { !granted(context, it) }
@@ -209,7 +209,7 @@ object DeviceChannel {
                     result.success(mapOf("mode" to call.argument<String>("mode")))
                 } catch (e: SecurityException) {
                     start(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-                    result.error("failed", "Android needs Do Not Disturb access for TeleAI to change this; its settings were opened.", null)
+                    result.error("failed", "Android needs Do Not Disturb access for Triangle to change this; its settings were opened.", null)
                 }
             }
             "media" -> {
@@ -269,7 +269,7 @@ object DeviceChannel {
             "keepScreenOn" -> {
                 val a = activity
                 if (a == null) {
-                    result.error("background", "TeleAI isn't on screen.", null)
+                    result.error("background", "Triangle isn't on screen.", null)
                 } else {
                     val on = call.argument<Boolean>("on") ?: true
                     a.runOnUiThread {

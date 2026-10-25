@@ -120,8 +120,8 @@ class GatewayClient {
     'Authorization': 'Bearer ${_keyFor(model)}',
     'Content-Type': 'application/json',
     if (!AiRoute.isGemini(model)) ...{
-      'HTTP-Referer': 'https://github.com/teleai-app',
-      'X-Title': 'TeleAI',
+      'HTTP-Referer': 'https://github.com/dagmawibabi/triangle',
+      'X-Title': 'Triangle',
     },
   };
 

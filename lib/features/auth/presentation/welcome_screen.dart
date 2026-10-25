@@ -42,86 +42,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
-      title: 'Does what you can do.',
-      body: 'Forward to many chats at once, run polls and quizzes, press bot buttons, translate posts, set chat backgrounds, send GIFs and stickers, check calls and members.',
-      art: _FeatureGrid(
-        items: [
-          (Icons.forward_rounded, 'Forward'),
-          (Icons.poll_outlined, 'Polls'),
-          (Icons.smart_button_outlined, 'Bots'),
-          (Icons.translate_rounded, 'Translate'),
-          (Icons.wallpaper_outlined, 'Themes'),
-          (Icons.gif_box_outlined, 'GIFs'),
-          (Icons.call_outlined, 'Calls'),
-          (Icons.groups_outlined, 'Members'),
-          (Icons.schedule_send_outlined, 'Schedule'),
-        ],
-      ),
-    ),
-    const _Page(
-      title: 'Just talk.',
-      body: 'Send it voice messages: it understands them and can pass the recording on to a chat. Dictate, hear answers read aloud, record and send voice notes and videos.',
-      art: _Glyph(icon: Icons.graphic_eq_rounded),
-    ),
-    const _Page(
-      title: 'A canvas for what matters.',
-      body: 'Save posts, DMs and comments into folders, or say "organise the last 10 posts from this channel by topic" and the assistant files them for you.',
-      art: _Glyph(icon: Icons.dashboard_customize_outlined),
-    ),
-    const _Page(
-      title: 'Briefed, morning and night.',
-      body: 'A detailed rundown of everything that happened across your DMs, groups and channels, sorted by what needs you first. On a schedule or whenever you ask.',
-      art: _Glyph(icon: Icons.wb_twilight_rounded),
-    ),
-    const _Page(
-      title: 'Watches while you\'re away.',
-      body: 'Tell it to keep an eye on a person, a group or a channel. It notifies you, sums things up, or replies the way you asked.',
-      art: _Glyph(icon: Icons.visibility_outlined),
-    ),
-    const _Page(
-      title: 'Reminders and routines.',
-      body: '"Remind me to walk in 5 minutes." "Every weekday at 9, catch me up on my channels." One-off or repeating, as plain alarms or as jobs the assistant carries out.',
-      art: _Glyph(icon: Icons.alarm_rounded),
-    ),
-    const _Page(
-      title: 'It browses the web for you.',
-      body: 'Reads blogs and docs, fills in forms on real sites, calls APIs, downloads files, and shows you screenshots of what it sees. Watch it live, or take over whenever you like.',
-      art: _Bubbles(
-        showMark: false,
-        lines: [
-          'What\'s on Wikipedia about the Moon?',
-          'Open the article and summarise it',
-          'Screenshot the page for me',
-        ],
-      ),
-    ),
-    const _Page(
-      title: 'Find what interests you.',
-      body: 'Search YouTube, catch up on X, explore public GitHub projects, and discover books with covers, details and legal free copies.',
-      art: _FeatureGrid(
-        items: [
-          (Icons.ondemand_video_rounded, 'YouTube'),
-          (Icons.alternate_email_rounded, 'X'),
-          (Icons.code_rounded, 'GitHub'),
-          (Icons.menu_book_rounded, 'Books'),
-        ],
-      ),
-    ),
-    const _Page(
-      title: 'Runs code, privately.',
-      body: 'A private sandbox on your phone runs Python and JavaScript to crunch numbers, make charts and files.',
-      art: _FeatureGrid(
-        items: [
-          (Icons.terminal_rounded, 'Python'),
-          (Icons.javascript_rounded, 'JavaScript'),
-          (Icons.bar_chart_rounded, 'Charts'),
-          (Icons.functions_rounded, 'Scripts'),
-          (Icons.folder_zip_outlined, 'Zip files'),
-          (Icons.download_rounded, 'Downloads'),
-        ],
-      ),
-    ),
-    const _Page(
       title: 'All of Telegram, by asking.',
       body: 'Post and edit stories, organise folders, run your channels with full statistics, give Stars, open t.me links in place, find every file anyone sent you, and keep your account safe with a security check-up.',
       art: _FeatureGrid(
@@ -155,6 +75,72 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
+      title: 'Knows your phone.',
+      body: 'Find a verification code in your texts, check missed calls, call or text a contact, see battery, storage and '
+          'Wi-Fi, turn on the flashlight, set an alarm or a timer, control what is playing. Each action asks you first.',
+      art: _Bubbles(
+        showMark: false,
+        lines: [
+          'What\'s my bank\'s latest SMS code?',
+          'Call Mom',
+          'Set an alarm for 6:30',
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'It browses the web for you.',
+      body: 'Reads blogs and docs, fills in forms on real sites, calls APIs, downloads files, and shows you screenshots of what it sees. Watch it live, or take over whenever you like.',
+      art: _Bubbles(
+        showMark: false,
+        lines: [
+          'What\'s on Wikipedia about the Moon?',
+          'Open the article and summarise it',
+          'Screenshot the page for me',
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Find what interests you.',
+      body: 'Search YouTube, catch up on X, explore public GitHub projects, and discover books with covers, details and legal free copies.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.ondemand_video_rounded, 'YouTube'),
+          (Icons.alternate_email_rounded, 'X'),
+          (Icons.code_rounded, 'GitHub'),
+          (Icons.menu_book_rounded, 'Books'),
+        ],
+      ),
+    ),
+    const _Page(
+      title: 'Briefed, morning and night.',
+      body: 'A detailed rundown of everything that happened across your DMs, groups and channels, sorted by what needs you first. On a schedule or whenever you ask.',
+      art: _Glyph(icon: Icons.wb_twilight_rounded),
+    ),
+    const _Page(
+      title: 'Watches while you\'re away.',
+      body: 'Tell it to keep an eye on a person, a group or a channel. It notifies you, sums things up, or replies the way you asked.',
+      art: _Glyph(icon: Icons.visibility_outlined),
+    ),
+    const _Page(
+      title: 'Reminders and routines.',
+      body: '"Remind me to walk in 5 minutes." "Every weekday at 9, catch me up on my channels." One-off or repeating, as plain alarms or as jobs the assistant carries out.',
+      art: _Glyph(icon: Icons.alarm_rounded),
+    ),
+    const _Page(
+      title: 'Runs code, privately.',
+      body: 'A private sandbox on your phone runs Python and JavaScript to crunch numbers, make charts and files.',
+      art: _FeatureGrid(
+        items: [
+          (Icons.terminal_rounded, 'Python'),
+          (Icons.javascript_rounded, 'JavaScript'),
+          (Icons.bar_chart_rounded, 'Charts'),
+          (Icons.functions_rounded, 'Scripts'),
+          (Icons.folder_zip_outlined, 'Zip files'),
+          (Icons.download_rounded, 'Downloads'),
+        ],
+      ),
+    ),
+    const _Page(
       title: 'Your cloud, by asking.',
       body: 'Manage Cloudflare: sites, DNS, cache, Workers, Pages and R2 storage you can browse, download and share. Run real '
           'Python, Node, R or bash in an E2B cloud sandbox, or write and run code yourself in the built-in editor.',
@@ -170,33 +156,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
-      title: 'Knows your phone.',
-      body: 'Find a verification code in your texts, check missed calls, call or text a contact, see battery, storage and '
-          'Wi-Fi, turn on the flashlight, set an alarm or a timer, control what is playing. Each action asks you first.',
-      art: _Bubbles(
-        showMark: false,
-        lines: [
-          'What\'s my bank\'s latest SMS code?',
-          'Call Mom',
-          'Set an alarm for 6:30',
-        ],
-      ),
-    ),
-    const _Page(
-      title: 'Your brief, on your home screen.',
-      body: 'Choose the chats and apps a brief covers, its tone, length and language, and add the Brief widget to your home '
-          'screen in the colours and size you like.',
-      art: _Glyph(icon: Icons.widgets_outlined),
-    ),
-    const _Page(
       title: 'Careful by design.',
       body: 'Reading never marks messages as read. Sending, replying and reacting wait for your OK. Deleting and leaving are off until you turn them on, and read-only mode locks everything else.',
       art: _Glyph(icon: Icons.verified_user_outlined),
-    ),
-    const _Page(
-      title: 'Your keys. Your phone.',
-      body: 'No TeleAI servers. Conversations stay on this phone; AI runs through your own Vercel AI Gateway, OpenRouter or Google AI Studio key, with tokens and cost shown under every answer. Telegram is optional: connect it now, or later under Settings → Apps & web.',
-      art: _Glyph(icon: Icons.key_rounded),
     ),
   ];
 

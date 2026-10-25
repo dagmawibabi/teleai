@@ -198,7 +198,7 @@ class ComposioClient {
     await _send('DELETE', '/connected_accounts/$accountId');
   }
 
-  /// Searches Composio's catalog, for tools TeleAI has no card for.
+  /// Searches Composio's catalog, for tools Triangle has no card for.
   Future<List<ComposioToolInfo>> findTools({String? toolkit, String? query, int limit = 10}) async {
     final q = {
       if (toolkit != null && toolkit.isNotEmpty) 'toolkit_slug': toolkit.toLowerCase(),

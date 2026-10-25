@@ -1,6 +1,6 @@
-# TeleAI
+# Triangle
 
-TeleAI is a Flutter Telegram client with an AI workspace. It connects to your own Telegram account through TDLib, lets you browse and manage chats, and gives the assistant permission-aware tools for finding information and taking actions on your behalf.
+Triangle is a Flutter Telegram client with an AI workspace. It connects to your own Telegram account through TDLib, lets you browse and manage chats, and gives the assistant permission-aware tools for finding information and taking actions on your behalf.
 
 The app is designed around reviewable actions: whenever the assistant wants to send, edit, moderate, or otherwise change something in Telegram, it presents the call and its arguments for approval first.
 
@@ -31,7 +31,7 @@ The app is designed around reviewable actions: whenever the assistant wants to s
 - Run Python, JavaScript, bash, R or Java in an E2B cloud sandbox, from the assistant or the built-in code editor (syntax highlighting, auto-indent, live output and charts). Start, restart and shut down the sandbox and see its history under the E2B tab.
 - Briefs: choose the chats, content, tone, length and language under **Settings → Brief settings**, and add the **Brief** widget to the Android home screen.
 - Device tools (Android): read texts, the call log and contacts; see installed apps, specs, battery and network; call, text, flashlight, volume, ringer, alarms, timers, media keys and more. Listed under **Settings → Tools → Device**; Android permissions are asked the first time a tool needs one.
-- Telegram is optional: use TeleAI with your apps, cloud and phone alone, and connect Telegram later under **Settings → Apps & web → Telegram**. Watches can follow apps ("tell me about new emails from my manager") as well as chats.
+- Telegram is optional: use Triangle with your apps, cloud and phone alone, and connect Telegram later under **Settings → Apps & web → Telegram**. Watches can follow apps ("tell me about new emails from my manager") as well as chats.
 - Search everything (conversations, canvas, files, email, the web, Telegram), and save emails, links and files to the Content Canvas.
 - Customize the home-screen widget (text size, colours, opacity, what it shows) under **Settings → Home-screen widget**.
 

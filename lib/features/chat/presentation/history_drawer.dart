@@ -341,7 +341,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                     ),
               title: Text(
                 me == null
-                    ? (telegram ? 'Telegram' : 'TeleAI')
+                    ? (telegram ? 'Telegram' : 'Triangle')
                     : '${me.firstName} ${me.lastName}'.trim(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

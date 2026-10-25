@@ -359,7 +359,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                   ),
                   child: Text(
                     switch (widget.kind) {
-                      ModelKind.text => 'Showing models that can call tools, which TeleAI needs to read your Telegram.',
+                      ModelKind.text => 'Showing models that can call tools, which Triangle needs to read your Telegram.',
                       ModelKind.image => 'Models that create images, used by the generate_image tool.',
                       ModelKind.speech => 'Voices that read answers aloud.',
                       ModelKind.transcription => 'Chat models that accept audio, used to turn speech into text.',

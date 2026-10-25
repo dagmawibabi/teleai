@@ -1221,7 +1221,7 @@ class GeneratedImage extends StatelessWidget {
 
 Future<void> _saveGeneratedImage(BuildContext context, String path) async {
   try {
-    await Gal.putImage(path, album: 'TeleAI');
+    await Gal.putImage(path, album: 'Triangle');
     if (context.mounted) showSnack(context, 'Saved to your device');
   } catch (_) {
     if (context.mounted) {

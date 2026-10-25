@@ -31,7 +31,7 @@ final _appTools = <TelegramTool>[
     label: 'Checking connected apps',
     category: ToolCategory.apps,
     cost: ToolCost.apps,
-    description: 'Lists the apps the user connected through Composio, and the apps TeleAI has built-in tools for.',
+    description: 'Lists the apps the user connected through Composio, and the apps Triangle has built-in tools for.',
     parameters: _obj({}),
   ),
   TelegramTool(

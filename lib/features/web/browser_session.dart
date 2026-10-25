@@ -159,7 +159,7 @@ class BrowserSession {
 
   Future<Map<String, dynamic>> click(int index) async {
     final r = await _eval('''
-      var el = document.querySelector('[data-teleai-id="$index"]');
+      var el = document.querySelector('[data-triangle-id="$index"]');
       if (!el) return {error: 'No element $index; take a new snapshot with browser_read.'};
       el.scrollIntoView({block: 'center'});
       var opts = {bubbles: true, cancelable: true, view: window};
@@ -174,7 +174,7 @@ class BrowserSession {
 
   Future<Map<String, dynamic>> type(int index, String text, {bool clear = true, bool pressEnter = false}) async {
     final r = await _eval('''
-      var el = document.querySelector('[data-teleai-id="$index"]');
+      var el = document.querySelector('[data-triangle-id="$index"]');
       if (!el) return {error: 'No element $index; take a new snapshot with browser_read.'};
       el.focus();
       var value = ${jsonEncode(text)};
@@ -252,11 +252,11 @@ class BrowserSession {
       return String(t).replace(/\s+/g, ' ').trim().slice(0, 90);
     };
     var out = [], n = 0;
-    document.querySelectorAll('[data-teleai-id]').forEach(function (el) { el.removeAttribute('data-teleai-id'); });
+    document.querySelectorAll('[data-triangle-id]').forEach(function (el) { el.removeAttribute('data-triangle-id'); });
     for (var i = 0; i < els.length && out.length < 120; i++) {
       var el = els[i];
       if (!shown(el)) continue;
-      el.setAttribute('data-teleai-id', String(n));
+      el.setAttribute('data-triangle-id', String(n));
       var o = {i: n, tag: el.tagName.toLowerCase()};
       var t = label(el); if (t) o.text = t;
       if (el.type && el.tagName !== 'BUTTON' && el.tagName !== 'A') o.type = el.type;

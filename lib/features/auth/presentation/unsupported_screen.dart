@@ -6,7 +6,7 @@ import '../../../infrastructure/telegram/telegram_client.dart';
 import '../data/auth_controller.dart';
 import 'auth_layout.dart';
 
-/// Sign-in states TeleAI leaves to the official app: creating a brand new
+/// Sign-in states Triangle leaves to the official app: creating a brand new
 /// Telegram account, or setting up a login email.
 class UnsupportedAuthScreen extends ConsumerWidget {
   const UnsupportedAuthScreen({super.key});

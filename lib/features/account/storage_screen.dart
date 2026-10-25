@@ -16,7 +16,7 @@ import '../telegram/presentation/tg_avatar.dart';
 import 'widgets.dart';
 
 /// Telegram's footprint on this phone: what its cached files take, by kind
-/// and by chat, with ways to free space; TeleAI's own files; and the data
+/// and by chat, with ways to free space; Triangle's own files; and the data
 /// used, on mobile and Wi-Fi.
 class StorageScreen extends StatelessWidget {
   const StorageScreen({super.key});
@@ -65,7 +65,7 @@ String _percent(int part, int whole) {
   return p < 1 ? '<1%' : '${p.round()}%';
 }
 
-/// The space TeleAI's own files take (generated, sandbox, downloads,
+/// The space Triangle's own files take (generated, sandbox, downloads,
 /// exports, screenshots), outside Telegram's cache.
 Future<int> _appFilesSize() async {
   final root = (await getApplicationSupportDirectory()).path;
@@ -293,7 +293,7 @@ class _StorageState extends ConsumerState<_Storage> with AutomaticKeepAliveClien
                   ],
                 ),
               Group(
-                label: 'TeleAI\'s own files',
+                label: 'Triangle\'s own files',
                 children: [
                   FutureBuilder<int>(
                     future: _appFiles,

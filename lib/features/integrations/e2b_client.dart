@@ -136,7 +136,7 @@ class E2bClient {
       'templateID': template.trim().isEmpty ? defaultTemplate : template.trim(),
       'timeout': timeoutSeconds.clamp(30, 3600),
       'allow_internet_access': internet,
-      'metadata': {'app': 'teleai'},
+      'metadata': {'app': 'triangle'},
     });
     if (j is! Map || j['sandboxID'] == null) throw E2bException('E2B did not return a sandbox.');
     return E2bSandbox(
@@ -236,9 +236,9 @@ class E2bClient {
     final ex = await run(s, _pyJson(body));
     if (ex.error != null) throw E2bException('${ex.error!['name']}: ${ex.error!['value']}');
     final out = ex.stdout.join();
-    final start = out.indexOf('__TELEAI__');
+    final start = out.indexOf('__TRIANGLE__');
     if (start < 0) throw E2bException('The sandbox gave no answer.');
-    return Map<String, dynamic>.from(jsonDecode(out.substring(start + 10).trim()) as Map);
+    return Map<String, dynamic>.from(jsonDecode(out.substring(start + '__TRIANGLE__'.length).trim()) as Map);
   }
 
   Future<void> writeFile(E2bSandbox s, String path, Uint8List bytes) async {
@@ -247,7 +247,7 @@ class E2bClient {
 p = ${jsonEncode(path)}
 os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
 with open(p, "wb") as f: f.write(base64.b64decode(${jsonEncode(b64)}))
-print("__TELEAI__" + json.dumps({"ok": True, "size": os.path.getsize(p)}))
+print("__TRIANGLE__" + json.dumps({"ok": True, "size": os.path.getsize(p)}))
 ''');
   }
 
@@ -256,7 +256,7 @@ print("__TELEAI__" + json.dumps({"ok": True, "size": os.path.getsize(p)}))
 p = ${jsonEncode(path)}
 n = os.path.getsize(p)
 if n > $maxBytes: raise ValueError(f"{p} is {n} bytes; the limit is $maxBytes")
-print("__TELEAI__" + json.dumps({"b64": base64.b64encode(open(p, "rb").read()).decode()}))
+print("__TRIANGLE__" + json.dumps({"b64": base64.b64encode(open(p, "rb").read()).decode()}))
 ''');
     return base64Decode('${j['b64']}');
   }
@@ -269,7 +269,7 @@ out = []
 for e in sorted(os.scandir(p), key=lambda e: (not e.is_dir(), e.name))[:300]:
     st = e.stat()
     out.append({"name": e.name, "path": os.path.join(p, e.name), "dir": e.is_dir(), "size": st.st_size, "modified": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(st.st_mtime))})
-print("__TELEAI__" + json.dumps({"files": out}))
+print("__TRIANGLE__" + json.dumps({"files": out}))
 ''');
     return [for (final f in (j['files'] as List? ?? const [])) Map<String, dynamic>.from(f as Map)];
   }

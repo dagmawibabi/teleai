@@ -286,7 +286,7 @@ class BriefSettingsScreen extends ConsumerWidget {
                     leading: const Icon(Icons.widgets_outlined, color: AppColors.text2),
                     title: const Text('Brief widget'),
                     subtitle: Text(
-                      'Long-press your home screen → Widgets → TeleAI → Brief. It shows the latest brief and opens it when tapped.',
+                      'Long-press your home screen → Widgets → Triangle → Brief. It shows the latest brief and opens it when tapped.',
                       style: context.text.bodySmall,
                     ),
                   ),

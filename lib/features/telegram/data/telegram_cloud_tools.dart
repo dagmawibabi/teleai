@@ -425,12 +425,12 @@ extension _CloudToolRuns on TelegramToolRunner {
           final run = await session.run(
             'import subprocess, json\n'
             'p = subprocess.run(${jsonEncode(cmd)}, shell=True, capture_output=True, text=True, cwd=${jsonEncode(_arg(a, 'cwd').isEmpty ? '/home/user' : _arg(a, 'cwd'))}, timeout=$t)\n'
-            'print("__TELEAI__" + json.dumps({"code": p.returncode, "out": p.stdout[-12000:], "err": p.stderr[-6000:]}))',
+            'print("__TRIANGLE__" + json.dumps({"code": p.returncode, "out": p.stdout[-12000:], "err": p.stderr[-6000:]}))',
             timeout: Duration(seconds: t + 15),
           );
           if (run.error != null) return ToolOutput({'error': '${run.error!['name']}: ${run.error!['value']}'});
-          final i = run.stdout.indexOf('__TELEAI__');
-          final j = i < 0 ? const {} : jsonDecode(run.stdout.substring(i + 10).trim()) as Map;
+          final i = run.stdout.indexOf('__TRIANGLE__');
+          final j = i < 0 ? const {} : jsonDecode(run.stdout.substring(i + '__TRIANGLE__'.length).trim()) as Map;
           return ToolOutput({
             'sandbox': 'e2b',
             'command': cmd,

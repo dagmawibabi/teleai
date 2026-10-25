@@ -32,7 +32,7 @@ class TeleAiApp extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     AppColors.applyAccent(Color(settings.accent.value));
     return MaterialApp(
-      title: 'TeleAI',
+      title: 'Triangle',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(
         accent: Color(settings.accent.value),

@@ -86,7 +86,7 @@ class WidgetCustomizerScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Space.xs, Space.m, Space.xs, 0),
                   child: Text(
-                    'Add it from your home screen: long-press an empty spot → Widgets → TeleAI → Brief. It updates with every new brief.',
+                    'Add it from your home screen: long-press an empty spot → Widgets → Triangle → Brief. It updates with every new brief.',
                     style: context.text.bodySmall,
                   ),
                 ),
@@ -124,7 +124,7 @@ class WidgetCustomizerScreen extends ConsumerWidget {
                   onChanged: (v) => ctl.update((l) => l.copyWith(showTime: v)),
                 ),
                 SwitchListTile(
-                  title: const Text('"Open TeleAI" line'),
+                  title: const Text('"Open Triangle" line'),
                   value: look.showFooter,
                   onChanged: (v) => ctl.update((l) => l.copyWith(showFooter: v)),
                 ),
@@ -205,7 +205,7 @@ class _Preview extends StatelessWidget {
         ),
         if (look.showFooter) ...[
           const SizedBox(height: 6),
-          Text('Open TeleAI ›', style: TextStyle(color: Color(look.theme.body), fontSize: 11)),
+          Text('Open Triangle ›', style: TextStyle(color: Color(look.theme.body), fontSize: 11)),
         ],
       ],
     ),

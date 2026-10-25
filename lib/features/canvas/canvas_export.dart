@@ -101,7 +101,7 @@ Future<File> exportCanvasFolder(
 
 Map<String, dynamic> _json(List<_Section> sections) => {
   'exported': DateTime.now().toIso8601String(),
-  'app': 'TeleAI Content Canvas',
+  'app': 'Triangle Content Canvas',
   'folders': [
     for (final s in sections)
       {
@@ -150,7 +150,7 @@ String _markdown(List<_Section> sections) {
       b.writeln('\n---\n');
     }
   }
-  b.writeln('_Exported from TeleAI on ${_when.format(DateTime.now())}._');
+  b.writeln('_Exported from Triangle on ${_when.format(DateTime.now())}._');
   return b.toString();
 }
 
@@ -160,7 +160,7 @@ String _html(List<_Section> sections) {
   final b = StringBuffer()
     ..writeln('<!doctype html><html lang="en"><head><meta charset="utf-8">')
     ..writeln('<meta name="viewport" content="width=device-width, initial-scale=1">')
-    ..writeln('<title>${_esc(sections.first.folder.name)} · TeleAI Canvas</title>')
+    ..writeln('<title>${_esc(sections.first.folder.name)} · Triangle Canvas</title>')
     ..writeln('''<style>
 :root{--bg:#fff;--fg:#17171a;--muted:#6c6c76;--card:#f4f4f6;--line:#e3e3e8;--accent:#3b6ef5}
 @media (prefers-color-scheme:dark){:root{--bg:#0b0b0d;--fg:#ededf0;--muted:#a3a3ad;--card:#16161a;--line:#26262c;--accent:#7aa2ff}}
@@ -192,7 +192,7 @@ footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center}
       b.writeln('</div>');
     }
   }
-  b.writeln('<footer>Exported from TeleAI on ${_esc(_when.format(DateTime.now()))}</footer></main></body></html>');
+  b.writeln('<footer>Exported from Triangle on ${_esc(_when.format(DateTime.now()))}</footer></main></body></html>');
   return b.toString();
 }
 
@@ -229,7 +229,7 @@ Future<pw.ThemeData> _theme() async {
 }
 
 Future<Uint8List> _pdf(List<_Section> sections) async {
-  final doc = pw.Document(theme: await _theme(), title: sections.first.folder.name, creator: 'TeleAI');
+  final doc = pw.Document(theme: await _theme(), title: sections.first.folder.name, creator: 'Triangle');
   const muted = PdfColor.fromInt(0xFF6C6C76);
   const card = PdfColor.fromInt(0xFFF4F4F6);
   const line = PdfColor.fromInt(0xFFE3E3E8);
@@ -241,7 +241,7 @@ Future<Uint8List> _pdf(List<_Section> sections) async {
       footer: (ctx) => pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text('TeleAI · Content Canvas', style: const pw.TextStyle(fontSize: 8, color: muted)),
+          pw.Text('Triangle · Content Canvas', style: const pw.TextStyle(fontSize: 8, color: muted)),
           pw.Text('${ctx.pageNumber} / ${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 8, color: muted)),
         ],
       ),

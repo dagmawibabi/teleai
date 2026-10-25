@@ -255,7 +255,7 @@ final _deviceTools = <TelegramTool>[
     category: ToolCategory.device,
     cost: ToolCost.device,
     requiresApproval: true,
-    description: 'Keeps the screen from turning off while TeleAI is open (e.g. while reading a recipe), or lets it sleep again.',
+    description: 'Keeps the screen from turning off while Triangle is open (e.g. while reading a recipe), or lets it sleep again.',
     parameters: _obj({
       'on': {'type': 'boolean'},
     }, ['on']),

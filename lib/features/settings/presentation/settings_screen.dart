@@ -97,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
         content: const Text(
-          'This ends TeleAI\'s Telegram session and removes your conversations from this device. '
+          'This ends Triangle\'s Telegram session and removes your conversations from this device. '
           'Nothing in your Telegram account is deleted.',
         ),
         actions: [
@@ -588,7 +588,7 @@ class SettingsScreen extends ConsumerWidget {
                       secondary: const Icon(Icons.all_inclusive_rounded),
                       title: const Text('Always run in the background'),
                       subtitle: Text(
-                        'Once opened, TeleAI stays ready in the background even with no watches on',
+                        'Once opened, Triangle stays ready in the background even with no watches on',
                         style: context.text.bodySmall,
                       ),
                       value: s.backgroundAlways,
@@ -684,18 +684,29 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.all(Space.l),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: SegmentedButton<VoiceEngine>(
-                          showSelectedIcon: false,
-                          segments: [
-                            for (final e in VoiceEngine.values)
-                              ButtonSegment(value: e, label: Text(e.label)),
-                          ],
-                          selected: {s.voiceEngine},
-                          onSelectionChanged: (v) =>
-                              ctl.setVoiceEngine(v.first),
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: Space.s,
+                        children: [
+                          for (final engines in const [
+                            [VoiceEngine.device, VoiceEngine.ai],
+                            [VoiceEngine.addis, VoiceEngine.elevenLabs],
+                          ])
+                            SegmentedButton<VoiceEngine>(
+                              showSelectedIcon: false,
+                              emptySelectionAllowed: true,
+                              segments: [
+                                for (final e in engines)
+                                  ButtonSegment(value: e, label: Text(e.label)),
+                              ],
+                              selected: {
+                                if (engines.contains(s.voiceEngine)) s.voiceEngine,
+                              },
+                              onSelectionChanged: (v) {
+                                if (v.isNotEmpty) ctl.setVoiceEngine(v.first);
+                              },
+                            ),
+                        ],
                       ),
                     ),
                     if (s.voiceEngine != VoiceEngine.ai) ...[
@@ -939,7 +950,7 @@ class SettingsScreen extends ConsumerWidget {
                             ref
                                 .read(speakerProvider)
                                 .play(
-                                  'Hi! This is how TeleAI will read your answers aloud. You have three unread messages from your channels.',
+                                  'Hi! This is how Triangle will read your answers aloud. You have three unread messages from your channels.',
                                   title: 'Voice test',
                                 );
                             showPlayerSheet(context);

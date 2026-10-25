@@ -39,7 +39,7 @@ class BriefWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.brief_when, p.getString("flutter.widget_brief_when", null) ?: "")
             views.setTextViewText(
                 R.id.brief_text,
-                text ?: "No brief yet. Tap to open TeleAI and write one.",
+                text ?: "No brief yet. Tap to open Triangle and write one.",
             )
             val open = Intent(context, MainActivity::class.java).apply {
                 putExtra(EXTRA_OPEN_BRIEF, true)

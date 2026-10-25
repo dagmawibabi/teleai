@@ -124,7 +124,7 @@ class BrandLockup extends StatelessWidget {
         BrandMark(size: markSize),
         const SizedBox(width: Space.s + 2),
         Text(
-          'TeleAI',
+          'Triangle',
           style: context.text.titleMedium?.copyWith(letterSpacing: -0.2),
         ),
       ],

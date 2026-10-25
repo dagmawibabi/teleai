@@ -123,7 +123,7 @@ class SettingsHub extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('TeleAI', style: context.text.titleLarge),
+                            Text('Triangle', style: context.text.titleLarge),
                             Text(
                               'Version ${AppConfig.version} · Telegram, with an assistant',
                               style: context.text.bodySmall,
@@ -180,12 +180,12 @@ class SettingsHub extends ConsumerWidget {
                           leading: const Icon(Icons.info_outline_rounded),
                           title: const Text('Project details'),
                           subtitle: Text(
-                            'TeleAI ${AppConfig.version} · Flutter and TDLib',
+                            'Triangle ${AppConfig.version} · Flutter and TDLib',
                             style: context.text.bodySmall,
                           ),
                           onTap: () => showAboutDialog(
                             context: sheetContext,
-                            applicationName: 'TeleAI',
+                            applicationName: 'Triangle',
                             applicationVersion: AppConfig.version,
                             applicationLegalese:
                                 'An independent Telegram assistant client.',
@@ -199,9 +199,9 @@ class SettingsHub extends ConsumerWidget {
                         const Divider(indent: 56),
                         ListTile(
                           leading: const Icon(Icons.code_rounded),
-                          title: const Text('TeleAI on GitHub'),
+                          title: const Text('Triangle on GitHub'),
                           subtitle: Text(
-                            'github.com/dagmawibabi/teleai',
+                            'github.com/dagmawibabi/triangle',
                             style: context.text.bodySmall,
                           ),
                           trailing: const Icon(
@@ -209,7 +209,7 @@ class SettingsHub extends ConsumerWidget {
                             size: 18,
                           ),
                           onTap: () => launchUrl(
-                            Uri.parse('https://github.com/dagmawibabi/teleai'),
+                            Uri.parse('https://github.com/dagmawibabi/triangle'),
                             mode: LaunchMode.externalApplication,
                           ),
                         ),
@@ -227,7 +227,7 @@ class SettingsHub extends ConsumerWidget {
                           ),
                           onTap: () => launchUrl(
                             Uri.parse(
-                              'https://github.com/dagmawibabi/teleai/issues',
+                              'https://github.com/dagmawibabi/triangle/issues',
                             ),
                             mode: LaunchMode.externalApplication,
                           ),
@@ -358,7 +358,7 @@ class SettingsHub extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
         content: const Text(
-          'This ends TeleAI\'s Telegram session and removes your conversations from this device. '
+          'This ends Triangle\'s Telegram session and removes your conversations from this device. '
           'Nothing in your Telegram account is deleted.',
         ),
         actions: [
@@ -519,7 +519,7 @@ class SettingsHub extends ConsumerWidget {
                             children: [
                               Text(
                                 me == null
-                                    ? 'TeleAI'
+                                    ? 'Triangle'
                                     : '${me.firstName} ${me.lastName}'.trim(),
                                 style: context.text.titleLarge,
                               ),

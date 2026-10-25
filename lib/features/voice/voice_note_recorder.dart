@@ -77,7 +77,7 @@ class _VoiceNoteRecorderSheetState extends State<_VoiceNoteRecorderSheet> {
       _levels.clear();
     });
     try {
-      if (!await _recorder.hasPermission()) throw Exception('Microphone access is off for TeleAI.');
+      if (!await _recorder.hasPermission()) throw Exception('Microphone access is off for Triangle.');
       final dir = Directory('${(await getApplicationSupportDirectory()).path}/voice_notes');
       if (!await dir.exists()) await dir.create(recursive: true);
       final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.opus';

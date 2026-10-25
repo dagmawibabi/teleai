@@ -715,7 +715,7 @@ class _LocationTab extends StatelessWidget {
         ListTile(
           leading: const CircleAvatar(backgroundColor: AppColors.surface3, child: Icon(Icons.share_location_rounded)),
           title: Text('Share live location for $label'),
-          subtitle: const Text('Updates as you move while TeleAI runs'),
+          subtitle: const Text('Updates as you move while Triangle runs'),
           onTap: () => Navigator.pop(context, AttachLocation(minutes)),
         ),
     ],

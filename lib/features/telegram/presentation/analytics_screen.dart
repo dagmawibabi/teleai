@@ -112,7 +112,7 @@ class _OverviewState extends ConsumerState<_Overview>
       final dir = Directory('${root.path}/exports')
         ..createSync(recursive: true);
       final file = File(
-        '${dir.path}/teleai_channel_summary_${DateTime.now().millisecondsSinceEpoch}.png',
+        '${dir.path}/triangle_channel_summary_${DateTime.now().millisecondsSinceEpoch}.png',
       );
       await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
       if (mounted) showSnack(context, 'Saved channel summary to Files');
@@ -466,7 +466,7 @@ class _GraphState extends ConsumerState<_Graph> {
   }
 
   /// Saves exactly the graph people see, including its legend and dates, to
-  /// the exports folder so it also appears in TeleAI's Files page.
+  /// the exports folder so it also appears in Triangle's Files page.
   Future<void> _exportPng() async {
     try {
       final boundary =
@@ -485,7 +485,7 @@ class _GraphState extends ConsumerState<_Graph> {
           .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
           .replaceAll(RegExp(r'^_|_$'), '');
       final file = File(
-        '${dir.path}/teleai_stats_${safe.isEmpty ? 'graph' : safe}_${DateTime.now().millisecondsSinceEpoch}.png',
+        '${dir.path}/triangle_stats_${safe.isEmpty ? 'graph' : safe}_${DateTime.now().millisecondsSinceEpoch}.png',
       );
       await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
       if (mounted) showSnack(context, 'Saved ${widget.title} graph to Files');

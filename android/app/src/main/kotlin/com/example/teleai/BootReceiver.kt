@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/// Starts TeleAI in the background after the phone restarts (when "Start
+/// Starts Triangle in the background after the phone restarts (when "Start
 /// when the phone restarts" is on) and after an update (when it was
 /// running in the background before).
 class BootReceiver : BroadcastReceiver() {

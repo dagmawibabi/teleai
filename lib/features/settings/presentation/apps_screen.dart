@@ -341,7 +341,7 @@ class _NoKey extends StatelessWidget {
           Text('Connect Gmail, Slack, Notion and more', style: context.text.titleMedium, textAlign: TextAlign.center),
           const SizedBox(height: Space.s),
           Text(
-            'TeleAI reaches your other apps through Composio. Make a free Composio project, copy its API key '
+            'Triangle reaches your other apps through Composio. Make a free Composio project, copy its API key '
             '(it starts with ak_), and paste it above. Then connect apps here.',
             style: context.text.bodySmall,
             textAlign: TextAlign.center,

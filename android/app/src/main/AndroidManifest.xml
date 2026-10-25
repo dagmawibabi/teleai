@@ -19,7 +19,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <!-- Needed only while a user has elected to keep a live location updating
-         after switching away from TeleAI. Android grants this separately. -->
+         after switching away from Triangle. Android grants this separately. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <!-- Saving photos and videos to the gallery on Android 9 and 10; newer
          versions need no permission for that, and picking files uses the
@@ -50,7 +50,7 @@
     <uses-feature android:name="android.hardware.telephony" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.flash" android:required="false"/>
     <application
-        android:label="TeleAI"
+        android:label="Triangle"
         android:name=".TeleAiApplication"
         android:icon="@mipmap/launcher_icon"
         android:requestLegacyExternalStorage="true">
@@ -104,7 +104,7 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
-        <!-- Starts TeleAI in the background after a reboot or update, when
+        <!-- Starts Triangle in the background after a reboot or update, when
              the settings ask for it. -->
         <receiver
             android:name=".BootReceiver"
@@ -128,8 +128,8 @@
         </receiver>
         <!-- The one-colour mark the ongoing notification shows. -->
         <meta-data
-            android:name="com.teleai.STAT_ICON"
-            android:resource="@drawable/ic_stat_teleai" />
+            android:name="com.triangle.STAT_ICON"
+            android:resource="@drawable/ic_stat_triangle" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

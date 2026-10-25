@@ -26,7 +26,7 @@ class AppNotifier {
   final taps = StreamController<String>.broadcast();
 
   static const _channel = 'teleai_watches';
-  static const _icon = 'ic_stat_teleai';
+  static const _icon = 'ic_stat_triangle';
 
   Future<void> init() async {
     if (_ready || !(Platform.isAndroid || Platform.isIOS)) return;
@@ -166,7 +166,7 @@ class AppNotifier {
   /// running reliably when its ongoing notification may be shown and the
   /// app isn't battery-optimised, so both are asked for once here.
   Future<void> keepAlive(bool on, {int watches = 0}) async {
-    final title = watches > 0 ? 'TeleAI is watching' : 'TeleAI is running';
+    final title = watches > 0 ? 'Triangle is watching' : 'Triangle is running';
     final text = watches > 0 ? '$watches watch${watches == 1 ? '' : 'es'} on' : 'Ready in the background';
     if (!Platform.isAndroid) return;
     try {
@@ -176,7 +176,7 @@ class AppNotifier {
           androidNotificationOptions: AndroidNotificationOptions(
             channelId: 'teleai_keep_alive',
             channelName: 'Watching',
-            channelDescription: 'Shown while TeleAI watches your chats in the background',
+            channelDescription: 'Shown while Triangle watches your chats in the background',
             channelImportance: NotificationChannelImportance.LOW,
             priority: NotificationPriority.LOW,
             onlyAlertOnce: true,
@@ -212,7 +212,7 @@ class AppNotifier {
           serviceTypes: const [ForegroundServiceTypes.specialUse],
           notificationTitle: title,
           notificationText: text,
-          notificationIcon: const NotificationIcon(metaDataName: 'com.teleai.STAT_ICON'),
+          notificationIcon: const NotificationIcon(metaDataName: 'com.triangle.STAT_ICON'),
           callback: keepAliveEntryPoint,
         );
         _alive = r is ServiceRequestSuccess;

@@ -42,8 +42,8 @@ class MediaClient {
   Map<String, String> _headers(String model) => {
     'Authorization': 'Bearer ${_key(model)}',
     'Content-Type': 'application/json',
-    'HTTP-Referer': 'https://github.com/teleai-app',
-    'X-Title': 'TeleAI',
+    'HTTP-Referer': 'https://github.com/dagmawibabi/triangle',
+    'X-Title': 'Triangle',
   };
 
   String _base(String model) => AiRoute.isOpenRouter(model)
@@ -332,7 +332,7 @@ class AddisAiClient {
 
   /// What a sample says, in the voice's own language.
   static String sampleText(String language) => switch (language) {
-    'om' => 'Akkam jirta! Ani gargaaraa kee TeleAI dha. Har\'a maal si gargaaruu danda\'a?',
+    'om' => 'Akkam jirta! Ani gargaaraa kee Triangle dha. Har\'a maal si gargaaruu danda\'a?',
     'ti' => 'ሰላም! ኣነ ሓጋዚኻ ቴሌኤአይ እየ። ሎሚ ብምንታይ ክሕግዘካ?',
     _ => 'ሰላም! እኔ የቴሌኤአይ ረዳትህ ነኝ። ዛሬ በምን ልርዳህ?',
   };

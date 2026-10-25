@@ -2,7 +2,7 @@ import 'telegram_api.dart';
 
 /// App-wide constants.
 abstract final class AppConfig {
-  static const String appName = 'TeleAI';
+  static const String appName = 'Triangle';
 
   /// Telegram API credentials from https://my.telegram.org. A build given
   /// TELEGRAM_API_ID and TELEGRAM_API_HASH with `--dart-define` (or

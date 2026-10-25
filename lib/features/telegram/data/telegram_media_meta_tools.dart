@@ -123,7 +123,7 @@ extension _MediaMetaTools on TelegramToolRunner {
     return t.length > max ? '${t.substring(0, max)}…' : t;
   }
 
-  static const _ua = {'user-agent': 'TeleAI/1.0 ( https://github.com/dagmawibabi/teleai )'};
+  static const _ua = {'user-agent': 'Triangle/1.0 ( https://github.com/dagmawibabi/triangle )'};
 
   String _country(Map<String, dynamic> args) {
     final c = '${args['country'] ?? ''}'.trim().toLowerCase();

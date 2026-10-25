@@ -97,9 +97,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
     setState(() => _saving = true);
     try {
       if (_isVideo) {
-        await Gal.putVideo(path, album: 'TeleAI');
+        await Gal.putVideo(path, album: 'Triangle');
       } else {
-        await Gal.putImage(path, album: 'TeleAI');
+        await Gal.putImage(path, album: 'Triangle');
       }
       if (mounted) showSnack(context, 'Saved to your device');
     } catch (_) {

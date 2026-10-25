@@ -127,7 +127,7 @@ class Dictation extends ChangeNotifier {
   void _onError(SpeechRecognitionError e) {
     error = switch (e.errorMsg) {
       'error_no_match' || 'error_speech_timeout' => 'Didn\'t catch that. Try again.',
-      'error_permission' || 'error_insufficient_permissions' => 'Microphone access is off for TeleAI.',
+      'error_permission' || 'error_insufficient_permissions' => 'Microphone access is off for Triangle.',
       'error_network' || 'error_network_timeout' || 'error_server' => 'Speech recognition needs a connection.',
       _ => 'Dictation stopped: ${e.errorMsg}',
     };
@@ -156,11 +156,11 @@ class Dictation extends ChangeNotifier {
     }
     final recorder = _recorder ??= AudioRecorder();
     if (!await recorder.hasPermission()) {
-      error = 'Microphone access is off for TeleAI.';
+      error = 'Microphone access is off for Triangle.';
       notifyListeners();
       return;
     }
-    final path = '${(await getTemporaryDirectory()).path}/teleai_dictation.wav';
+    final path = '${(await getTemporaryDirectory()).path}/triangle_dictation.wav';
     await recorder.start(
       const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
       path: path,

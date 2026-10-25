@@ -17,7 +17,7 @@ import '../data/settings.dart';
 import 'tools_screen.dart';
 
 /// Settings → Apps & web → Telegram: the account (connect it like any other
-/// app, or sign out), and how TeleAI behaves in it.
+/// app, or sign out), and how Triangle behaves in it.
 class TelegramTab extends ConsumerWidget {
   const TelegramTab({super.key});
 
@@ -137,8 +137,8 @@ class TelegramTab extends ConsumerWidget {
                         if (!await confirmAction(
                           context,
                           title: 'Sign out of Telegram?',
-                          message: 'This ends TeleAI\'s Telegram session and removes your conversations from this device. '
-                              'Nothing in your Telegram account is deleted. You can keep using TeleAI without it.',
+                          message: 'This ends Triangle\'s Telegram session and removes your conversations from this device. '
+                              'Nothing in your Telegram account is deleted. You can keep using Triangle without it.',
                           action: 'Sign out',
                         )) {
                           return;
@@ -156,12 +156,12 @@ class TelegramTab extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(top: Space.s),
                 child: Text(
-                  'Sign in with your phone number or a QR code from another device. TeleAI talks to Telegram directly from this '
-                  'phone through the official TDLib library; nothing goes through TeleAI servers.',
+                  'Sign in with your phone number or a QR code from another device. Triangle talks to Telegram directly from this '
+                  'phone through the official TDLib library; nothing goes through Triangle servers.',
                   style: context.text.bodySmall,
                 ),
               ),
-            section('How TeleAI behaves', [
+            section('How Triangle behaves', [
               SwitchListTile(
                 secondary: const Icon(Icons.circle, size: 14, color: AppColors.success),
                 title: const Text('Appear online while using the app'),

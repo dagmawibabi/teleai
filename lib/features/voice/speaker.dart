@@ -238,7 +238,7 @@ class Speaker extends ChangeNotifier {
         unawaited(_fetch(i + 1).then((_) {}, onError: (_) {}));
       if (gen != _gen) return true;
       final dir = await getTemporaryDirectory();
-      final file = await File('${dir.path}/teleai_voice_$i.mp3')
+      final file = await File('${dir.path}/triangle_voice_$i.mp3')
           .writeAsBytes(bytes);
       final player = _player ??= AudioPlayer();
       _done = Completer<void>();

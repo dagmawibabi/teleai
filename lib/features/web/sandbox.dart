@@ -41,7 +41,7 @@ class Sandbox {
     final c = _c = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
-        'TeleaiSandbox',
+        'TriangleSandbox',
         onMessageReceived: (m) {
           try {
             final j = jsonDecode(m.message) as Map<String, dynamic>;
@@ -73,8 +73,8 @@ class Sandbox {
     final values = args.values.map(jsonEncode).join(', ');
     await c.runJavaScript('''
       (async function ($names) { $body })($values)
-        .then(function (v) { TeleaiSandbox.postMessage(JSON.stringify({id: $id, ok: true, value: v === undefined ? null : v})); })
-        .catch(function (e) { TeleaiSandbox.postMessage(JSON.stringify({id: $id, ok: false, error: String(e && e.stack || e)})); });
+        .then(function (v) { TriangleSandbox.postMessage(JSON.stringify({id: $id, ok: true, value: v === undefined ? null : v})); })
+        .catch(function (e) { TriangleSandbox.postMessage(JSON.stringify({id: $id, ok: false, error: String(e && e.stack || e)})); });
     ''');
     try {
       return await waiter.future.timeout(timeout);

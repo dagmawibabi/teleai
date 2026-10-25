@@ -211,7 +211,7 @@ extension AnalyticsTools on TelegramToolRunner {
     );
     _summaryText(
       canvas,
-      'TELEAI · CHANNEL OVERVIEW',
+      'TRIANGLE · CHANNEL OVERVIEW',
       const ui.Offset(82, 265),
       20,
       const ui.Color(0xFF8AB4FF),
@@ -274,7 +274,7 @@ extension AnalyticsTools on TelegramToolRunner {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'^_|_$'), '');
     final out = File(
-      '${dir.path}/teleai_channel_${safe.isEmpty ? 'summary' : safe}_${DateTime.now().millisecondsSinceEpoch}.png',
+      '${dir.path}/triangle_channel_${safe.isEmpty ? 'summary' : safe}_${DateTime.now().millisecondsSinceEpoch}.png',
     );
     return out.writeAsBytes(png.buffer.asUint8List(), flush: true);
   }

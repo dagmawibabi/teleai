@@ -11,7 +11,7 @@ import '../../../app/theme.dart';
 import '../../assistant/watch_engine.dart';
 import '../../device/device.dart';
 
-/// What Android lets TeleAI do, why each matters, and how to fix it.
+/// What Android lets Triangle do, why each matters, and how to fix it.
 /// Rechecked whenever the app comes back to the front, since the answers
 /// change in Android's own settings.
 class PermissionsScreen extends ConsumerStatefulWidget {
@@ -257,7 +257,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
                 const SizedBox(height: Space.s),
                 Text(
                   'Samsung, Xiaomi, Huawei, Oppo and others add their own battery savers on top of Android\'s. If '
-                  'watches still stop, find TeleAI in your phone\'s battery settings and set it to "Unrestricted" or '
+                  'watches still stop, find Triangle in your phone\'s battery settings and set it to "Unrestricted" or '
                   '"No restrictions", allow auto-start, and lock it in the recent apps.',
                   style: context.text.bodySmall?.copyWith(height: 1.4),
                 ),
@@ -265,7 +265,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
                 OutlinedButton.icon(
                   onPressed: Geolocator.openAppSettings,
                   icon: const Icon(Icons.settings_outlined, size: 18),
-                  label: const Text('Open TeleAI in Android settings'),
+                  label: const Text('Open Triangle in Android settings'),
                 ),
               ],
             ),
