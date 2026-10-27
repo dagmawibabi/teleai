@@ -121,7 +121,7 @@ enum ToolCategory {
   /// Listed under Settings → Apps & web rather than the Telegram tools:
   /// connected apps, and the tools that reach the web.
   bool get onAppsScreen => switch (this) {
-    web || developer || discover => true,
+    web || developer || discover || creative => true,
     gmail || outlook || calendar || googleDocs || slack || notion || githubAccount || linear || todoist || apps => true,
     cloudflare || r2 || e2b => true,
     _ => false,
@@ -140,7 +140,7 @@ enum ToolCost {
   ),
   ai(
     'AI model',
-    'Calls an AI model through your gateway key, which costs credits.',
+    'Calls an AI service using your API key; usage is billed by that provider.',
   ),
   device('This phone', 'Kept on this phone only; nothing goes to Telegram.'),
   web(
@@ -1283,6 +1283,8 @@ final _tools = <TelegramTool>[
   generateImageTool,
   generateAudioTool,
   generateAddisVoiceTool,
+  generateSoundEffectTool,
+  generateMusicTool,
   sendVoiceMessageTool,
   listAttachmentsTool,
   ..._moreTools,
@@ -1352,6 +1354,38 @@ final generateAudioTool = TelegramTool(
     ['text'],
   ),
 );
+
+final generateSoundEffectTool = TelegramTool(
+  name: 'generate_sound_effect',
+  label: 'Creating a sound effect',
+  category: ToolCategory.creative,
+  cost: ToolCost.ai,
+  description: 'Creates a sound effect or ambience from a description using ElevenLabs. Requires an ElevenLabs API key in Settings → AI & models. The audio appears in chat and is saved in Files. Use generate_music for songs and scores, and generate_audio for speech.',
+  parameters: _obj({
+    'prompt': {'type': 'string', 'description': 'Describe the sound, its environment and mood.'},
+    'duration_seconds': {'type': 'number', 'exclusiveMinimum': 0, 'description': 'Optional length in seconds; omit to let ElevenLabs choose.'},
+    'prompt_influence': {'type': 'number', 'minimum': 0, 'maximum': 1, 'description': 'Optional strength of adherence to the description.'},
+    'loop': {'type': 'boolean', 'description': 'Whether to make a looping sound effect. Default false.'},
+  }, ['prompt']),
+);
+
+final generateMusicTool = TelegramTool(
+  name: 'generate_music',
+  label: 'Creating music',
+  category: ToolCategory.creative,
+  cost: ToolCost.ai,
+  description: 'Creates music, a song or a score from a description using ElevenLabs. Describe the genre, mood, instruments and any vocals. Requires an ElevenLabs API key in Settings → AI & models and access to music generation. The audio appears in chat and is saved in Files.',
+  parameters: _obj({
+    'prompt': {'type': 'string', 'description': 'Describe the music to create.'},
+    'duration_seconds': {'type': 'number', 'exclusiveMinimum': 0, 'description': 'Requested length in seconds. Default 30.'},
+  }, ['prompt']),
+);
+
+/// ElevenLabs creative tools stay visible in Settings, with their key requirement.
+String? creativeToolNeeds(TelegramTool t, AppSettings s) =>
+    (t.name == generateSoundEffectTool.name || t.name == generateMusicTool.name) && !s.hasElevenKey
+        ? 'Needs an ElevenLabs key in AI & models'
+        : null;
 
 final generateAddisVoiceTool = TelegramTool(
   name: 'generate_addis_voice',

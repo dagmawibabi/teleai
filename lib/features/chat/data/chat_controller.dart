@@ -31,6 +31,8 @@ import '../../telegram/data/telegram_tools.dart';
 import '../../web/inapp_engine.dart';
 import '../domain/chat_models.dart';
 import 'chat_repository.dart';
+import 'creative_audio.dart';
+import 'image_input.dart';
 
 @immutable
 class ChatState {
@@ -353,6 +355,7 @@ class ChatController extends Notifier<ChatState> {
   }
 
   final Map<String, Completer<ToolOutput>> _toolCancels = {};
+  final Map<String, omni.CancelToken> _creativeAudioCancels = {};
 
   bool canCancel(ToolPart part) => _toolCancels.containsKey(part.callId);
 
@@ -362,6 +365,7 @@ class ChatController extends Notifier<ChatState> {
   void cancelTool(ToolPart part) {
     final waiter = _toolCancels.remove(part.callId);
     if (waiter == null || waiter.isCompleted) return;
+    _creativeAudioCancels.remove(part.callId)?.cancel();
     switch (part.name) {
       case 'run_code':
         unawaited(ref.read(aiProvider).deviceSandbox.sandbox.cancel());
@@ -520,6 +524,7 @@ class ChatController extends Notifier<ChatState> {
         if (t.isOn(settings) &&
             (telegram || !t.category.needsTelegram) &&
             appToolReady(t, settings, connected) &&
+            creativeToolNeeds(t, settings) == null &&
             cloudToolReady(t, settings) &&
             deviceToolReady(t))
           t,
@@ -775,6 +780,8 @@ class ChatController extends Notifier<ChatState> {
       if (part.name == generateImageTool.name) return _generateImage(part.args, c);
       if (part.name == generateAudioTool.name) return _generateAudio(part.args);
       if (part.name == generateAddisVoiceTool.name) return _generateAddisAudio(part.args);
+      if (part.name == generateSoundEffectTool.name) return _generateCreativeAudio(part.args, music: false);
+      if (part.name == generateMusicTool.name) return _generateCreativeAudio(part.args, music: true);
       if (_localTools.contains(part.name)) return _runLocalTool(part.name, part.args, c);
       if (canvasToolNames.contains(part.name)) {
         try {
@@ -1039,28 +1046,33 @@ class ChatController extends Notifier<ChatState> {
         final images = <Map<String, String>>[];
         final missing = <String>[];
         final known = sendableFiles(c).reversed.toList();
-        for (final f in (a['files'] as List? ?? const []).map((e) => '$e')) {
-          final want = f.toLowerCase();
-          final hit = File(f).existsSync()
-              ? known.where((x) => x.path == f).firstOrNull ??
-                    Attachment(
-                      path: f,
-                      name: f.split('/').last,
-                      mime: lookupMimeType(f) ?? 'image/jpeg',
-                      size: 0,
-                    )
-              : known.where((x) => x.name.toLowerCase() == want).firstOrNull ??
-                    known
-                        .where((x) => x.name.toLowerCase().contains(want))
-                        .firstOrNull;
-          if (hit != null && hit.isImage) {
-            images.add({'source': hit.name, 'path': hit.path});
-          } else {
-            missing.add(f);
+        final loader = ImageInputLoader(directory: Directory('${(await getApplicationSupportDirectory()).path}/viewed_images'));
+        try {
+          final inputs = [
+            ...(a['files'] as List? ?? const []),
+            ...(a['urls'] as List? ?? const []),
+          ];
+          for (final input in inputs) {
+            if (images.length == 6) break;
+            final f = '$input'.trim();
+            final want = f.toLowerCase();
+            final hit = want.isEmpty
+                ? null
+                : known.where((x) => x.path == f || x.name.toLowerCase() == want).firstOrNull;
+            final label = f.startsWith('data:') ? 'Inline image' : hit?.name ?? f;
+            try {
+              final file = await loader.load(hit?.path ?? f);
+              images.add({'source': label, 'path': file.path});
+            } catch (e) {
+              missing.add('$label (could not load as an image)');
+            }
           }
+        } finally {
+          loader.close();
         }
         final runner = ref.read(toolRunnerProvider);
         for (final r in (a['refs'] as List? ?? const []).map((e) => '$e')) {
+          if (images.length == 6) break;
           final m = RegExp(r'post:(-?\d+):(\d+)').firstMatch(r);
           if (m == null) {
             missing.add(r);
@@ -1081,6 +1093,7 @@ class ChatController extends Notifier<ChatState> {
         return ToolOutput({
           'shown': [for (final i in images.take(6)) i['source']],
           if (missing.isNotEmpty) 'not_found': missing,
+          if (images.isEmpty) 'error': 'No images could be loaded. Supply an accessible image path, attachment name, direct image URL, image data URL or Telegram ref.',
           if (images.isNotEmpty)
             'note': 'The images follow in the next message, in this order.',
           '_images': [for (final i in images.take(6)) i['path']],
@@ -1243,6 +1256,7 @@ class ChatController extends Notifier<ChatState> {
     if ((raw is! List || raw.isEmpty) && single is! String) return;
     final known = sendableFiles(c).reversed.toList();
     String resolve(String f) {
+      if (f.trim().isEmpty || RegExp(r'^(https?://|data:|file:)').hasMatch(f)) return f;
       if (File(f).existsSync()) return f;
       final want = f.toLowerCase().trim();
       final hit =
@@ -1364,6 +1378,43 @@ class ChatController extends Notifier<ChatState> {
       });
     } on omni.AiException catch (e) {
       return ToolOutput({'error': 'Audio generation failed: ${aiErrorText(e)}'});
+    }
+  }
+
+  Future<ToolOutput> _generateCreativeAudio(Map<String, dynamic> args, {required bool music}) async {
+    if (!ref.read(settingsProvider).hasElevenKey) {
+      return const ToolOutput({'error': 'Add an ElevenLabs API key in Settings → AI & models first.'});
+    }
+    final kind = music ? 'music' : 'sound_effect';
+    final context = omni.ToolContext.current;
+    final token = omni.CancelToken();
+    final detach = context?.cancelToken?.onCancel(token.cancel);
+    if (context != null) _creativeAudioCancels[context.call.id] = token;
+    try {
+      final audio = await generateElevenLabsAudio(
+        ref.read(aiProvider), args, music: music,
+        cancelToken: token,
+      );
+      if (token.isCancelled) return const ToolOutput({'stopped': true, 'error': 'Stopped by the user.'});
+      final prompt = '${args['prompt']}'.trim();
+      final file = await _saveGenerated(audio, {
+        ...args, 'kind': kind, 'provider': 'elevenlabs', 'prompt': prompt,
+      });
+      return ToolOutput({
+        'created': true,
+        'audio_path': file.path,
+        'prompt': prompt,
+        'kind': kind,
+        'provider': 'elevenlabs',
+        'note': 'The audio is already shown to the user and saved in Files. It can be attached with send_message.',
+      });
+    } on ArgumentError catch (e) {
+      return ToolOutput({'error': '${e.message}'});
+    } on omni.AiException catch (e) {
+      return ToolOutput({'error': '${music ? 'Music' : 'Sound effect'} generation failed: ${aiErrorText(e)}'});
+    } finally {
+      detach?.call();
+      if (context != null) _creativeAudioCancels.remove(context.call.id);
     }
   }
 
@@ -1555,7 +1606,7 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - Briefs: list_briefs and read_brief show the morning, night and on-demand briefs already written.
 ${me == null ? '- Telegram is not connected, so there are no Telegram tools. If the user asks about their chats, say they can connect Telegram under Settings → Apps & web → Telegram; meanwhile help with everything else.\n' : ''}${_appsNote(settings)}${_cloudNote(settings)}${Platform.isAndroid ? _deviceNote : ''}- forward_message can send to several chats at once with to_chat_ids.
 - The user may send voice messages: you get a transcript or the audio itself. Act on what they say; the recording can also be sent on to a chat with send_voice_message.
-- The user may attach pictures, voice notes and files; read them directly. To look (again) at an attached picture from earlier, or at a photo, video thumbnail, sticker or link-preview image in a Telegram post, use view_image. To send one of them (or an image you generated) to a chat, pass its name in files. Use send_voice_message for a recorded voice-note attachment; use generate_image when they ask you to create a picture.
+- The user may attach pictures, voice notes and files; read them directly. Use view_image to inspect any accessible image: earlier attachments, generated images, screenshots, downloaded/local files, direct HTTP/HTTPS image URLs, image data URLs, or Telegram photos, video thumbnails, stickers and link previews. Pass attachment names/local paths in files, direct image URLs in urls, and Telegram message refs in refs. Only Telegram refs require Telegram; the current model must support image input. To send a file to a chat, pass its name in files. Use send_voice_message for a recorded voice-note attachment; generate_image for pictures, generate_audio for speech, generate_sound_effect for effects and ambience, and generate_music for music. Sound effects and music require the ElevenLabs key. Creative tools are listed under Settings → Tools → Apps & web.
 - Reminders and scheduled jobs: "remind me to walk in 5 minutes" → create_reminder(text, in_minutes). Use at for a clock time and cron for repeats; add prompt when something should be done at that time (a job). list_reminders, update_reminder, delete_reminder manage them. Reminders are separate from watches, which react to new messages.
 - The web: fetch_url reads a page or API without scripts (blogs, articles, docs: e.g. list the posts on a blog, then fetch the ones needed). Sites that are apps (forms sent by JavaScript, web apps, logins) need the browser: browser_open, then browser_type into the numbered fields and browser_click the button; browser_read to see the result. To follow a link, browser_open or fetch_url its URL. http_request calls APIs; submit_form posts plain HTML forms; download_file saves a file that can then be sent. Tell the user what you saw or did on the page, briefly.
 - Files: send_message and reply_to_message send photos and videos compressed by default; send_as "file" sends them uncompressed as documents. zip_files packs several files into one .zip to send. edit_message can replace a message's media as well as its text.

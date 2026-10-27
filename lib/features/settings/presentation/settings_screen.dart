@@ -1846,16 +1846,33 @@ class _KeyTileState extends State<_KeyTile> {
   }
 
   Future<void> _save() async {
+    if (_checking) return;
     final key = _ctrl.text.trim();
-    await widget.onSave(key);
-    if (key.isEmpty) {
-      setState(() => _status = null);
-      return;
-    }
     setState(() {
       _checking = true;
       _status = null;
     });
+    try {
+      await widget.onSave(key);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _checking = false;
+          _ok = false;
+          _status = 'Could not save this setting. Try again.';
+        });
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (key.isEmpty) {
+      setState(() {
+        _checking = false;
+        _ok = true;
+        _status = 'Removed';
+      });
+      return;
+    }
     final error = await widget.verify(key);
     if (!mounted) return;
     setState(() {
@@ -1900,6 +1917,7 @@ class _KeyTileState extends State<_KeyTile> {
             obscureText: _obscure,
             autocorrect: false,
             enableSuggestions: false,
+            onChanged: (_) => setState(() => _status = null),
             onSubmitted: (_) => _save(),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
             decoration: InputDecoration(
@@ -1907,6 +1925,15 @@ class _KeyTileState extends State<_KeyTile> {
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (_ctrl.text.isNotEmpty)
+                    IconButton(
+                      tooltip: widget.secret ? 'Remove API key' : 'Clear',
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: _checking ? null : () {
+                        setState(() => _ctrl.clear());
+                        _save();
+                      },
+                    ),
                   if (widget.secret)
                   IconButton(
                     tooltip: _obscure ? 'Show' : 'Hide',

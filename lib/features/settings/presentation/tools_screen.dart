@@ -190,6 +190,7 @@ class _ToolListState extends ConsumerState<_ToolList> {
 
   /// What an app tool still needs before the assistant gets it.
   static String? _needs(TelegramTool t, AppSettings s, Set<String> connected) {
+    if (creativeToolNeeds(t, s) case final needs?) return needs;
     if (cloudToolNeeds(t, s) case final needs?) return needs;
     if (!deviceToolReady(t)) return 'Android only';
     if (!isAppTool(t.name)) return null;

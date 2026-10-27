@@ -19,18 +19,28 @@ final _mediaTools = <TelegramTool>[
     name: 'view_image',
     label: 'Looking at images',
     category: ToolCategory.creative,
+    cost: ToolCost.ai,
     description:
-        'Lets you see images with your own eyes: pictures the user attached (files, by name, even from earlier in '
-        'the conversation) and photos, video thumbnails, GIF frames, stickers and link-preview images from Telegram '
-        'messages (refs "post:<chat_id>:<message_id>"). Up to 6 at once. The images come right after the result.',
+        'Lets you inspect images from any available source: attachments (by name, including earlier messages), '
+        'generated images, screenshots, downloaded images, local file paths or file URLs, direct HTTP/HTTPS image '
+        'URLs and image data URLs. For Telegram photos, video thumbnails, GIF frames, stickers and link previews, '
+        'pass refs "post:<chat_id>:<message_id>". Telegram is only needed for refs. Up to 6 images at once. '
+        'The selected chat model must support image input. The images come right after the result.',
     parameters: _obj({
       'files': {
         'type': 'array',
         'items': {'type': 'string'},
+        'description': 'Attachment names, generated/downloaded image paths, screenshot paths, file URLs, direct image URLs or image data URLs.',
+      },
+      'urls': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'Direct HTTP/HTTPS image URLs or image data URLs. Use an image URL rather than a webpage URL.',
       },
       'refs': {
         'type': 'array',
         'items': {'type': 'string'},
+        'description': 'Telegram message refs: post:<chat_id>:<message_id>. Requires Telegram to be connected.',
       },
     }),
   ),

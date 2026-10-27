@@ -21,6 +21,9 @@ The app is designed around reviewable actions: whenever the assistant wants to s
 - Inspect tool calls and their results in rich bottom sheets; open cited Telegram posts with media controls.
 - Send channel posts or other Telegram content through an adaptive preview card before forwarding.
 - Generate images and audio, keep the resulting assets in **Files**, and send them to Telegram.
+- Create sound effects, looping ambience and music with your ElevenLabs key. These and the other creative tools are under **Settings → Tools → Apps & web**.
+- Inspect images from attachments, generated files, screenshots, local paths, direct image URLs, image data URLs or Telegram messages with **View image**. Image input requires a vision-capable chat model; only Telegram message refs need Telegram connected.
+- Sent chat messages show local timestamps, with date dividers between days.
 - Search the web with Exa when a search key is configured.
 - Use approval-gated Telegram actions, including messages, voice notes, live activity states, and other enabled tools.
 

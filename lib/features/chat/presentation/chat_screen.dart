@@ -26,6 +26,7 @@ import '../../telegram/presentation/attach_sheet.dart';
 import '../../telegram/presentation/chat_view_screen.dart';
 import 'history_drawer.dart';
 import 'widgets/message_view.dart';
+import 'widgets/chat_date_divider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -339,7 +340,10 @@ class _MessageList extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(Space.l, Space.l, Space.l, Space.l),
       itemCount: entries.length,
       itemBuilder: (context, i) {
-        final e = entries[entries.length - 1 - i];
+        final index = entries.length - 1 - i;
+        final e = entries[index];
+        final startsDay = index == 0 ||
+            !DateUtils.isSameDay(e.at.toLocal(), entries[index - 1].at.toLocal());
         final child = switch (e) {
           UserEntry() => UserBubble(entry: e, posts: conversation.posts),
           AssistantEntry() => AssistantMessage(
@@ -354,7 +358,16 @@ class _MessageList extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 760),
             // Full width, so a reply that is only a loading indicator so far
             // sits on the left rather than shrinking to the middle.
-            child: SizedBox(width: double.infinity, child: child),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (startsDay) ChatDateDivider(date: e.at),
+                  child,
+                ],
+              ),
+            ),
           ),
         );
       },

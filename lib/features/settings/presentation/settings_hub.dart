@@ -616,71 +616,6 @@ class SettingsHub extends ConsumerWidget {
                   () => _open(context, const UsageScreen()),
                 ),
               ]),
-              group('Telegram', [
-                if (!telegram)
-                  tile(
-                    Icons.send_rounded,
-                    'Connect Telegram',
-                    'Ask about your chats, reply, run channels; briefs and watches follow your chats',
-                    () => _open(context, const AppsWebScreen()),
-                  )
-                else ...[
-                  tile(
-                    Icons.send_rounded,
-                    'Telegram account',
-                    'Connection, presence, read receipts, downloads',
-                    () => _open(context, const AppsWebScreen()),
-                  ),
-                tile(
-                  Icons.schedule_send_outlined,
-                  'Scheduled messages',
-                  'Everything waiting to go out, by date or chat',
-                  () => _open(context, const ScheduledScreen()),
-                ),
-                tile(
-                  SettingsSection.media.icon,
-                  SettingsSection.media.title,
-                  [
-                        if (s.autoPhotos) 'photos',
-                        if (s.autoVoice) 'voice',
-                        if (s.autoMusic) 'music',
-                      ].isEmpty
-                      ? 'Nothing downloads on its own'
-                      : 'Auto: ${[if (s.autoPhotos) 'photos', if (s.autoVoice) 'voice', if (s.autoMusic) 'music'].join(', ')}',
-                  () => _open(
-                    context,
-                    const SettingsScreen(section: SettingsSection.media),
-                  ),
-                ),
-                tile(
-                  Icons.shield_outlined,
-                  'Privacy & security',
-                  'Check-up, logged-in devices, who sees what',
-                  () => _open(context, const SecurityScreen()),
-                ),
-                tile(
-                  Icons.folder_copy_outlined,
-                  'Chat folders',
-                  'Create, reorder, edit and delete folders',
-                  () => _open(context, const FoldersScreen()),
-                ),
-                tile(
-                  Icons.storage_rounded,
-                  'Storage & data',
-                  'What Telegram takes on this phone; clear the cache; data use',
-                  () => _open(context, const StorageScreen()),
-                ),
-                tile(
-                  SettingsSection.account.icon,
-                  SettingsSection.account.title,
-                  SettingsSection.account.subtitle,
-                  () => _open(
-                    context,
-                    const SettingsScreen(section: SettingsSection.account),
-                  ),
-                ),
-                ],
-              ]),
               group('Automation', [
                 tile(
                   Icons.visibility_outlined,
@@ -768,6 +703,71 @@ class SettingsHub extends ConsumerWidget {
                   }(),
                   () => _open(context, const WidgetCustomizerScreen()),
                 ),
+              ]),
+              group('Telegram', [
+                if (!telegram)
+                  tile(
+                    Icons.send_rounded,
+                    'Connect Telegram',
+                    'Ask about your chats, reply, run channels; briefs and watches follow your chats',
+                    () => _open(context, const AppsWebScreen()),
+                  )
+                else ...[
+                  tile(
+                    Icons.send_rounded,
+                    'Telegram account',
+                    'Connection, presence, read receipts, downloads',
+                    () => _open(context, const AppsWebScreen()),
+                  ),
+                tile(
+                  Icons.schedule_send_outlined,
+                  'Scheduled messages',
+                  'Everything waiting to go out, by date or chat',
+                  () => _open(context, const ScheduledScreen()),
+                ),
+                tile(
+                  SettingsSection.media.icon,
+                  SettingsSection.media.title,
+                  [
+                        if (s.autoPhotos) 'photos',
+                        if (s.autoVoice) 'voice',
+                        if (s.autoMusic) 'music',
+                      ].isEmpty
+                      ? 'Nothing downloads on its own'
+                      : 'Auto: ${[if (s.autoPhotos) 'photos', if (s.autoVoice) 'voice', if (s.autoMusic) 'music'].join(', ')}',
+                  () => _open(
+                    context,
+                    const SettingsScreen(section: SettingsSection.media),
+                  ),
+                ),
+                tile(
+                  Icons.shield_outlined,
+                  'Privacy & security',
+                  'Check-up, logged-in devices, who sees what',
+                  () => _open(context, const SecurityScreen()),
+                ),
+                tile(
+                  Icons.folder_copy_outlined,
+                  'Chat folders',
+                  'Create, reorder, edit and delete folders',
+                  () => _open(context, const FoldersScreen()),
+                ),
+                tile(
+                  Icons.storage_rounded,
+                  'Storage & data',
+                  'What Telegram takes on this phone; clear the cache; data use',
+                  () => _open(context, const StorageScreen()),
+                ),
+                tile(
+                  SettingsSection.account.icon,
+                  SettingsSection.account.title,
+                  SettingsSection.account.subtitle,
+                  () => _open(
+                    context,
+                    const SettingsScreen(section: SettingsSection.account),
+                  ),
+                ),
+                ],
               ]),
               group('Account & app', [
                 tile(

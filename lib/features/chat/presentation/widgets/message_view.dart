@@ -66,7 +66,7 @@ class UserBubble extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        TimeOfDay.fromDateTime(entry.at).format(context),
+                        TimeOfDay.fromDateTime(entry.at.toLocal()).format(context),
                         style: context.text.labelSmall,
                       ),
                       const SizedBox(width: 2),
@@ -134,6 +134,14 @@ class UserBubble extends StatelessWidget {
                     ),
                     child: Text(entry.text, style: context.text.bodyLarge),
                   ),
+                const SizedBox(height: Space.xs),
+                Padding(
+                  padding: const EdgeInsets.only(right: Space.xs),
+                  child: Text(
+                    TimeOfDay.fromDateTime(entry.at.toLocal()).format(context),
+                    style: context.text.labelSmall?.copyWith(color: AppColors.text3),
+                  ),
+                ),
               ],
             ),
           ),

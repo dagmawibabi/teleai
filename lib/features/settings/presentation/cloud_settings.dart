@@ -92,6 +92,7 @@ class _KeyFieldState extends State<KeyField> {
   }
 
   Future<void> _save() async {
+    if (_busy) return;
     final v = _ctrl.text.trim();
     setState(() {
       _busy = true;
@@ -130,6 +131,7 @@ class _KeyFieldState extends State<KeyField> {
           obscureText: _hidden,
           autocorrect: false,
           enableSuggestions: false,
+          onChanged: (_) => setState(() => _status = null),
           onSubmitted: (_) => _save(),
           style: widget.secret ? const TextStyle(fontFamily: 'monospace', fontSize: 14) : null,
           decoration: InputDecoration(
@@ -138,6 +140,15 @@ class _KeyFieldState extends State<KeyField> {
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_ctrl.text.isNotEmpty)
+                  IconButton(
+                    tooltip: widget.secret ? 'Remove API key' : 'Clear',
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: _busy ? null : () {
+                      setState(() => _ctrl.clear());
+                      _save();
+                    },
+                  ),
                 if (widget.secret)
                   IconButton(
                     icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),

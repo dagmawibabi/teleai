@@ -69,7 +69,7 @@ class ToolResultView extends StatelessWidget {
     if (j['audio_path'] is String)
       return GeneratedAudio(
         path: j['audio_path'] as String,
-        text: '${j['text'] ?? ''}',
+        text: '${j['text'] ?? j['prompt'] ?? ''}',
       );
     if (j['activity_sent'] == true) {
       return _Callout(
