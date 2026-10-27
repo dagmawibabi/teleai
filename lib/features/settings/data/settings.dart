@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../ai/data/ai.dart' show canonicalModelId;
+
 /// How much a reasoning model may think before answering.
 enum Thinking {
   auto('Auto'),
@@ -92,6 +94,7 @@ class AppSettings {
     this.vercelKey = '',
     this.openRouterKey = '',
     this.geminiKey = '',
+    this.lmStudioUrl = '',
     this.addisKey = '',
     this.elevenKey = '',
     this.model = defaultModel,
@@ -320,16 +323,20 @@ class AppSettings {
   /// later under Settings → Apps & web → Telegram.
   final bool telegramSkipped;
 
-  static const defaultModel = 'anthropic/claude-sonnet-5.5';
-  static const defaultImageModel = 'google/gemini-3.1-flash-lite-image';
-  static const defaultSpeechModel = 'openai/gpt-4o-mini-tts';
-  static const defaultTranscriptionModel = 'google/gemini-3-flash';
+  /// omni_ai model ids (`provider:model`).
+  static const defaultModel = 'gateway:anthropic/claude-sonnet-5.5';
+  static const defaultImageModel = 'gateway:google/gemini-3.1-flash-lite-image';
+  static const defaultSpeechModel = 'gateway:openai/gpt-4o-mini-tts';
+  static const defaultTranscriptionModel = 'gateway:google/gemini-3-flash';
 
   final String vercelKey;
   final String openRouterKey;
 
   /// Google AI Studio Gemini API key.
   final String geminiKey;
+
+  /// Address of an LM Studio server (`192.168.1.20:1234`), or empty.
+  final String lmStudioUrl;
 
   /// Addis AI key, used for Addis Voices 2.
   final String addisKey;
@@ -403,6 +410,7 @@ class AppSettings {
   bool get hasVercelKey => vercelKey.trim().isNotEmpty;
   bool get hasOpenRouterKey => openRouterKey.trim().isNotEmpty;
   bool get hasGeminiKey => geminiKey.trim().isNotEmpty;
+  bool get hasLmStudio => lmStudioUrl.trim().isNotEmpty;
   bool get hasAddisKey => addisKey.trim().isNotEmpty;
   bool get hasElevenKey => elevenKey.trim().isNotEmpty;
   bool get hasExaKey => exaKey.trim().isNotEmpty;
@@ -410,12 +418,13 @@ class AppSettings {
   bool get hasCloudflare => cloudflareToken.trim().isNotEmpty;
   bool get hasR2Keys => r2AccessKeyId.trim().isNotEmpty && r2SecretKey.trim().isNotEmpty;
   bool get hasE2bKey => e2bKey.trim().isNotEmpty;
-  bool get hasAnyKey => hasVercelKey || hasOpenRouterKey || hasGeminiKey;
+  bool get hasAnyKey => hasVercelKey || hasOpenRouterKey || hasGeminiKey || hasLmStudio;
 
   AppSettings copyWith({
     String? vercelKey,
     String? openRouterKey,
     String? geminiKey,
+    String? lmStudioUrl,
     String? addisKey,
     String? elevenKey,
     String? model,
@@ -497,6 +506,7 @@ class AppSettings {
     vercelKey: vercelKey ?? this.vercelKey,
     openRouterKey: openRouterKey ?? this.openRouterKey,
     geminiKey: geminiKey ?? this.geminiKey,
+    lmStudioUrl: lmStudioUrl ?? this.lmStudioUrl,
     addisKey: addisKey ?? this.addisKey,
     elevenKey: elevenKey ?? this.elevenKey,
     model: model ?? this.model,
@@ -615,6 +625,7 @@ class SettingsController extends Notifier<AppSettings> {
       vercelKey: await _secret(_vercelKey),
       openRouterKey: await _secret(_openRouterKey),
       geminiKey: await _secret(_geminiKey),
+      lmStudioUrl: p.getString('lmstudio_url') ?? d.lmStudioUrl,
       addisKey: await _secret(_addisKey),
       elevenKey: await _secret(_elevenKey),
       exaKey: await _secret(_exaKey),
@@ -631,14 +642,15 @@ class SettingsController extends Notifier<AppSettings> {
       e2bInternet: p.getBool('e2b_internet') ?? d.e2bInternet,
       e2bKeepAlive: p.getBool('e2b_keep_alive') ?? d.e2bKeepAlive,
       telegramSkipped: p.getBool('telegram_skipped') ?? d.telegramSkipped,
-      model: p.getString('chat_model') ?? d.model,
-      imageModel: p.getString('image_model') ?? d.imageModel,
+      // Ids saved by earlier versions (`or:`, `g:`, bare) become omni_ai ids.
+      model: canonicalModelId(p.getString('chat_model') ?? d.model),
+      imageModel: canonicalModelId(p.getString('image_model') ?? d.imageModel),
       thinking:
           Thinking.values.asNameMap()[p.getString('thinking')] ?? d.thinking,
       voiceEngine:
           VoiceEngine.values.asNameMap()[p.getString('voice_engine')] ??
           d.voiceEngine,
-      speechModel: p.getString('speech_model') ?? d.speechModel,
+      speechModel: canonicalModelId(p.getString('speech_model') ?? d.speechModel),
       aiVoice: p.getString('ai_voice') ?? d.aiVoice,
       deviceVoice: p.getString('device_voice') ?? d.deviceVoice,
       elevenVoiceId: p.getString('eleven_voice_id') ?? d.elevenVoiceId,
@@ -648,8 +660,7 @@ class SettingsController extends Notifier<AppSettings> {
       dictationEngine:
           DictationEngine.values.asNameMap()[p.getString('dictation_engine')] ??
           d.dictationEngine,
-      transcriptionModel:
-          p.getString('transcription_model') ?? d.transcriptionModel,
+      transcriptionModel: canonicalModelId(p.getString('transcription_model') ?? d.transcriptionModel),
       disabledTools: (p.getStringList('disabled_tools') ?? const []).toSet(),
       enabledDangerTools: (p.getStringList('danger_tools') ?? const []).toSet(),
       readOnlyMode: p.getBool('read_only_mode') ?? d.readOnlyMode,
@@ -743,6 +754,11 @@ class SettingsController extends Notifier<AppSettings> {
     await _secure.write(key: _geminiKey, value: key.trim());
   }
 
+  Future<void> setLmStudioUrl(String url) async {
+    state = state.copyWith(lmStudioUrl: url.trim());
+    await _write('lmstudio_url', url.trim());
+  }
+
   Future<void> setAddisKey(String key) async {
     state = state.copyWith(addisKey: key.trim());
     await _secure.write(key: _addisKey, value: key.trim());
@@ -818,6 +834,32 @@ class SettingsController extends Notifier<AppSettings> {
   Future<void> setModel(String id) async {
     state = state.copyWith(model: id);
     await _write('chat_model', id);
+  }
+
+  /// Switches the models that changed, e.g. to ones the person has a key
+  /// for. A new voice model clears the voice picked for the old one.
+  Future<void> useModels({
+    required String chat,
+    required String image,
+    required String speech,
+    required String transcription,
+    VoiceEngine? voiceEngine,
+    DictationEngine? dictationEngine,
+  }) async {
+    if (chat != state.model) await setModel(chat);
+    if (image != state.imageModel) await setImageModel(image);
+    if (voiceEngine != null && voiceEngine != state.voiceEngine) await setVoiceEngine(voiceEngine);
+    if (speech != state.speechModel) {
+      if (state.voiceEngine == VoiceEngine.addis) {
+        // aiVoice holds the Addis voice then; keep it.
+        state = state.copyWith(speechModel: speech);
+        await _write('speech_model', speech);
+      } else {
+        await setSpeechModel(speech);
+      }
+    }
+    if (transcription != state.transcriptionModel) await setTranscriptionModel(transcription);
+    if (dictationEngine != null && dictationEngine != state.dictationEngine) await setDictationEngine(dictationEngine);
   }
 
   Future<void> setImageModel(String id) async {

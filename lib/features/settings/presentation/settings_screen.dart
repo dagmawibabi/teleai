@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
 import '../../brief/brief_store.dart';
@@ -7,16 +6,14 @@ import '../../chat/data/chat_controller.dart';
 import '../../telegram/presentation/translate_sheet.dart'
     show translateLanguages;
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
-import '../../ai/data/gateway_client.dart';
-import '../../ai/data/media_client.dart';
-import '../../ai/data/model_catalog.dart';
+import '../../ai/data/ai.dart';
+import 'package:omni_ai/omni_ai.dart' show ElevenLabsProvider, showVoicePicker;
 import '../../auth/data/auth_controller.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/presentation/tg_avatar.dart';
@@ -79,7 +76,7 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _pick(
     BuildContext context,
     WidgetRef ref,
-    ModelKind kind,
+    ModelType kind,
     String current,
     Future<void> Function(String) set,
   ) async {
@@ -152,10 +149,7 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: 'vercel.com → AI Gateway → API keys',
                       value: s.vercelKey,
                       onSave: ctl.setVercelKey,
-                      verify: (k) => GatewayClient.verifyKey(
-                        router: AiRouter.vercel,
-                        key: k,
-                      ),
+                      verify: (k) => ref.read(aiProvider).verifyKey('gateway', key: k),
                       help: Uri.parse('https://vercel.com/ai-gateway/models'),
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
@@ -164,10 +158,7 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: 'openrouter.ai → Keys',
                       value: s.openRouterKey,
                       onSave: ctl.setOpenRouterKey,
-                      verify: (k) => GatewayClient.verifyKey(
-                        router: AiRouter.openRouter,
-                        key: k,
-                      ),
+                      verify: (k) => ref.read(aiProvider).verifyKey('openrouter', key: k),
                       help: Uri.parse('https://openrouter.ai/keys'),
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
@@ -176,11 +167,21 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: 'AI Studio → API keys. Lists the models available to your key.',
                       value: s.geminiKey,
                       onSave: ctl.setGeminiKey,
-                      verify: (k) => GatewayClient.verifyKey(
-                        router: AiRouter.gemini,
-                        key: k,
-                      ),
+                      verify: (k) => ref.read(aiProvider).verifyKey('google', key: k),
                       help: Uri.parse('https://aistudio.google.com/app/apikey'),
+                    ),
+                    const Divider(indent: Space.l, endIndent: Space.l),
+                    _KeyTile(
+                      title: 'LM Studio (optional)',
+                      subtitle:
+                          'Models running on your computer. In LM Studio: Developer → Start server, with "Serve on Local Network" on. Use the address it shows, e.g. 192.168.1.20:1234.',
+                      value: s.lmStudioUrl,
+                      onSave: ctl.setLmStudioUrl,
+                      verify: (url) => ref.read(aiProvider).verifyKey('lmstudio', key: url),
+                      help: Uri.parse('https://lmstudio.ai/docs/developer'),
+                      secret: false,
+                      hint: '192.168.1.20:1234',
+                      helpLabel: 'How to',
                     ),
                   ],
                 ),
@@ -197,7 +198,7 @@ class SettingsScreen extends ConsumerWidget {
                       onTap: () => _pick(
                         context,
                         ref,
-                        ModelKind.text,
+                        ModelType.text,
                         s.model,
                         ctl.setModel,
                       ),
@@ -226,7 +227,7 @@ class SettingsScreen extends ConsumerWidget {
                       onTap: () => _pick(
                         context,
                         ref,
-                        ModelKind.image,
+                        ModelType.image,
                         s.imageModel,
                         ctl.setImageModel,
                       ),
@@ -359,7 +360,7 @@ class SettingsScreen extends ConsumerWidget {
                       onTap: () => _pick(
                         context,
                         ref,
-                        ModelKind.text,
+                        ModelType.text,
                         s.model,
                         ctl.setModel,
                       ),
@@ -649,14 +650,7 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: 'Addis Voices 2 for Amharic, Afaan Oromo and Tigrinya.',
                       value: s.addisKey,
                       onSave: ctl.setAddisKey,
-                      verify: (k) async {
-                        try {
-                          await AddisAiClient(k).voices();
-                          return null;
-                        } catch (e) {
-                          return '$e';
-                        }
-                      },
+                      verify: (k) => ref.read(aiProvider).verifyKey('addis', key: k),
                       help: Uri.parse('https://addisassistant.com/api-keys'),
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
@@ -665,14 +659,7 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: 'For ElevenLabs voices and dictation',
                       value: s.elevenKey,
                       onSave: ctl.setElevenKey,
-                      verify: (k) async {
-                        try {
-                          await ElevenLabsClient(k).voices();
-                          return null;
-                        } catch (e) {
-                          return '$e';
-                        }
-                      },
+                      verify: (k) => ref.read(aiProvider).verifyKey('elevenlabs', key: k),
                       help: Uri.parse(
                         'https://elevenlabs.io/app/settings/api-keys',
                       ),
@@ -719,7 +706,7 @@ class SettingsScreen extends ConsumerWidget {
                         onTap: () => _pick(
                           context,
                           ref,
-                          ModelKind.speech,
+                          ModelType.speech,
                           s.speechModel,
                           ctl.setSpeechModel,
                         ),
@@ -764,7 +751,7 @@ class SettingsScreen extends ConsumerWidget {
                           onTap: () => _pick(
                             context,
                             ref,
-                            ModelKind.speech,
+                            ModelType.speech,
                             s.speechModel,
                             ctl.setSpeechModel,
                           ),
@@ -830,11 +817,10 @@ class SettingsScreen extends ConsumerWidget {
                             color: AppColors.text3,
                           ),
                           enabled: s.hasAddisKey,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const _AddisVoicesScreen(),
-                            ),
-                          ),
+                          onTap: () async {
+                            final v = await showVoicePicker(context, ai: ref.read(aiProvider), source: 'addis', selected: s.aiVoice);
+                            if (v != null) await ctl.setAiVoice(v.id);
+                          },
                         ),
                       ],
                       VoiceEngine.elevenLabs => [
@@ -867,20 +853,24 @@ class SettingsScreen extends ConsumerWidget {
                             color: AppColors.text3,
                           ),
                           enabled: s.hasElevenKey,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const _ElevenVoicesScreen(),
-                            ),
-                          ),
+                          onTap: () async {
+                            final v = await showVoicePicker(
+                              context,
+                              ai: ref.read(aiProvider),
+                              source: 'elevenlabs',
+                              selected: s.elevenVoiceId,
+                            );
+                            if (v != null) await ctl.setElevenVoice(v.id, v.name);
+                          },
                         ),
                         const Divider(indent: 56),
                         ListTile(
                           leading: const Icon(Icons.tune_rounded),
                           title: const Text('ElevenLabs model'),
                           subtitle: Text(
-                            elevenModels
-                                    .where((m) => m.$1 == s.elevenModel)
-                                    .map((m) => '${m.$2} · ${m.$3}')
+                            ElevenLabsProvider.speechModels
+                                    .where((m) => m.id == s.elevenModel)
+                                    .map((m) => '${m.name} · ${m.note}')
                                     .firstOrNull ??
                                 s.elevenModel,
                             style: context.text.bodySmall,
@@ -892,10 +882,10 @@ class SettingsScreen extends ConsumerWidget {
                             ),
                             onSelected: ctl.setElevenModel,
                             itemBuilder: (_) => [
-                              for (final m in elevenModels)
+                              for (final m in ElevenLabsProvider.speechModels)
                                 PopupMenuItem(
-                                  value: m.$1,
-                                  child: Text('${m.$2} · ${m.$3}'),
+                                  value: m.id,
+                                  child: Text('${m.name} · ${m.note}'),
                                 ),
                             ],
                           ),
@@ -1261,7 +1251,7 @@ class SettingsScreen extends ConsumerWidget {
                         onTap: () => _pick(
                           context,
                           ref,
-                          ModelKind.transcription,
+                          ModelType.transcription,
                           s.transcriptionModel,
                           ctl.setTranscriptionModel,
                         ),
@@ -1626,8 +1616,8 @@ class _ModelTile extends StatelessWidget {
       title: Text(title),
       subtitle: Text(
         [
-          m?.name ?? AiRoute.bare(id),
-          AiRoute.routerName(id),
+          m?.name ?? modelLabel(id),
+          AiRouter.nameOf(id),
           if (m != null) m.priceLabel,
         ].join(' · '),
         style: context.text.bodySmall,
@@ -1650,309 +1640,6 @@ class _ModelTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
-    );
-  }
-}
-
-/// The ElevenLabs voices in the user's library, with samples.
-class _ElevenVoicesScreen extends ConsumerStatefulWidget {
-  const _ElevenVoicesScreen();
-
-  @override
-  ConsumerState<_ElevenVoicesScreen> createState() =>
-      _ElevenVoicesScreenState();
-}
-
-class _ElevenVoicesScreenState extends ConsumerState<_ElevenVoicesScreen> {
-  List<ElevenVoice>? _voices;
-  String? _error;
-  String _q = '';
-  final _player = AudioPlayer();
-  String? _playing;
-
-  @override
-  void initState() {
-    super.initState();
-    ElevenLabsClient(ref.read(settingsProvider).elevenKey).voices().then(
-      (v) {
-        if (mounted) setState(() => _voices = v);
-      },
-      onError: (Object e) {
-        if (mounted) setState(() => _error = '$e');
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sample(ElevenVoice v) async {
-    if (_playing == v.id) {
-      await _player.stop();
-      setState(() => _playing = null);
-      return;
-    }
-    if (v.previewUrl == null) return;
-    setState(() => _playing = v.id);
-    await _player.play(UrlSource(v.previewUrl!));
-    _player.onPlayerComplete.first.then((_) {
-      if (mounted && _playing == v.id) setState(() => _playing = null);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = ref.watch(settingsProvider);
-    final q = _q.toLowerCase();
-    final list = (_voices ?? const <ElevenVoice>[])
-        .where(
-          (v) =>
-              q.isEmpty ||
-              v.name.toLowerCase().contains(q) ||
-              v.traits.toLowerCase().contains(q),
-        )
-        .toList();
-    return Scaffold(
-      appBar: AppBar(title: const Text('ElevenLabs voices')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
-            child: TextField(
-              onChanged: (v) => setState(() => _q = v),
-              decoration: const InputDecoration(
-                isDense: true,
-                hintText: 'Search voices',
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  size: 20,
-                  color: AppColors.text3,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(Space.xl),
-                      child: Text(_error!),
-                    ),
-                  )
-                : _voices == null
-                ? const Center(
-                    child: SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: list.length,
-                    itemBuilder: (_, i) {
-                      final v = list[i];
-                      final selected = v.id == s.elevenVoiceId;
-                      return ListTile(
-                        leading: IconButton(
-                          tooltip: 'Play sample',
-                          icon: Icon(
-                            _playing == v.id
-                                ? Icons.stop_circle_outlined
-                                : Icons.play_circle_outline_rounded,
-                          ),
-                          onPressed: v.previewUrl == null
-                              ? null
-                              : () => _sample(v),
-                        ),
-                        title: Text(v.name),
-                        subtitle: Text(
-                          [
-                            v.traits,
-                            v.category,
-                          ].where((t) => t.isNotEmpty).join(' · '),
-                          style: context.text.bodySmall,
-                        ),
-                        trailing: selected
-                            ? Icon(Icons.check_rounded, color: AppColors.accent)
-                            : null,
-                        onTap: () async {
-                          await ref
-                              .read(settingsProvider.notifier)
-                              .setElevenVoice(v.id, v.name);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Addis Voices 2 catalog. It is fetched each time so unavailable voices are
-/// never offered as durable settings.
-class _AddisVoicesScreen extends ConsumerStatefulWidget {
-  const _AddisVoicesScreen();
-  @override
-  ConsumerState<_AddisVoicesScreen> createState() => _AddisVoicesScreenState();
-}
-
-class _AddisVoicesScreenState extends ConsumerState<_AddisVoicesScreen> {
-  List<AddisVoice>? _voices;
-  String? _error;
-  String _q = '';
-  final _player = AudioPlayer();
-  String? _playing;
-
-  @override
-  void initState() {
-    super.initState();
-    AddisAiClient(ref.read(settingsProvider).addisKey).voices().then(
-      (v) {
-        if (mounted) setState(() => _voices = v);
-      },
-      onError: (Object e) {
-        if (mounted) setState(() => _error = '$e');
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
-  }
-
-  /// Samples made by speaking a line, kept for the screen's life.
-  final _made = <String, Uint8List>{};
-  String? _loading;
-
-  /// Plays the catalog's preview, Addis's preview, or (when there is
-  /// neither) a short line spoken by the voice in its own language.
-  Future<void> _sample(AddisVoice voice) async {
-    if (_playing == voice.id || _loading == voice.id) {
-      await _player.stop();
-      setState(() => _playing = _loading = null);
-      return;
-    }
-    await _player.stop();
-    setState(() {
-      _playing = null;
-      _loading = voice.id;
-    });
-    final addis = AddisAiClient(ref.read(settingsProvider).addisKey);
-    try {
-      var url = voice.previewUrl;
-      if (url == null || url.isEmpty) url = await addis.previewUrl(voice.id);
-      final Source source;
-      if (url != null && url.isNotEmpty) {
-        source = UrlSource(url);
-      } else {
-        final lang = AddisAiClient.languages.contains(voice.language) ? voice.language : (await addis.languageOf(voice.id) ?? 'am');
-        final bytes = _made[voice.id] ??= await addis.speak(
-          text: AddisAiClient.sampleText(lang),
-          voiceId: voice.id,
-          language: lang,
-        );
-        source = BytesSource(bytes, mimeType: 'audio/mpeg');
-      }
-      if (!mounted || _loading != voice.id) return;
-      setState(() {
-        _loading = null;
-        _playing = voice.id;
-      });
-      await _player.play(source);
-      _player.onPlayerComplete.first.then((_) {
-        if (mounted && _playing == voice.id) setState(() => _playing = null);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = null);
-      showSnack(context, 'Could not play ${voice.name}: $e', icon: Icons.error_outline_rounded);
-    } finally {
-      addis.close();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = ref.watch(settingsProvider).aiVoice;
-    final q = _q.toLowerCase();
-    final voices = (_voices ?? const <AddisVoice>[])
-        .where(
-          (v) =>
-              q.isEmpty ||
-              '${v.name} ${v.id} ${v.traits}'.toLowerCase().contains(q),
-        )
-        .toList();
-    return Scaffold(
-      appBar: AppBar(title: const Text('Addis AI voices')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
-            child: TextField(
-              onChanged: (v) => setState(() => _q = v),
-              decoration: const InputDecoration(
-                isDense: true,
-                hintText: 'Search Amharic, Afaan Oromo or Tigrinya voices',
-                prefixIcon: Icon(Icons.search_rounded, size: 20),
-              ),
-            ),
-          ),
-          Expanded(
-            child: _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(Space.xl),
-                      child: Text(_error!),
-                    ),
-                  )
-                : _voices == null
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : ListView.builder(
-                    itemCount: voices.length,
-                    itemBuilder: (_, i) {
-                      final v = voices[i];
-                      return ListTile(
-                        leading: IconButton(
-                          tooltip: 'Listen',
-                          icon: _loading == v.id
-                              ? const SizedBox.square(
-                                  dimension: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Icon(
-                                  _playing == v.id
-                                      ? Icons.stop_circle_outlined
-                                      : Icons.play_circle_outline_rounded,
-                                ),
-                          onPressed: () => _sample(v),
-                        ),
-                        title: Text(v.name),
-                        subtitle: Text(
-                          '${v.id} · ${v.traits}',
-                          style: context.text.bodySmall,
-                        ),
-                        trailing: selected == v.id
-                            ? Icon(Icons.check_rounded, color: AppColors.accent)
-                            : null,
-                        onTap: () async {
-                          await ref
-                              .read(settingsProvider.notifier)
-                              .setAiVoice(v.id);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2116,8 +1803,15 @@ class _KeyTile extends StatefulWidget {
     required this.onSave,
     required this.verify,
     required this.help,
+    this.secret = true,
+    this.hint = 'Paste your key',
+    this.helpLabel = 'Get a key',
   });
 
+  /// Hidden while typed (keys); an address isn't.
+  final bool secret;
+  final String hint;
+  final String helpLabel;
   final String title;
   final String subtitle;
   final String value;
@@ -2133,7 +1827,7 @@ class _KeyTile extends StatefulWidget {
 
 class _KeyTileState extends State<_KeyTile> {
   late final _ctrl = TextEditingController(text: widget.value);
-  bool _obscure = true;
+  late bool _obscure = widget.secret;
   bool _checking = false;
   String? _status;
   bool _ok = false;
@@ -2196,7 +1890,7 @@ class _KeyTileState extends State<_KeyTile> {
                   widget.help,
                   mode: LaunchMode.externalApplication,
                 ),
-                child: const Text('Get a key'),
+                child: Text(widget.helpLabel),
               ),
             ],
           ),
@@ -2209,10 +1903,11 @@ class _KeyTileState extends State<_KeyTile> {
             onSubmitted: (_) => _save(),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Paste your key',
+              hintText: widget.hint,
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (widget.secret)
                   IconButton(
                     tooltip: _obscure ? 'Show' : 'Hide',
                     icon: Icon(

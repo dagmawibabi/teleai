@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
-import '../ai/data/model_catalog.dart';
+import '../ai/data/ai.dart';
 import 'usage.dart';
 
 enum _Period {
@@ -86,7 +86,7 @@ class _UsageScreenState extends ConsumerState<UsageScreen> {
           e.conversationTitle ?? (e.modality == Modality.dictation ? 'Dictation' : 'Outside a chat'),
           null,
         ),
-        _By.model => (e.model, catalog.byId(e.model)?.name ?? AiRoute.bare(e.model), AiRoute.bare(e.model)),
+        _By.model => (e.model, catalog.byId(e.model)?.name ?? modelLabel(e.model), modelLabel(e.model)),
         _By.modality => (e.modality.name, e.modality.label, e.modality.description),
       };
       final g = groups.putIfAbsent(key, () => _Group(label, subtitle: sub));

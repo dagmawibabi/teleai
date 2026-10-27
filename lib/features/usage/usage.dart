@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../ai/data/model_catalog.dart';
+import 'package:omni_ai/omni_ai.dart' show ModelInfo, Usage;
 import '../chat/domain/chat_models.dart';
 
 /// What a request was for.
@@ -159,21 +159,20 @@ class UsageStore extends Notifier<List<UsageEvent>> {
     _save();
   }
 
-  /// A chat completion: tokens from the provider's usage report, and its
-  /// reported cost when there is one (OpenRouter sends it), else list price.
+  /// A model call: tokens from the provider's usage report, and its
+  /// reported cost when there is one (OpenRouter and the gateway send it),
+  /// else list price.
   StepUsage recordChat({
     required String model,
-    required Map<String, dynamic> usage,
+    required Usage usage,
     ModelInfo? info,
     String? conversationId,
     String? conversationTitle,
   }) {
-    final input = (usage['prompt_tokens'] ?? usage['input_tokens'] ?? 0) as num;
-    final output = (usage['completion_tokens'] ?? usage['output_tokens'] ?? 0) as num;
-    final details = usage['prompt_tokens_details'];
-    final cached = ((details is Map ? details['cached_tokens'] : null) ?? usage['cache_read_input_tokens'] ?? 0) as num;
-    final reported = num.tryParse('${usage['cost'] ?? ''}')?.toDouble();
-    final cost = reported ?? listPrice(info, input.toInt(), output.toInt(), cached.toInt());
+    final reported = usage.cost;
+    final cost = reported ??
+        info?.estimateCost(usage.inputTokens, usage.outputTokens, cachedInput: usage.cachedInputTokens) ??
+        0;
     add(
       UsageEvent(
         at: DateTime.now(),
@@ -181,29 +180,21 @@ class UsageStore extends Notifier<List<UsageEvent>> {
         modality: Modality.chat,
         conversationId: conversationId,
         conversationTitle: conversationTitle,
-        input: input.toInt(),
-        output: output.toInt(),
-        cached: cached.toInt(),
+        input: usage.inputTokens,
+        output: usage.outputTokens,
+        cached: usage.cachedInputTokens,
         cost: cost,
         estimated: reported == null,
       ),
     );
-    final out = usage['completion_tokens_details'];
     return StepUsage(
-      input: input.toInt(),
-      output: output.toInt(),
-      cached: cached.toInt(),
-      reasoning: ((out is Map ? out['reasoning_tokens'] : null) ?? usage['reasoning_tokens'] ?? 0 as num).toInt(),
+      input: usage.inputTokens,
+      output: usage.outputTokens,
+      cached: usage.cachedInputTokens,
+      reasoning: usage.reasoningTokens,
       cost: cost,
       estimated: reported == null,
     );
-  }
-
-  static double listPrice(ModelInfo? m, int input, int output, int cached) {
-    if (m == null) return 0;
-    final fresh = (input - cached).clamp(0, input);
-    return (fresh * (m.inputPrice ?? 0) + cached * (m.cacheReadPrice ?? m.inputPrice ?? 0) + output * (m.outputPrice ?? 0)) /
-        1e6;
   }
 
   void clear() {

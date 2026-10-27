@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:omni_ai/omni_ai.dart' show MemoryItem;
 
 import '../../../app/theme.dart';
 import '../memory.dart';
@@ -9,8 +10,8 @@ import '../memory.dart';
 class MemoryScreen extends ConsumerWidget {
   const MemoryScreen({super.key});
 
-  Future<void> _edit(BuildContext context, WidgetRef ref, [Memory? m]) async {
-    final ctrl = TextEditingController(text: m?.content ?? '');
+  Future<void> _edit(BuildContext context, WidgetRef ref, [MemoryItem? m]) async {
+    final ctrl = TextEditingController(text: m?.text ?? '');
     final text = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -78,7 +79,7 @@ class MemoryScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(m.content, style: context.text.bodyMedium),
+                                Text(m.text, style: context.text.bodyMedium),
                                 const SizedBox(height: 2),
                                 Text(
                                   [

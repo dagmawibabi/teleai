@@ -255,7 +255,7 @@ extension _WebTools on TelegramToolRunner {
           ),
         ),
         'browser_read' => _browse(
-          () => _browser.snapshot(
+          () => _browser.read(
             offset: TelegramToolRunner._int(
               args,
               'offset',

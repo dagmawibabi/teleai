@@ -4,7 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
 import '../../integrations/app_toolkits.dart';
-import '../../integrations/composio_client.dart';
+import 'package:omni_ai/omni_ai.dart' show ConnectedApp;
+
+import '../../ai/data/ai.dart';
 import '../../integrations/integrations_store.dart';
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
 import '../data/settings.dart';
@@ -88,7 +90,7 @@ class _AppsTabState extends ConsumerState<AppsTab> with WidgetsBindingObserver {
           await ref.read(settingsProvider.notifier).setComposioKey(k);
           await ref.read(integrationsProvider.notifier).refresh();
         },
-        verify: ComposioClient.verifyKey,
+        verify: (k) => ref.read(aiProvider).verifyKey('composio', key: k),
         help: Uri.parse('https://dashboard.composio.dev'),
       ),
     );

@@ -1,7 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teleai/core/widgets/code_highlight.dart';
-import 'package:teleai/features/integrations/cloudflare_client.dart';
 import 'package:teleai/features/settings/data/settings.dart';
 import 'package:teleai/features/telegram/data/telegram_tools.dart';
 
@@ -21,20 +20,6 @@ void main() {
     expect(toolNamed('cloudflare_create_dns_record')!.requiresApproval, isTrue);
     expect(toolNamed('cloudflare_create_dns_record')!.destructive, isFalse);
     expect(toolNamed('e2b_run_code')!.requiresApproval, isFalse);
-  });
-
-  test('R2 share links are SigV4-presigned for the account endpoint', () {
-    final c = CloudflareClient(
-      't',
-      r2: const R2Credentials(accountId: 'acc123', accessKeyId: 'AKID', secretAccessKey: 'secret'),
-    );
-    final url = Uri.parse(c.presign('my-bucket', 'folder/a file.pdf', expires: const Duration(hours: 2)));
-    expect(url.host, 'acc123.r2.cloudflarestorage.com');
-    expect(url.path, '/my-bucket/folder/a%20file.pdf');
-    expect(url.queryParameters['X-Amz-Expires'], '7200');
-    expect(url.queryParameters['X-Amz-Credential'], startsWith('AKID/'));
-    expect(url.queryParameters['X-Amz-Credential'], endsWith('/auto/s3/aws4_request'));
-    expect(url.queryParameters['X-Amz-Signature'], matches(RegExp(r'^[0-9a-f]{64}$')));
   });
 
   test('code highlighting colours keywords, strings, comments and calls', () {

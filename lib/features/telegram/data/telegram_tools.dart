@@ -19,19 +19,16 @@ import 'package:video_player/video_player.dart';
 
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../../infrastructure/telegram/telegram_exception.dart';
+import '../../ai/data/ai.dart';
 import '../../chat/domain/chat_models.dart';
 import '../../device/device.dart';
 import '../../integrations/app_results.dart';
 import '../../integrations/app_toolkits.dart';
-import '../../integrations/cloudflare_client.dart';
-import '../../integrations/composio_client.dart';
-import '../../integrations/e2b_client.dart';
+import 'package:omni_ai/omni_ai.dart' show AiException, BrowserSession, ExaClient, CloudflareClient, ComposioClient, DeviceSandbox, E2BClient, R2Credentials;
 import '../../integrations/e2b_session.dart';
 import '../../integrations/integrations_store.dart';
 import '../../settings/data/settings.dart';
-import '../../web/browser_session.dart';
 import '../../web/inapp_engine.dart';
-import '../../web/sandbox.dart';
 import '../../web/web_fetch.dart';
 import 'file_loader.dart' show formatDuration;
 import 'message_content.dart';
@@ -1480,7 +1477,7 @@ class TelegramToolRunner {
     WebFetcher? web,
     BrowserSession? browser,
     InAppEngine? engine,
-    Sandbox? sandbox,
+    DeviceSandbox? sandbox,
     Future<ComposioClient?> Function()? composio,
     E2bSession? e2b,
   }) : _composio = composio,
@@ -1488,7 +1485,7 @@ class TelegramToolRunner {
        _web = web ?? WebFetcher(),
        _browser = browser ?? BrowserSession(),
        _engine = engine ?? InAppEngine(),
-       _sandbox = sandbox ?? Sandbox();
+       _sandbox = sandbox ?? DeviceSandbox();
 
   final TelegramClient _client;
   final TelegramStore _store;
@@ -1496,7 +1493,7 @@ class TelegramToolRunner {
   final WebFetcher _web;
   final BrowserSession _browser;
   final InAppEngine _engine;
-  final Sandbox _sandbox;
+  final DeviceSandbox _sandbox;
 
   /// A Composio client for the user's connected apps, or null without a key.
   final Future<ComposioClient?> Function()? _composio;
@@ -3592,37 +3589,23 @@ class TelegramToolRunner {
       });
     final q = '${args['query'] ?? ''}'.trim();
     if (q.isEmpty) throw ArgumentError('query is required');
-    final response = await http.post(
-      Uri.parse('https://api.exa.ai/search'),
-      headers: {
-        'x-api-key': _settings.exaKey,
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'query': q,
-        'numResults': _int(args, 'limit', fallback: 5, max: 10),
-        'contents': {
-          'highlights': {'maxCharacters': 1000},
-        },
-      }),
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300)
+    try {
+      final results = await ExaClient(apiKey: _settings.exaKey).search(q, numResults: _int(args, 'limit', fallback: 5, max: 10));
       return ToolOutput({
-        'error': 'Exa search failed (${response.statusCode}): ${response.body}',
+        'query': q,
+        'results': [
+          for (final r in results)
+            {
+              'title': r.title,
+              'url': r.url,
+              'published_at': ?r.publishedDate,
+              'highlights': r.highlights,
+            },
+        ],
       });
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return ToolOutput({
-      'query': q,
-      'results': [
-        for (final r in (body['results'] as List? ?? const []))
-          {
-            'title': r['title'],
-            'url': r['url'],
-            if (r['publishedDate'] != null) 'published_at': r['publishedDate'],
-            'highlights': r['highlights'] ?? const [],
-          },
-      ],
-    });
+    } on AiException catch (e) {
+      return ToolOutput({'error': 'Exa search failed: ${e.message}'});
+    }
   }
 
   /// Runs only after the person approved it in the chat.
@@ -4405,9 +4388,9 @@ final toolRunnerProvider = Provider<TelegramToolRunner>(
     ref.watch(telegramStoreProvider),
     ref.watch(settingsProvider),
     web: ref.watch(webFetcherProvider),
-    browser: ref.watch(browserSessionProvider),
+    browser: ref.watch(aiProvider).browser.session,
     engine: ref.watch(inAppEngineProvider),
-    sandbox: ref.watch(sandboxProvider),
+    sandbox: ref.watch(aiProvider).deviceSandbox.sandbox,
     composio: ref.read(integrationsProvider.notifier).client,
     e2b: ref.read(e2bSessionProvider),
   ),

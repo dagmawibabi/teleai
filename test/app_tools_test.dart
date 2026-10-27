@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:teleai/features/ai/data/gateway_client.dart';
 import 'package:teleai/features/integrations/app_results.dart';
 import 'package:teleai/features/settings/data/settings.dart';
 import 'package:teleai/features/telegram/data/telegram_tools.dart';
@@ -90,29 +89,5 @@ void main() {
     final page = (notion['pages'] as List).single as Map;
     expect(page['title'], 'Roadmap');
     expect(page['icon'], '📘');
-  });
-
-  test('Gemini tool schemas have no additionalProperties or empty objects', () {
-    final tools = GatewayClient.geminiTools([
-      toolNamed('run_app_tool')!.schema,
-      toolNamed('notion_add_multiple_page_content')!.schema,
-      toolNamed('list_chats')!.schema,
-    ]);
-    final text = jsonEncode(tools);
-    expect(text.contains('additionalProperties'), isFalse);
-    void walk(Object? node) {
-      if (node is Map) {
-        if (node['type'] == 'object' && node != (tools.first['function'] as Map)['parameters']) {
-          expect((node['properties'] as Map?)?.isNotEmpty ?? false, isTrue, reason: '$node');
-        }
-        node.values.forEach(walk);
-      } else if (node is List) {
-        node.forEach(walk);
-      }
-    }
-
-    for (final t in tools) {
-      walk(((t['function'] as Map)['parameters'] as Map)['properties']);
-    }
   });
 }

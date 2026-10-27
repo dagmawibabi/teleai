@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../ai/data/media_client.dart';
+import '../ai/data/ai.dart';
 import '../settings/data/settings.dart';
 import '../usage/usage.dart';
 
@@ -176,36 +176,19 @@ class Speaker extends ChangeNotifier {
     final text = parts[i];
     final eleven = s.voiceEngine == VoiceEngine.elevenLabs;
     final addis = s.voiceEngine == VoiceEngine.addis;
-    final Uint8List bytes;
-    if (addis) {
-      if (!s.hasAddisKey) throw Exception('Add an Addis AI key in Settings.');
-      final addisClient = AddisAiClient(s.addisKey);
-      try {
-        // aiVoice is shared with the AI voice engine, so it may hold a
-        // gateway voice name rather than an Addis voice.
-        final language = await addisClient.languageOf(s.aiVoice);
-        if (language == null)
-          throw Exception('Pick an Addis AI voice in Settings.');
-        bytes = await addisClient.speak(
-          voiceId: s.aiVoice,
-          language: language,
+    if (addis && s.aiVoice.isEmpty) throw Exception('Pick an Addis AI voice in Settings.');
+    // aiVoice is shared by the AI voice and Addis engines; the Addis voice
+    // id carries its language.
+    final audio = await _ref
+        .read(aiProvider)
+        .generateSpeech(
           text: text,
-          speed: speed,
+          model: eleven ? 'elevenlabs:${s.elevenModel}' : (addis ? 'addis:voices-2' : canonicalModelId(s.speechModel)),
+          // Without a pick, ElevenLabs reads with its default voice.
+          voice: eleven ? (s.elevenVoiceId.isEmpty ? null : s.elevenVoiceId) : s.aiVoice,
+          speed: eleven ? null : speed,
         );
-      } finally {
-        addisClient.close();
-      }
-    } else if (eleven) {
-      if (!s.hasElevenKey)
-        throw Exception('Add an ElevenLabs key in Settings.');
-      if (s.elevenVoiceId.isEmpty)
-        throw Exception('Pick an ElevenLabs voice in Settings.');
-      bytes = await ElevenLabsClient(s.elevenKey)
-          .speak(voiceId: s.elevenVoiceId, text: text, model: s.elevenModel);
-    } else {
-      bytes = await MediaClient(s)
-          .speak(model: s.speechModel, text: text, voice: s.aiVoice);
-    }
+    final bytes = audio.bytes;
     // List prices per character: ElevenLabs Flash about $0.05 and the
     // other models about $0.10 per 1,000; AI voices about $15 per million.
     final perChar = eleven

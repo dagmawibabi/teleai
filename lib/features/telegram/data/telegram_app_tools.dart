@@ -165,7 +165,7 @@ extension _AppToolRuns on TelegramToolRunner {
             'built_in': [for (final t in appToolkits) t.slug],
           });
         case 'find_app_tools':
-          final found = await client.findTools(
+          final found = await client.findActions(
             toolkit: '${args['app'] ?? ''}'.trim(),
             query: '${args['query'] ?? ''}'.trim(),
             limit: TelegramToolRunner._int(args, 'limit', fallback: 10, max: 25),
@@ -203,7 +203,7 @@ extension _AppToolRuns on TelegramToolRunner {
       final tool = toolNamed(name)!;
       final data = await client.execute(slug, _openJsonArgs(tool, args));
       return ToolOutput(await _keepMailHtml(AppResults.summarize(toolkit, slug, data)));
-    } on ComposioException catch (e) {
+    } on AiException catch (e) {
       final toolkit = appToolkitOf(name);
       final notConnected = RegExp(r'no (active )?connected account|not connected|connection.*not found', caseSensitive: false).hasMatch(e.message);
       return ToolOutput({
@@ -211,8 +211,6 @@ extension _AppToolRuns on TelegramToolRunner {
             ? '${appLabel(toolkit)} is not connected. Call connect_app with app $toolkit.'
             : '${appLabel(toolkit ?? 'app')}: ${e.message}',
       });
-    } finally {
-      client.close();
     }
   }
 

@@ -5,7 +5,9 @@ import 'package:uuid/uuid.dart';
 
 import '../settings/data/settings.dart';
 import '../telegram/data/telegram_store.dart';
-import 'composio_client.dart';
+import 'package:omni_ai/omni_ai.dart' show AiException, ComposioClient, ConnectedApp;
+
+import '../ai/data/ai.dart';
 
 class IntegrationsState {
   const IntegrationsState({this.accounts = const [], this.loading = false, this.error, this.checkedAt, this.connecting});
@@ -74,7 +76,10 @@ class IntegrationsController extends Notifier<IntegrationsState> {
   Future<ComposioClient?> client() async {
     final s = ref.read(settingsProvider);
     if (!s.hasComposioKey) return null;
-    return ComposioClient(s.composioKey, await userId());
+    // omni_ai's Composio client, with the key from Settings.
+    return ref.read(aiProvider).composio.client
+      ..apiKey = s.composioKey
+      ..userId = await userId();
   }
 
   Future<void> refresh() async {
@@ -90,8 +95,6 @@ class IntegrationsController extends Notifier<IntegrationsState> {
     } catch (e) {
       debugPrint('[Integrations] $e');
       state = state.copyWith(loading: false, error: '$e');
-    } finally {
-      c.close();
     }
   }
 
@@ -106,20 +109,14 @@ class IntegrationsController extends Notifier<IntegrationsState> {
       return ok ? null : 'Could not open the browser.';
     } catch (e) {
       return '$e';
-    } finally {
-      c.close();
     }
   }
 
   /// A connect link for the chat's connect card.
   Future<String> linkFor(String toolkit) async {
     final c = await client();
-    if (c == null) throw ComposioException('Add your Composio API key in Settings first.');
-    try {
-      return await c.connectLink(toolkit);
-    } finally {
-      c.close();
-    }
+    if (c == null) throw const AiException('Add your Composio API key in Settings first.', provider: 'composio');
+    return c.connectLink(toolkit);
   }
 
   /// Back from the browser: see whether the connection went through.
@@ -141,8 +138,6 @@ class IntegrationsController extends Notifier<IntegrationsState> {
       return null;
     } catch (e) {
       return '$e';
-    } finally {
-      c.close();
     }
   }
 }

@@ -43,7 +43,6 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   shared_preferences: ^2.5.6
   http: ^1.6.0
-  crypto: ^3.0.7
   path_provider: ^2.1.6
   qr_flutter: ^4.1.0
   url_launcher: ^6.3.3
@@ -53,7 +52,6 @@ dependencies:
   path: ^1.9.1
   flutter_tts: ^4.2.5
   audioplayers: ^6.8.1
-  speech_to_text: ^7.5.0
   file_picker: ^13.1.0
   image_picker: ^1.2.4
   record: ^7.1.2
@@ -71,6 +69,10 @@ dependencies:
   flutter_inappwebview: ^6.2.0-beta.3
   webview_flutter: ^4.10.0
   pdf: 3.11.3
+  # Every AI call (the chat agent and its tools, images, voices,
+  # dictation, model lists) and the Composio, E2B, Cloudflare, Exa,
+  # sandbox and browser clients.
+  omni_ai: ^0.4.1
 
 dev_dependencies:
   flutter_test:

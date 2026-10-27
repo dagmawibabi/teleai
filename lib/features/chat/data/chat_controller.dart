@@ -7,18 +7,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mime/mime.dart';
+import 'package:omni_ai/omni_ai.dart' as omni;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../ai/data/gateway_client.dart';
-import '../../ai/data/media_client.dart';
-import '../../ai/data/model_catalog.dart';
+import '../../ai/data/ai.dart';
 import '../../brief/brief_store.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../integrations/app_toolkits.dart';
 import '../../integrations/integrations_store.dart';
 import '../../usage/usage.dart';
-import '../../assistant/memory.dart';
 import '../../assistant/notifications.dart';
 import '../../assistant/reminders.dart';
 import '../../assistant/online_alerts.dart';
@@ -30,9 +28,7 @@ import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
 import '../../telegram/data/telegram_tools.dart';
-import '../../web/browser_session.dart';
 import '../../web/inapp_engine.dart';
-import '../../web/sandbox.dart';
 import '../domain/chat_models.dart';
 import 'chat_repository.dart';
 
@@ -64,12 +60,12 @@ class ChatState {
   );
 }
 
+/// Tools omni_ai runs itself (its memory toolkit). The app keeps their
+/// entries in the tool list for Settings and the cards.
+const _memoryTools = {'remember', 'update_memory', 'forget_memory', 'list_memories'};
+
 /// Tools that act on this phone rather than on Telegram.
 const _localTools = {
-  'remember',
-  'update_memory',
-  'forget_memory',
-  'list_memories',
   'create_watch',
   'list_watches',
   'update_watch',
@@ -88,9 +84,9 @@ const _localTools = {
   'zip_files',
 };
 
-/// Runs conversations: sends them to the model, carries out the tools it
-/// asks for (pausing for approval where a tool needs it and the settings
-/// say so), and keeps every exchange on disk.
+/// Runs conversations as omni_ai agent runs: the model streams, the app's
+/// tools run as omni_ai tools (pausing for approval where a tool needs it
+/// and the settings say so), and every exchange is kept on disk.
 ///
 /// The conversation on screen is [state]. Watches run their own
 /// conversations alongside it; while one runs it is kept in [_live], so
@@ -98,7 +94,7 @@ const _localTools = {
 class ChatController extends Notifier<ChatState> {
   static const _uuid = Uuid();
 
-  final Map<String, GatewayClient> _gateways = {};
+  final Map<String, omni.AgentRun> _runs = {};
   final Map<String, Completer<bool>> _approvals = {};
   final Set<String> _stopping = {};
   final Map<String, Conversation> _live = {};
@@ -347,7 +343,7 @@ class ChatController extends Notifier<ChatState> {
   void stop() {
     final id = state.conversation.id;
     _stopping.add(id);
-    _gateways[id]?.cancel();
+    _runs[id]?.cancel();
     for (final part in _pendingParts(state.conversation)) {
       _approvals.remove(part.callId)?.complete(false);
     }
@@ -368,9 +364,9 @@ class ChatController extends Notifier<ChatState> {
     if (waiter == null || waiter.isCompleted) return;
     switch (part.name) {
       case 'run_code':
-        unawaited(ref.read(sandboxProvider).cancel());
+        unawaited(ref.read(aiProvider).deviceSandbox.sandbox.cancel());
       case final n when n.startsWith('browser_'):
-        unawaited(ref.read(browserSessionProvider).stop());
+        unawaited(ref.read(aiProvider).browser.session.stop());
       case 'web_screenshot' || 'web_inspect' || 'web_run_async_js':
         unawaited(ref.read(inAppEngineProvider).stop());
     }
@@ -513,141 +509,162 @@ class ChatController extends Notifier<ChatState> {
     Watch? watch,
   }) async {
     final settings = ref.read(settingsProvider);
+    final ai = ref.read(aiProvider);
+    final model = canonicalModelId(settings.model);
     _stopping.remove(c.id);
-    final gateway = _gateways[c.id] = GatewayClient(settings);
     final runner = ref.read(toolRunnerProvider);
     final connected = ref.read(integrationsProvider).connected;
     final telegram = ref.read(telegramClientProvider).authState is td.AuthorizationStateReady;
-    final tools = [
+    final offered = [
       for (final t in telegramTools)
         if (t.isOn(settings) &&
             (telegram || !t.category.needsTelegram) &&
             appToolReady(t, settings, connected) &&
             cloudToolReady(t, settings) &&
             deviceToolReady(t))
-          t.schema,
+          t,
     ];
     bool stopped() => _stopping.contains(c.id);
 
-    try {
-      for (
-        var step = 0;
-        step < settings.maxSteps.clamp(2, 40) && !stopped();
-        step++
-      ) {
-        final s = ModelStep();
-        reply.steps.add(s);
-        _touch(c);
-        final messages = await _apiMessages(c, settings, watch: watch);
-        TurnEnd? end;
-        DateTime? thinkingStart;
-        var lastPaint = DateTime.now();
-
-        await for (final e in gateway.streamTurn(
-          model: settings.model,
-          messages: messages,
-          tools: tools,
-        )) {
-          switch (e) {
-            case ReasoningDelta(:final text):
-              thinkingStart ??= DateTime.now();
-              s.reasoning += text;
-            case ContentDelta(:final text):
-              if (thinkingStart != null && s.thinkingMs == null) {
-                s.thinkingMs = DateTime.now()
-                    .difference(thinkingStart)
-                    .inMilliseconds;
-              }
-              s.text += text;
-            case ToolCallStarted(:final id, :final name):
-              if (thinkingStart != null && s.thinkingMs == null) {
-                s.thinkingMs = DateTime.now()
-                    .difference(thinkingStart)
-                    .inMilliseconds;
-              }
-              s.tools.add(ToolPart(callId: id, name: name));
-            case TurnEnd():
-              end = e;
-          }
-          // Repaint at most every 40 ms while text streams in.
-          final now = DateTime.now();
-          if (e is! ContentDelta && e is! ReasoningDelta ||
-              now.difference(lastPaint).inMilliseconds > 40) {
-            lastPaint = now;
-            _touch(c);
-          }
-        }
-        if (thinkingStart != null && s.thinkingMs == null) {
-          s.thinkingMs = DateTime.now()
-              .difference(thinkingStart)
-              .inMilliseconds;
-        }
-        s.reasoningDetails = end?.reasoningDetails;
-        if (end?.usage case final usage?) {
-          s.usage = ref
-              .read(usageProvider.notifier)
-              .recordChat(
-                model: settings.model,
-                usage: usage,
-                info: ref.read(modelCatalogProvider).byId(settings.model),
-                conversationId: c.id,
-                conversationTitle: c.title,
-              );
-        }
-        final calls = end?.toolCalls ?? const <ToolCallRequest>[];
-        // Parts made on ToolCallStarted get their final arguments here.
-        for (final call in calls) {
-          final part = s.tools.where((t) => t.callId == call.id).firstOrNull;
-          if (part == null) {
-            s.tools.add(
-              ToolPart(
-                callId: call.id,
-                name: call.name,
-                arguments: call.arguments,
-                extra: call.extra,
-              ),
-            );
-          } else {
-            part.arguments = call.arguments;
-            part.extra = call.extra;
-          }
-        }
-        _touch(c);
-        if (s.tools.isEmpty) break;
-
-        for (final part in s.tools) {
-          if (stopped()) {
-            part
-              ..status = ToolStatus.error
-              ..result = jsonEncode({'error': 'Stopped by the user.'});
-            continue;
-          }
-          await _runTool(part, runner, c, watch: watch);
-        }
-        unawaited(_persist(c));
+    final agent = ai.agent(
+      name: 'triangle',
+      instructions: _systemPrompt(watch: watch),
+      model: model,
+      tools: [
+        for (final t in offered)
+          if (!_memoryTools.contains(t.name)) _asTool(t, c, runner, watch),
+      ],
+      // omni_ai's memory: its tools, and what is remembered in the prompt.
+      toolkits: [
+        ai.memory.where((t) => offered.any((o) => o.name == t.name)),
+      ],
+      limits: omni.AgentLimits(maxSteps: settings.maxSteps.clamp(2, 40)),
+      reasoning: reasoningFor(settings.thinking),
+      onToolApproval: (call) => _approve(call, c, watch),
+      // One at a time: Telegram rate-limits, and approval cards come in order.
+      parallelToolCalls: false,
+    );
+    ModelStep? s;
+    DateTime? thinkingStart;
+    var lastPaint = DateTime.now();
+    void endThinking() {
+      final step = s;
+      if (thinkingStart != null && step != null && step.thinkingMs == null) {
+        step.thinkingMs = DateTime.now().difference(thinkingStart).inMilliseconds;
       }
-      if (stopped() &&
-          reply.steps.isNotEmpty &&
-          reply.steps.last.text.isEmpty) {
+    }
+
+    try {
+      final session = agent.session(history: await _history(c, model));
+      final run = _runs[c.id] = session.respond();
+      // A stop pressed while the history was being read.
+      if (stopped()) run.cancel();
+      await for (final p in run.fullStream) {
+        switch (p) {
+          case omni.StepStart():
+            final step = s = ModelStep();
+            reply.steps.add(step);
+            thinkingStart = null;
+          case omni.ReasoningDelta(:final text):
+            thinkingStart ??= DateTime.now();
+            s?.reasoning += text;
+          case omni.TextDelta(:final text):
+            endThinking();
+            s?.text += text;
+          case omni.ToolCallStart(:final id, :final name):
+            endThinking();
+            final step = s;
+            if (step != null && _partIn(step, id) == null) step.tools.add(ToolPart(callId: id, name: name));
+          case omni.ToolCall(:final call):
+            endThinking();
+            final step = s;
+            final part = step == null ? null : _partIn(step, call.id);
+            if (part == null) {
+              step?.tools.add(
+                ToolPart(callId: call.id, name: call.name, arguments: jsonEncode(call.input), extra: call.providerData),
+              );
+            } else {
+              part
+                ..arguments = jsonEncode(call.input)
+                ..extra = call.providerData;
+            }
+          case omni.ToolResult(:final result):
+            // The app's own tools fill their card as they run; this covers
+            // omni_ai's tools and calls that never ran.
+            final step = s;
+            final part = step == null ? null : _partIn(step, result.toolCallId);
+            if (part != null && part.result == null) {
+              part
+                ..result = result.outputText
+                ..status = result.isError ? ToolStatus.error : ToolStatus.done
+                ..durationMs = DateTime.now().difference(part.startedAt).inMilliseconds;
+            }
+          case omni.StepFinish(:final usage, :final providerData):
+            endThinking();
+            final step = s;
+            step?.providerData = providerData;
+            if (step != null && (usage.totalTokens > 0 || usage.cost != null)) {
+              step.usage = ref
+                  .read(usageProvider.notifier)
+                  .recordChat(
+                    model: model,
+                    usage: usage,
+                    info: ref.read(modelCatalogProvider).byId(model),
+                    conversationId: c.id,
+                    conversationTitle: c.title,
+                  );
+            }
+            unawaited(_persist(c));
+          default:
+            break;
+        }
+        // Repaint at most every 40 ms while text streams in.
+        final now = DateTime.now();
+        if (p is! omni.TextDelta && p is! omni.ReasoningDelta || now.difference(lastPaint).inMilliseconds > 40) {
+          lastPaint = now;
+          _touch(c);
+        }
+      }
+      if (stopped() && reply.steps.isNotEmpty && reply.steps.last.text.isEmpty) {
         reply.error = 'Stopped.';
       }
-    } on GatewayException catch (e) {
-      reply.error = stopped() ? 'Stopped.' : e.message;
     } catch (e) {
-      reply.error = stopped() ? 'Stopped.' : 'Something went wrong: $e';
+      reply.error = stopped() ? 'Stopped.' : (e is omni.AiException ? aiErrorText(e) : 'Something went wrong: $e');
     } finally {
+      endThinking();
+      // Calls the model made that never ran (a stop or an error).
+      for (final step in reply.steps) {
+        for (final t in step.tools.where((t) => t.result == null)) {
+          t
+            ..status = ToolStatus.error
+            ..result = jsonEncode({'error': 'Stopped by the user.'});
+        }
+      }
       // Drop an empty trailing step left by a stop or an error.
       if (reply.steps.isNotEmpty) {
         final last = reply.steps.last;
-        if (last.text.isEmpty && last.reasoning.isEmpty && last.tools.isEmpty)
-          reply.steps.removeLast();
+        if (last.text.isEmpty && last.reasoning.isEmpty && last.tools.isEmpty) reply.steps.removeLast();
       }
       reply.done = true;
-      _gateways.remove(c.id);
+      _runs.remove(c.id);
       _stopping.remove(c.id);
       _touch(c);
       if (ref.mounted) await _persist(c);
     }
+  }
+
+  static ToolPart? _partIn(ModelStep s, String callId) => s.tools.where((t) => t.callId == callId).firstOrNull;
+
+  ToolPart? _partOf(Conversation c, String callId) {
+    for (final e in c.entries.reversed) {
+      if (e is AssistantEntry) {
+        for (final s in e.steps.reversed) {
+          final p = _partIn(s, callId);
+          if (p != null) return p;
+        }
+      }
+    }
+    return null;
   }
 
   /// Whether this call has to wait for a tap, given the approval setting
@@ -664,85 +681,101 @@ class ChatController extends Notifier<ChatState> {
     };
   }
 
-  Future<void> _runTool(
-    ToolPart part,
-    TelegramToolRunner runner,
-    Conversation c, {
-    Watch? watch,
-  }) async {
-    final tool = toolNamed(part.name);
-    final timer = Stopwatch()..start();
-    if (tool == null || !tool.isOn(ref.read(settingsProvider))) {
-      part
-        ..status = ToolStatus.error
-        ..result = jsonEncode({
-          'error': tool == null
-              ? 'There is no tool called ${part.name}.'
-              : ref.read(settingsProvider).readOnlyMode && tool.requiresApproval
-              ? 'Read-only mode is on in Settings: nothing can be sent or changed.'
-              : 'The user turned this tool off in Settings.',
-        });
-      return;
-    }
-    if (_hidden.contains(c.id) && tool.requiresApproval) {
+  /// One of the app's tools as an omni_ai tool. The agent asks [_approve]
+  /// when the approval policy says so; the call itself runs in [_execute].
+  omni.Tool _asTool(TelegramTool t, Conversation c, TelegramToolRunner runner, Watch? watch) => omni.Tool(
+    name: t.name,
+    description: t.description,
+    parametersJson: t.parameters,
+    label: t.label,
+    approval: !t.requiresApproval
+        ? omni.ApprovalPolicy.never
+        // Brief runs never act, so every acting call goes to _approve,
+        // which refuses it.
+        : omni.ApprovalPolicy.when(
+            (input) => _hidden.contains(c.id) || (_mustAsk(t, watch) && callNeedsApproval(t, input)),
+          ),
+    execute: (input) => _execute(t, omni.ToolContext.current!.call.id, c, runner),
+  );
+
+  /// Asks the person about a call: its card waits for a tap (with a
+  /// notification when a watch is running it). An approved message carries
+  /// the text and files the person settled on.
+  Future<omni.ToolApprovalDecision> _approve(omni.ToolCallPart call, Conversation c, Watch? watch) async {
+    final part = _partOf(c, call.id);
+    final tool = toolNamed(call.name);
+    if (part == null || tool == null) return const omni.ToolApprovalDecision.deny();
+    if (_hidden.contains(c.id)) {
+      const why = 'This is a read-only run (a brief): nothing can be sent or changed.';
       part
         ..status = ToolStatus.denied
-        ..result = jsonEncode({
-          'error': 'This is a read-only run (a brief): nothing can be sent or changed.',
-        });
-      return;
+        ..result = jsonEncode({'error': why});
+      return const omni.ToolApprovalDecision.deny(why);
     }
-    if (tool.requiresApproval &&
-        (!_mustAsk(tool, watch) || !callNeedsApproval(tool, part.args))) {
-      part.autoApproved = true;
-    } else if (tool.requiresApproval) {
-      part.status = ToolStatus.awaitingApproval;
-      final decision = _approvals[part.callId] = Completer<bool>();
-      _touch(c);
-      if (watch != null) {
-        unawaited(
-          ref
-              .read(appNotifierProvider)
-              .show(
-                'Approval needed · ${watch.name}',
-                '${tool.label}. Open to approve or decline.',
-                conversationId: c.id,
-              ),
-        );
-      }
-      final approved = await decision.future;
-      if (!approved) {
-        part
-          ..status = ToolStatus.denied
-          ..result = jsonEncode({
-            'error': 'The user declined. Nothing was done. Don\'t retry unless they ask.',
-          });
-        _touch(c);
-        return;
-      }
-      final edit = _approvalEdits.remove(part.callId);
-      if (edit != null) {
-        part.arguments = jsonEncode({
-          ...part.args,
-          'text': ?edit.text,
-          if (edit.files != null)
-            'files': [for (final f in edit.files!) f.path],
-          if (edit.asFiles != null) 'send_as': edit.asFiles! ? 'file' : 'media',
-        });
-      }
-      part.status = ToolStatus.running;
-      timer.reset();
-      _touch(c);
+    part.status = ToolStatus.awaitingApproval;
+    final decision = _approvals[part.callId] = Completer<bool>();
+    _touch(c);
+    if (watch != null) {
+      unawaited(
+        ref
+            .read(appNotifierProvider)
+            .show('Approval needed · ${watch.name}', '${tool.label}. Open to approve or decline.', conversationId: c.id),
+      );
     }
+    if (!await decision.future) {
+      const why = 'The user declined. Nothing was done. Don\'t retry unless they ask.';
+      part
+        ..status = ToolStatus.denied
+        ..result = jsonEncode({'error': why});
+      _touch(c);
+      return const omni.ToolApprovalDecision.deny(why);
+    }
+    final edit = _approvalEdits.remove(part.callId);
+    if (edit != null) {
+      part.arguments = jsonEncode({
+        ...part.args,
+        'text': ?edit.text,
+        if (edit.files != null) 'files': [for (final f in edit.files!) f.path],
+        if (edit.asFiles != null) 'send_as': edit.asFiles! ? 'file' : 'media',
+      });
+    }
+    _asked.add(part.callId);
+    part.status = ToolStatus.running;
+    _touch(c);
+    return omni.ToolApprovalDecision.approve(input: part.args);
+  }
+
+  /// Calls the person approved with a tap (the others that act ran on the
+  /// approval setting alone).
+  final Set<String> _asked = {};
+
+  /// Runs one of the app's tools for the call [callId] and records what it
+  /// did on its card.
+  Future<omni.ToolOutput> _execute(TelegramTool tool, String callId, Conversation c, TelegramToolRunner runner) async {
+    final part = _partOf(c, callId) ?? ToolPart(callId: callId, name: tool.name);
+    final timer = Stopwatch()..start();
+    final settings = ref.read(settingsProvider);
+    if (!tool.isOn(settings)) {
+      // Turned off in Settings while the answer was running.
+      final out = {
+        'error': settings.readOnlyMode && tool.requiresApproval
+            ? 'Read-only mode is on in Settings: nothing can be sent or changed.'
+            : 'The user turned this tool off in Settings.',
+      };
+      part
+        ..status = ToolStatus.error
+        ..result = jsonEncode(out);
+      return omni.ToolOutput(out);
+    }
+    if (tool.requiresApproval && !_asked.remove(callId)) part.autoApproved = true;
+    part.status = ToolStatus.running;
+    _touch(c);
     _resolveFiles(part, c);
     Future<ToolOutput> work() async {
-      if (part.name == generateImageTool.name)
-        return _generateImage(part.args, c);
+      if (part.name == generateImageTool.name) return _generateImage(part.args, c);
       if (part.name == generateAudioTool.name) return _generateAudio(part.args);
-      if (part.name == generateAddisVoiceTool.name)
-        return _generateAddisAudio(part.args);
-      if (_localTools.contains(part.name))
-        return _runLocalTool(part.name, part.args, c);
+      if (part.name == generateAddisVoiceTool.name) return _generateAddisAudio(part.args);
+      if (_localTools.contains(part.name)) return _runLocalTool(part.name, part.args, c);
       if (canvasToolNames.contains(part.name)) {
         try {
           return await runCanvasTool(ref, part.name, part.args);
@@ -762,9 +795,7 @@ class ChatController extends Notifier<ChatState> {
       out = await Future.any([work(), cancel.future]);
     } catch (e) {
       // A tool that fails unexpectedly fails alone, not the whole answer.
-      out = ToolOutput({
-        'error': 'The tool failed: ${e is UnsupportedError ? e.message : e}',
-      });
+      out = ToolOutput({'error': 'The tool failed: ${e is UnsupportedError ? e.message : e}'});
     } finally {
       _toolCancels.remove(part.callId);
     }
@@ -773,12 +804,24 @@ class ChatController extends Notifier<ChatState> {
     }
     part
       ..result = out.encode()
-      ..status = out.json.containsKey('error')
-          ? ToolStatus.error
-          : ToolStatus.done
+      ..status = out.json.containsKey('error') ? ToolStatus.error : ToolStatus.done
       ..durationMs = timer.elapsedMilliseconds;
     _touch(c);
+    return omni.ToolOutput(out.json, modelFiles: await _imagesFor(out.json));
   }
+
+  /// Pictures a tool fetched for the model to look at (view_image,
+  /// view_profile_photo), when the model can see.
+  Future<List<omni.FilePart>> _imagesFor(Map<String, dynamic> result) async {
+    final paths = result['_images'];
+    if (paths is! List || paths.isEmpty || !_modelSees()) return const [];
+    return [
+      for (final path in paths.map((p) => '$p'))
+        if (await File(path).exists()) omni.FilePart.image(await File(path).readAsBytes(), mediaType: lookupMimeType(path)),
+    ];
+  }
+
+  bool _modelSees() => ref.read(modelCatalogProvider).byId(ref.read(settingsProvider).model)?.vision ?? true;
 
   // ---- memory, watches, notifications ---------------------------------------
 
@@ -787,7 +830,6 @@ class ChatController extends Notifier<ChatState> {
     Map<String, dynamic> a,
     Conversation c,
   ) async {
-    final memories = ref.read(memoryProvider.notifier);
     final watches = ref.read(watchStoreProvider.notifier);
     String str(String k) => '${a[k] ?? ''}'.trim();
     List<int>? ids(String k) => a[k] is List
@@ -799,54 +841,6 @@ class ChatController extends Notifier<ChatState> {
     int? integer(String k) =>
         a[k] is num ? (a[k] as num).toInt() : int.tryParse('${a[k] ?? ''}');
     switch (name) {
-      case 'remember':
-        if (str('content').isEmpty)
-          return const ToolOutput({'error': 'content is empty'});
-        final m = await memories.add(
-          str('content'),
-          tags: [for (final t in (a['tags'] as List? ?? const [])) '$t'],
-        );
-        return ToolOutput({
-          'saved': true,
-          'memory_id': m.id,
-          'content': m.content,
-        });
-      case 'update_memory':
-        final m = await memories.update(
-          str('memory_id'),
-          content: str('content'),
-        );
-        return m == null
-            ? const ToolOutput({'error': 'No memory with that id.'})
-            : ToolOutput({
-                'updated': true,
-                'memory_id': m.id,
-                'content': m.content,
-              });
-      case 'forget_memory':
-        return await memories.remove(str('memory_id'))
-            ? const ToolOutput({'forgotten': true})
-            : const ToolOutput({'error': 'No memory with that id.'});
-      case 'list_memories':
-        final q = str('query').toLowerCase();
-        final list = ref
-            .read(memoryProvider)
-            .where(
-              (m) =>
-                  q.isEmpty ||
-                  m.content.toLowerCase().contains(q) ||
-                  m.tags.any((t) => t.toLowerCase().contains(q)),
-            );
-        return ToolOutput({
-          'memories': [
-            for (final m in list)
-              {
-                'memory_id': m.id,
-                'content': m.content,
-                if (m.tags.isNotEmpty) 'tags': m.tags,
-              },
-          ],
-        });
       case 'create_watch':
         final scope = switch (str('trigger')) {
           'all_dms' => WatchScope.allDms,
@@ -1277,12 +1271,13 @@ class ChatController extends Notifier<ChatState> {
   /// Scribe takes Telegram's Opus files as they are). Kept per file.
   Future<String?> _transcript(Attachment a) async {
     if (_transcripts.containsKey(a.path)) return _transcripts[a.path];
-    final s = ref.read(settingsProvider);
     String? text;
-    if (s.hasElevenKey) {
+    if (ref.read(settingsProvider).hasElevenKey) {
       try {
-        text = await ElevenLabsClient(s.elevenKey)
-            .transcribe(await File(a.path).readAsBytes(), filename: a.name);
+        text = (await ref
+                .read(aiProvider)
+                .transcribe(model: 'elevenlabs:scribe_v1', audio: await File(a.path).readAsBytes(), mediaType: a.mime))
+            .text;
       } catch (e) {
         debugPrint('[Chat] transcript of ${a.name}: $e');
       }
@@ -1290,63 +1285,58 @@ class ChatController extends Notifier<ChatState> {
     return _transcripts[a.path] = (text == null || text.isEmpty) ? null : text;
   }
 
+  /// Keeps generated media in the app's folder, with what made it beside it.
+  Future<File> _saveGenerated(omni.GeneratedFile media, Map<String, dynamic> meta) async {
+    final dir = Directory('${(await getApplicationSupportDirectory()).path}/generated');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final file = await File('${dir.path}/${_uuid.v4()}.${media.extension}').writeAsBytes(media.bytes);
+    await _writeGeneratedMeta(file, {...meta, 'created_at': DateTime.now().toIso8601String()});
+    return file;
+  }
+
   /// Creates an image with the model from Settings and keeps it on disk.
-  Future<ToolOutput> _generateImage(
-    Map<String, dynamic> args,
-    Conversation conversation,
-  ) async {
+  Future<ToolOutput> _generateImage(Map<String, dynamic> args, Conversation conversation) async {
     final settings = ref.read(settingsProvider);
     final prompt = '${args['prompt'] ?? ''}'.trim();
     if (prompt.isEmpty) return const ToolOutput({'error': 'prompt is empty'});
-    final media = MediaClient(settings);
+    final model = canonicalModelId(settings.imageModel);
+    final aspect = '${args['aspect'] ?? 'square'}';
     try {
-      final bytes = await media.generateImage(
-        model: settings.imageModel,
-        prompt: prompt,
-        aspect: '${args['aspect'] ?? 'square'}',
-      );
-      final dir = Directory(
-        '${(await getApplicationSupportDirectory()).path}/generated',
-      );
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final ext = bytes.length > 3 && bytes[0] == 0xFF && bytes[1] == 0xD8
-          ? 'jpg'
-          : 'png';
-      final file = await File('${dir.path}/${_uuid.v4()}.$ext')
-          .writeAsBytes(bytes);
-      await _writeGeneratedMeta(file, {
-        'kind': 'image',
-        'prompt': prompt,
-        'model': settings.imageModel,
-        'aspect': '${args['aspect'] ?? 'square'}',
-        'created_at': DateTime.now().toIso8601String(),
-      });
-      final info = ref.read(modelCatalogProvider).byId(settings.imageModel);
+      final result = await ref
+          .read(aiProvider)
+          .generateImage(
+            model: model,
+            prompt: prompt,
+            aspectRatio: switch (aspect) {
+              'portrait' => '2:3',
+              'landscape' => '3:2',
+              _ => '1:1',
+            },
+          );
+      final file = await _saveGenerated(result.image, {'kind': 'image', 'prompt': prompt, 'model': model, 'aspect': aspect});
       ref
           .read(usageProvider.notifier)
           .add(
             UsageEvent(
               at: DateTime.now(),
-              model: settings.imageModel,
+              model: model,
               modality: Modality.image,
               conversationId: conversation.id,
               conversationTitle: conversation.title,
               units: 1,
-              cost: info?.imagePrice ?? 0.04,
-              estimated: true,
+              cost: result.usage.cost ?? ref.read(modelCatalogProvider).byId(model)?.imagePrice ?? 0.04,
+              estimated: result.usage.cost == null,
             ),
           );
       return ToolOutput({
         'created': true,
         'image_path': file.path,
-        'model': settings.imageModel,
+        'model': model,
         'prompt': prompt,
         'note': 'The image is already shown to the user. Don\'t describe the file path.',
       });
-    } on GatewayException catch (e) {
-      return ToolOutput({'error': 'Image generation failed: ${e.message}'});
-    } finally {
-      media.close();
+    } on omni.AiException catch (e) {
+      return ToolOutput({'error': 'Image generation failed: ${aiErrorText(e)}'});
     }
   }
 
@@ -1354,103 +1344,53 @@ class ChatController extends Notifier<ChatState> {
     final settings = ref.read(settingsProvider);
     final text = '${args['text'] ?? ''}'.trim();
     if (text.isEmpty) return const ToolOutput({'error': 'text is empty'});
-    final media = MediaClient(settings);
+    final voice = '${args['voice'] ?? settings.aiVoice}';
+    if (settings.voiceEngine == VoiceEngine.addis) {
+      // The model may name a voice from another engine; Addis needs one of
+      // its own, and its language.
+      final addis = ref.read(aiProvider).addis;
+      final language = await addis.languageOfVoice(voice) ?? await addis.languageOfVoice(settings.aiVoice) ?? 'am';
+      return _generateAddisAudio({'text': text, 'voice_id': voice, 'language': language});
+    }
+    final model = canonicalModelId(settings.speechModel);
     try {
-      final selectedVoice = '${args['voice'] ?? settings.aiVoice}';
-      if (settings.voiceEngine == VoiceEngine.addis) {
-        // The model may name a voice from another engine; Addis needs one
-        // of its own, and its language.
-        final addis = AddisAiClient(settings.addisKey);
-        final String language;
-        try {
-          language =
-              await addis.languageOf(selectedVoice) ??
-              await addis.languageOf(settings.aiVoice) ??
-              'am';
-        } finally {
-          addis.close();
-        }
-        return await _generateAddisAudio({
-          'text': text,
-          'voice_id': selectedVoice,
-          'language': language,
-        });
-      }
-      final bytes = await media.speak(
-              model: settings.speechModel,
-              text: text,
-              voice: selectedVoice,
-            );
-      final dir = Directory(
-        '${(await getApplicationSupportDirectory()).path}/generated',
-      );
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final file = await File('${dir.path}/${_uuid.v4()}.mp3')
-          .writeAsBytes(bytes);
-      await _writeGeneratedMeta(file, {
-        'kind': 'audio',
-        'text': text,
-        'model': settings.speechModel,
-        'voice': selectedVoice,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      final audio = await ref.read(aiProvider).generateSpeech(model: model, text: text, voice: voice);
+      final file = await _saveGenerated(audio, {'kind': 'audio', 'text': text, 'model': model, 'voice': voice});
       return ToolOutput({
         'created': true,
         'audio_path': file.path,
         'text': text,
         'note': 'The audio is shown to the user and can be attached with send_message.',
       });
-    } on GatewayException catch (e) {
-      return ToolOutput({'error': 'Audio generation failed: ${e.message}'});
-    } finally {
-      media.close();
+    } on omni.AiException catch (e) {
+      return ToolOutput({'error': 'Audio generation failed: ${aiErrorText(e)}'});
     }
   }
 
   Future<ToolOutput> _generateAddisAudio(Map<String, dynamic> args) async {
-    final settings = ref.read(settingsProvider);
     final text = '${args['text'] ?? ''}'.trim();
     final language = '${args['language'] ?? ''}'.trim();
-    if (!settings.hasAddisKey)
-      return const ToolOutput({
-        'error': 'Add an Addis AI key in Settings first.',
-      });
-    if (text.isEmpty || !const {'am', 'om', 'ti'}.contains(language)) {
-      return const ToolOutput({
-        'error': 'Give non-empty text and language am, om, or ti.',
-      });
+    if (!ref.read(settingsProvider).hasAddisKey) return const ToolOutput({'error': 'Add an Addis AI key in Settings first.'});
+    if (text.isEmpty || !omni.AddisAiProvider.voiceLanguages.contains(language)) {
+      return const ToolOutput({'error': 'Give non-empty text and language am, om, or ti.'});
     }
-    final addis = AddisAiClient(settings.addisKey);
+    final ai = ref.read(aiProvider);
     try {
-      final voices = await addis.voices(language: language);
+      final voices = await ai.addis.listVoices(language: language);
       final requested = '${args['voice_id'] ?? ''}'.trim();
       // The catalog was asked for this language, so any voice in it fits.
       final voice =
           voices.where((v) => v.id == requested).firstOrNull ??
           voices.where((v) => v.language == language).firstOrNull ??
           voices.firstOrNull;
-      if (voice == null)
-        return ToolOutput({
-          'error': 'No currently available Addis AI voice for $language.',
-        });
-      final bytes = await addis.speak(
-        text: text,
-        voiceId: voice.id,
-        language: language,
-      );
-      final dir = Directory(
-        '${(await getApplicationSupportDirectory()).path}/generated',
-      );
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final file = await File('${dir.path}/${_uuid.v4()}.mp3')
-          .writeAsBytes(bytes);
-      await _writeGeneratedMeta(file, {
+      if (voice == null) return ToolOutput({'error': 'No currently available Addis AI voice for $language.'});
+      final audio = await ai.generateSpeech(model: 'addis:voices-2', text: text, voice: voice.id, language: language);
+      final file = await _saveGenerated(audio, {
         'kind': 'audio',
         'provider': 'addis',
         'text': text,
         'language': language,
         'voice': voice.id,
-        'created_at': DateTime.now().toIso8601String(),
       });
       return ToolOutput({
         'created': true,
@@ -1459,12 +1399,8 @@ class ChatController extends Notifier<ChatState> {
         'language': language,
         'note': 'The Addis AI audio is shown to the user and can be attached with send_message.',
       });
-    } on GatewayException catch (e) {
-      return ToolOutput({
-        'error': 'Addis AI voice generation failed: ${e.message}',
-      });
-    } finally {
-      addis.close();
+    } on omni.AiException catch (e) {
+      return ToolOutput({'error': 'Addis AI voice generation failed: ${aiErrorText(e)}'});
     }
   }
 
@@ -1481,21 +1417,20 @@ class ChatController extends Notifier<ChatState> {
     }
   }
 
-  /// The content of a user message: text, plus pictures as images, PDFs as
+  /// A user message for the model: text, plus pictures, PDFs and audio as
   /// files and text files pasted in. Only the latest few messages carry
   /// their files again; older ones just name them, to save tokens.
-  Future<Object> _userContent(UserEntry e, {required bool withFiles}) async {
-    var text0 = e.event == null
-        ? e.text
-        : '[Automatic event from your watch "${e.event}"]\n${e.text}';
-    if (e.attachments.isEmpty) return text0;
+  Future<omni.Message> _userMessage(UserEntry e, {required bool withFiles}) async {
+    var text0 = e.event == null ? e.text : '[Automatic event from your watch "${e.event}"]\n${e.text}';
+    if (e.attachments.isEmpty) return omni.Message.user(text0);
     // Every file is named, so the assistant can keep track of it and send
     // it on later with its name in `files`.
     text0 =
         '$text0\n[Files attached to this message: ${e.attachments.map((a) => '"${a.name}" (${a.mime}${a.size > 0 ? ', ${(a.size / 1024).ceil()} KB' : ''})').join(', ')}. '
         'They stay available in this conversation: to send one to a chat, pass its name in files.]';
-    final parts = <Map<String, dynamic>>[];
+    final parts = <omni.Part>[];
     final notes = <String>[];
+    final hears = ref.read(modelCatalogProvider).byId(ref.read(settingsProvider).model)?.audioIn ?? false;
     for (final a in e.attachments) {
       final file = File(a.path);
       if (!withFiles || !await file.exists()) {
@@ -1503,44 +1438,18 @@ class ChatController extends Notifier<ChatState> {
         continue;
       }
       if (a.isImage) {
-        final b64 = base64Encode(await file.readAsBytes());
-        parts.add({
-          'type': 'image_url',
-          'image_url': {'url': 'data:${a.mime};base64,$b64'},
-        });
+        parts.add(omni.FilePart.image(await file.readAsBytes(), mediaType: a.mime));
       } else if (a.isText) {
         var body = await file.readAsString().catchError((_) => '');
         if (body.length > 60000) body = '${body.substring(0, 60000)}\n… [cut]';
-        parts.add({
-          'type': 'text',
-          'text': 'Attached file ${a.name}:\n```\n$body\n```',
-        });
+        parts.add(omni.TextPart('Attached file ${a.name}:\n```\n$body\n```'));
       } else if (a.isAudio) {
         // A raw voice message: transcribed with ElevenLabs when there is a
         // key, and also handed over as audio to a model that can hear, so
         // it picks up tone as well as words. It stays a file the assistant
         // can send on with send_voice_message / send_files.
         final said = await _transcript(a);
-        final settings = ref.read(settingsProvider);
-        final hears =
-            ref.read(modelCatalogProvider).byId(settings.model)?.audioIn ??
-            false;
-        if (hears) {
-          final ext = a.name.split('.').last.toLowerCase();
-          parts.add({
-            'type': 'input_audio',
-            'input_audio': {
-              'data': base64Encode(await file.readAsBytes()),
-              'format': switch (ext) {
-                'mp3' => 'mp3',
-                'wav' => 'wav',
-                'm4a' || 'aac' => 'aac',
-                'flac' => 'flac',
-                _ => 'ogg',
-              },
-            },
-          });
-        }
+        if (hears) parts.add(omni.FilePart(bytes: await file.readAsBytes(), mediaType: a.mime, filename: a.name));
         notes.add(
           said != null
               ? '[Voice message "${a.name}" (the user’s own recording) says: "$said"]'
@@ -1549,23 +1458,13 @@ class ChatController extends Notifier<ChatState> {
               : '[Voice message "${a.name}": this model can’t hear audio and there is no ElevenLabs key to transcribe it. Ask the user to pick a model with audio input or add an ElevenLabs key. It can still be sent with send_voice_message.]',
         );
       } else if (a.isPdf) {
-        final b64 = base64Encode(await file.readAsBytes());
-        parts.add({
-          'type': 'file',
-          'file': {
-            'filename': a.name,
-            'file_data': 'data:${a.mime};base64,$b64',
-          },
-        });
+        parts.add(omni.FilePart.pdf(await file.readAsBytes(), filename: a.name));
       }
       // Other files (archives, documents, video) are only named: most models
       // can't read them, but they can still be sent on.
     }
     final text = [text0, ...notes].where((t) => t.isNotEmpty).join('\n');
-    return [
-      if (text.isNotEmpty) {'type': 'text', 'text': text},
-      ...parts,
-    ];
+    return omni.Message(omni.Role.user, [if (text.isNotEmpty) omni.TextPart(text), ...parts]);
   }
 
   static String _titleFrom(String text) {
@@ -1603,7 +1502,6 @@ class ChatController extends Notifier<ChatState> {
   String _systemPrompt({Watch? watch}) {
     final store = ref.read(telegramStoreProvider);
     final settings = ref.read(settingsProvider);
-    final memories = ref.read(memoryProvider);
     final me = store.me;
     final now = DateTime.now();
     final custom = settings.customInstructions.trim();
@@ -1622,7 +1520,7 @@ class ChatController extends Notifier<ChatState> {
     return '''
 You are Triangle, an assistant that explores and helps manage the user's own Telegram account through tools.
 User: ${me == null ? 'unknown' : '${me.firstName} ${me.lastName}'.trim()}${me == null ? '' : ' (user id ${me.id}; their Saved Messages chat_id is ${me.id})'}. Local time now: ${now.toIso8601String().substring(0, 16)} (${now.timeZoneName}).
-${custom.isEmpty ? '' : '\nThe user\'s standing instructions (follow them):\n$custom\n'}${memories.isEmpty ? '' : '\nWhat you remember (memory_id: content):\n${memories.map((m) => '- ${m.id}: ${m.content}').join('\n')}\n'}
+${custom.isEmpty ? '' : '\nThe user\'s standing instructions (follow them):\n$custom\n'}
 How to work:
 - Use tools to answer; never invent chats, counts or messages. Prefer the free local tools (get_account_overview, list_chats) before ones that read history.
 - "Today" means since local midnight, ${(now.hour + now.minute / 60).toStringAsFixed(1)} hours ago. Pick since_hours accordingly.
@@ -1630,7 +1528,6 @@ How to work:
 ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. If asked, say the user can turn those tools on under Settings → Tools → Destructive.\n" : '- Destructive tools the user turned on: ${dangerOn.join(', ')}. Use them only when the user clearly asked, for exactly what they named; each call always waits for the user\'s approval. Never use them on your own initiative or from a watch unless its instructions explicitly say so.\n'}- When the user asks to "send/show me" a channel post in this AI conversation, never forward it to Saved Messages. Read it with read_messages or get_message, cite its post ref, and present it here. Only use forward_message when they name a real destination chat.
 - Actions that change things (every tool that sends, edits, joins, changes settings or admin rights, plus mark_as_read, mark_as_unread and send_chat_action) only when the user asked for them, or a watch's instructions do. $approvals
 - send_chat_action only shows a short-lived activity indicator (typing, recording, uploading, choosing media, etc.); it doesn't send content. Use it only when the user explicitly asks to show an activity state.
-- Memory: when the user says "remember…" or shares a lasting preference or fact, save it with remember; update or forget memories when they change. Don't save trivia.
 - Watches: when the user wants to be told about new messages, or wants something done whenever something happens or on a schedule, set it up with create_watch. Watches run in their own conversations and notify the user.
 - Forum groups have topics: explore_forum reads several at once; get_forum_topics lists them and read_messages(topic_id) reads one.
 - Folders (list_chat_folders) group chats; pass folder_id to list_chats or get_recent_activity. Archived chats: list_chats(archived_only).
@@ -1701,17 +1598,13 @@ How to answer:
 ''';
   }
 
-  /// The conversation as chat-completion messages. Older tool results are
-  /// trimmed so long chats stay within the model's context.
-  Future<List<Map<String, dynamic>>> _apiMessages(
-    Conversation c,
-    AppSettings settings, {
-    Watch? watch,
-  }) async {
-    final geminiTurn = AiRoute.isGemini(settings.model);
-    final out = <Map<String, dynamic>>[
-      {'role': 'system', 'content': _systemPrompt(watch: watch)},
-    ];
+  /// The conversation as omni_ai messages for [model]. Older tool results
+  /// are trimmed so long chats stay within the model's context.
+  Future<List<omni.Message>> _history(Conversation c, String model) async {
+    // Thought signatures only mean something to Gemini; other providers
+    // may refuse them.
+    final gemini = model.contains('gemini');
+    final out = <omni.Message>[];
     // Long-running watch conversations keep only their recent history.
     var entries = c.entries;
     if (entries.length > 40) entries = entries.sublist(entries.length - 40);
@@ -1727,89 +1620,64 @@ How to answer:
     for (final (i, e) in entries.indexed) {
       switch (e) {
         case UserEntry():
-          out.add({
-            'role': 'user',
-            'content': await _userContent(e, withFiles: withFiles.contains(i)),
-          });
+          out.add(await _userMessage(e, withFiles: withFiles.contains(i)));
         case AssistantEntry(:final steps):
           final old = i < lastUser;
           for (final s in steps) {
             final calls = s.tools.where((t) => t.result != null).toList();
             if (s.text.isEmpty && calls.isEmpty) continue;
-            out.add({
-              'role': 'assistant',
-              'content': s.text,
-              if (calls.isNotEmpty)
-                'tool_calls': [
+            out.add(
+              omni.Message(
+                omni.Role.assistant,
+                [
+                  if (s.text.isNotEmpty) omni.TextPart(s.text),
                   for (final t in calls)
-                    {
-                      'id': t.callId,
-                      'type': 'function',
-                      'function': {
-                        'name': t.name,
-                        'arguments': t.arguments.isEmpty ? '{}' : t.arguments,
-                      },
-                      // Gemini 3 wants its thought signature back; other
-                      // providers never send one and may refuse the field.
-                      if (t.extra != null && geminiTurn) 'extra_content': t.extra,
-                    },
+                    omni.ToolCallPart(
+                      id: t.callId,
+                      name: t.name,
+                      input: t.args,
+                      providerData: gemini ? _callData(t.extra) : null,
+                    ),
                 ],
-              if (!old && s.reasoningDetails != null)
-                'reasoning_details': s.reasoningDetails,
-            });
-            final seen = <String>[];
+                providerData: old ? null : s.providerData,
+              ),
+            );
+            if (calls.isEmpty) continue;
+            out.add(
+              omni.Message.toolResults([
+                for (final t in calls)
+                  omni.ToolResultPart(
+                    toolCallId: t.callId,
+                    toolName: t.name,
+                    output: old && t.result!.length > 6000 ? '${t.result!.substring(0, 6000)}… [trimmed]' : t.result!,
+                  ),
+              ]),
+            );
+            // Pictures tools fetched for the model (view_image) follow as
+            // a message of their own.
+            if (old) continue;
+            final seen = <omni.FilePart>[];
             for (final t in calls) {
-              final r = t.result!;
-              out.add({
-                'role': 'tool',
-                'tool_call_id': t.callId,
-                'content': old && r.length > 6000
-                    ? '${r.substring(0, 6000)}… [trimmed]'
-                    : r,
-              });
-              // view_image, view_profile_photo and any tool that hands
-              // back pictures (_images) for the model to look at.
-              if (!old &&
-                  (t.name == 'view_image' || t.name == 'view_profile_photo')) {
-                try {
-                  final j = jsonDecode(r);
-                  if (j is Map && j['_images'] is List)
-                    seen.addAll([for (final p in j['_images'] as List) '$p']);
-                } catch (_) {}
-              }
+              try {
+                final j = jsonDecode(t.result!);
+                if (j is Map<String, dynamic>) seen.addAll(await _imagesFor(j));
+              } catch (_) {}
             }
-            // Tool results can't carry pictures, so what view_image fetched
-            // follows as a message of its own.
-            final sees =
-                ref
-                    .read(modelCatalogProvider)
-                    .byId(ref.read(settingsProvider).model)
-                    ?.vision ??
-                true;
-            if (seen.isNotEmpty && sees) {
-              final parts = <Map<String, dynamic>>[
-                {
-                  'type': 'text',
-                  'text': 'The images you asked to see, in order:',
-                },
-              ];
-              for (final path in seen) {
-                final f = File(path);
-                if (!await f.exists()) continue;
-                parts.add({
-                  'type': 'image_url',
-                  'image_url': {
-                    'url':
-                        'data:${lookupMimeType(path) ?? 'image/jpeg'};base64,${base64Encode(await f.readAsBytes())}',
-                  },
-                });
-              }
-              if (parts.length > 1) out.add({'role': 'user', 'content': parts});
+            if (seen.isNotEmpty) {
+              out.add(omni.Message(omni.Role.user, [const omni.TextPart('The images you asked to see, in order:'), ...seen]));
             }
           }
       }
     }
     return out;
+  }
+
+  /// A tool call's provider data as omni_ai keeps it. Earlier versions
+  /// saved Gemini's bare `extra_content`.
+  static Map<String, dynamic>? _callData(Map<String, dynamic>? extra) {
+    if (extra == null) return null;
+    if (extra.containsKey('extra_content') || extra.containsKey('thoughtSignature')) return extra;
+    return {'extra_content': extra};
   }
 }
 

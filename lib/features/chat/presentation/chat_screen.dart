@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/widgets/brand_mark.dart';
-import '../../ai/data/model_catalog.dart';
+import '../../ai/data/ai.dart';
 import '../../assistant/notifications.dart';
 import '../../assistant/watch_engine.dart';
 import '../../auth/data/auth_controller.dart';
@@ -142,7 +142,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final settings = ref.read(settingsProvider);
     if (!settings.hasAnyKey) {
       _openSettings();
-      showSnack(context, 'Add a Vercel AI Gateway key first.');
+      showSnack(context, 'Add an AI provider API key first.');
       return;
     }
     _input.clear();
@@ -200,7 +200,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
         titleSpacing: 0,
         title: _ModelButton(
-          name: model?.name ?? AiRoute.bare(settings.model).split('/').last,
+          name: model?.name ?? modelLabel(settings.model).split('/').last,
           onTap: _pickModel,
         ),
         actions: [
@@ -580,7 +580,7 @@ class _EmptyState extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: onSettings,
                         icon: const Icon(Icons.key_rounded, size: 18),
-                        label: const Text('Add your Vercel AI Gateway key'),
+                        label: const Text('Add an AI provider API key'),
                       ),
                     ),
                   for (final (icon, text) in _suggestions)
@@ -716,7 +716,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       return;
     }
     _typedBeforeDictation = widget.controller.text;
-    await d.start((words, done) {
+    await d.start(onText: (words, done) {
       if (!mounted) return;
       final text = joinDictation(_typedBeforeDictation, words);
       widget.controller.value = TextEditingValue(

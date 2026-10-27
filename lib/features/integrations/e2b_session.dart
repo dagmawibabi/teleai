@@ -8,7 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../settings/data/settings.dart';
-import 'e2b_client.dart';
+import 'package:omni_ai/omni_ai.dart' show AiException, E2BClient, E2BExecution, E2BSandbox, SandboxGoneException;
+
+import '../ai/data/ai.dart';
 
 /// A finished run, as the chat card and the code editor show it.
 class E2bRun {
@@ -117,10 +119,10 @@ class E2bSession {
     _loadHistory();
   }
   final Ref _ref;
-  E2bSandbox? _sandbox;
+  E2BSandbox? _sandbox;
   DateTime? _lastUsed;
 
-  E2bSandbox? get current => _sandbox;
+  E2BSandbox? get current => _sandbox;
   DateTime? get lastUsed => _lastUsed;
 
   /// Bumped whenever the live sandbox or the history changes, for screens.
@@ -175,9 +177,10 @@ class E2bSession {
 
   AppSettings get _s => _ref.read(settingsProvider);
 
-  E2bClient client() {
-    if (!_s.hasE2bKey) throw E2bException('Add an E2B API key in Settings → Apps & web → E2B first.');
-    return E2bClient(_s.e2bKey);
+  /// omni_ai's E2B client, with the key from Settings.
+  E2BClient client() {
+    if (!_s.hasE2bKey) throw const AiException('Add an E2B API key in Settings → Apps & web → E2B first.', provider: 'e2b');
+    return _ref.read(aiProvider).e2b.client..apiKey = _s.e2bKey;
   }
 
   bool get _alive {
@@ -186,12 +189,12 @@ class E2bSession {
   }
 
   /// The sandbox to use now, made when there is none (or it timed out).
-  Future<E2bSandbox> sandbox(E2bClient c, {bool fresh = false, String? reason}) async {
+  Future<E2BSandbox> sandbox(E2BClient c, {bool fresh = false, String? reason}) async {
     if (!fresh && _alive) {
       _lastUsed = DateTime.now();
       changes.value++;
       try {
-        await c.setTimeout(_sandbox!.id, _s.e2bTimeoutMinutes * 60);
+        await c.keepAlive(_sandbox!.id, Duration(minutes: _s.e2bTimeoutMinutes));
       } catch (_) {}
       return _sandbox!;
     }
@@ -205,33 +208,31 @@ class E2bSession {
         } catch (_) {}
       }
     }
-    final box = _sandbox = await c.create(template: _s.e2bTemplate, timeoutSeconds: _s.e2bTimeoutMinutes * 60, internet: _s.e2bInternet);
+    final box = _sandbox = await c.create(template: _s.e2bTemplate, timeout: Duration(minutes: _s.e2bTimeoutMinutes), internet: _s.e2bInternet);
     _lastUsed = DateTime.now();
-    await _record((_) => E2bHistoryEntry(id: box.id, template: box.template, started: box.startedAt, by: by));
+    await _record((_) => E2bHistoryEntry(id: box.id, template: box.template, started: box.startedAt ?? DateTime.now(), by: by));
     return box;
   }
 
   /// Starts a sandbox now (or keeps the running one), from Settings.
-  Future<E2bSandbox> start() async {
+  Future<E2BSandbox> start() async {
     final c = client();
     try {
       by = 'Settings';
       return await sandbox(c);
     } finally {
       by = 'the assistant';
-      c.close();
     }
   }
 
   /// A clean sandbox in place of the running one.
-  Future<E2bSandbox> restart() async {
+  Future<E2BSandbox> restart() async {
     final c = client();
     try {
       by = 'Settings';
       return await sandbox(c, fresh: true, reason: 'restarted');
     } finally {
       by = 'the assistant';
-      c.close();
     }
   }
 
@@ -239,57 +240,52 @@ class E2bSession {
   Future<E2bRun> run(String code, {String language = 'python', void Function(String line, {required bool error})? onLine, Duration timeout = const Duration(seconds: 120)}) async {
     final c = client();
     final watch = Stopwatch()..start();
+    var box = await sandbox(c);
+    E2BExecution ex;
     try {
-      var box = await sandbox(c);
-      E2bExecution ex;
-      try {
-        ex = await c.run(box, code, language: language, onLine: onLine, timeout: timeout);
-      } on E2bException catch (e) {
-        if (e.status != 502 && e.status != 404) rethrow;
-        box = await sandbox(c, fresh: true);
-        ex = await c.run(box, code, language: language, onLine: onLine, timeout: timeout);
-      }
-      await _record(null, ranId: box.id);
-      final images = await _saveImages(ex);
-      final run = E2bRun(
-        code: code,
-        language: language,
-        stdout: ex.stdout.join(),
-        stderr: ex.stderr.join(),
-        results: [
-          for (final r in ex.results)
-            {
-              for (final k in const ['text', 'markdown', 'html', 'latex', 'json'])
-                if (r.data[k] != null) k: k == 'json' ? r.data[k] : E2bRun.clip('${r.data[k]}', 8000),
-              if (r.main) 'main': true,
-            },
-        ]..removeWhere((r) => r.isEmpty || r.keys.every((k) => k == 'main')),
-        images: images,
-        error: ex.error == null
-            ? null
-            : {
-                'name': ex.error!['name'],
-                'value': ex.error!['value'],
-                if (ex.error!['traceback'] != null) 'traceback': E2bRun.clip(_noAnsi('${ex.error!['traceback']}'), 6000),
-              },
-        count: ex.count,
-        sandboxId: box.id,
-        ms: watch.elapsedMilliseconds,
-      );
-      if (!_s.e2bKeepAlive) await stop(c, 'finished (not kept)');
-      return run;
-    } finally {
-      c.close();
+      ex = await c.run(box, code, language: language, onOutput: onLine, timeout: timeout);
+    } on SandboxGoneException {
+      box = await sandbox(c, fresh: true);
+      ex = await c.run(box, code, language: language, onOutput: onLine, timeout: timeout);
     }
+    await _record(null, ranId: box.id);
+    final images = await _saveImages(ex);
+    final run = E2bRun(
+      code: code,
+      language: language,
+      stdout: ex.stdout.toString(),
+      stderr: ex.stderr.toString(),
+      results: [
+        for (final r in ex.results)
+          {
+            for (final k in const ['text', 'markdown', 'html', 'latex', 'json'])
+              if (r[k] != null) k: k == 'json' ? r[k] : E2bRun.clip('${r[k]}', 8000),
+            if (r['main'] == true) 'main': true,
+          },
+      ]..removeWhere((r) => r.isEmpty || r.keys.every((k) => k == 'main')),
+      images: images,
+      error: ex.error == null
+          ? null
+          : {
+              'name': ex.error!['name'],
+              'value': ex.error!['value'],
+              if (ex.error!['traceback'] != null) 'traceback': E2bRun.clip(_noAnsi('${ex.error!['traceback']}'), 6000),
+            },
+      count: ex.count,
+      sandboxId: box.id,
+      ms: watch.elapsedMilliseconds,
+    );
+    if (!_s.e2bKeepAlive) await stop(c, 'finished (not kept)');
+    return run;
   }
 
   static String _noAnsi(String s) => s.replaceAll(RegExp(r'\x1B\[[0-9;]*[A-Za-z]'), '');
 
-  Future<List<String>> _saveImages(E2bExecution ex) async {
+  Future<List<String>> _saveImages(E2BExecution ex) async {
     final out = <String>[];
     Directory? dir;
     for (final r in ex.results) {
-      final (b64, ext) = r.png != null ? (r.png!, 'png') : (r.jpeg != null ? (r.jpeg!, 'jpg') : (null, ''));
+      final (b64, ext) = r['png'] is String ? ('${r['png']}', 'png') : (r['jpeg'] is String ? ('${r['jpeg']}', 'jpg') : (null, ''));
       if (b64 == null) continue;
       dir ??= await Directory('${(await getApplicationSupportDirectory()).path}/generated').create(recursive: true);
       final f = File('${dir.path}/e2b_${const Uuid().v4().substring(0, 8)}.$ext');
@@ -300,7 +296,7 @@ class E2bSession {
   }
 
   /// Stops the kept sandbox.
-  Future<void> stop([E2bClient? c, String reason = 'stopped']) async {
+  Future<void> stop([E2BClient? c, String reason = 'stopped']) async {
     final box = _sandbox;
     _sandbox = null;
     _lastUsed = null;
@@ -311,8 +307,6 @@ class E2bSession {
       await client.kill(box.id);
     } catch (_) {
       // Already gone.
-    } finally {
-      if (c == null) client.close();
     }
   }
 
@@ -326,13 +320,9 @@ class E2bSession {
     await _record(null, endId: id, reason: reason);
   }
 
-  Future<T> withSandbox<T>(Future<T> Function(E2bClient c, E2bSandbox box) work) async {
+  Future<T> withSandbox<T>(Future<T> Function(E2BClient c, E2BSandbox box) work) async {
     final c = client();
-    try {
-      return await work(c, await sandbox(c));
-    } finally {
-      c.close();
-    }
+    return work(c, await sandbox(c));
   }
 }
 

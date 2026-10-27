@@ -6,9 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
-import '../../integrations/cloudflare_client.dart';
 import '../../integrations/code_editor_screen.dart';
-import '../../integrations/e2b_client.dart';
+import 'package:omni_ai/omni_ai.dart' show CloudflareClient, E2BClient, E2BSandboxInfo, R2Credentials;
+
+import '../../ai/data/ai.dart';
 import '../../integrations/e2b_session.dart';
 import '../../telegram/data/telegram_tools.dart';
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
@@ -186,7 +187,7 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
   }
 
   CloudflareClient _client(AppSettings s, {String? account}) => CloudflareClient(
-    s.cloudflareToken,
+    token: s.cloudflareToken,
     accountId: account ?? s.cloudflareAccountId,
     r2: R2Credentials(accountId: account ?? s.cloudflareAccountId, accessKeyId: s.r2AccessKeyId, secretAccessKey: s.r2SecretKey),
   );
@@ -219,7 +220,6 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
-      c.close();
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -237,12 +237,9 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
       }
       final cc = _client(s, account: c.accountId);
       final r = await cc.listObjects(bucket, max: 5);
-      cc.close();
       setState(() => _r2Check = 'Works: $bucket has ${(r['objects'] as List).length}${r['next_cursor'] == null ? '' : '+'} files at its top level.');
     } catch (e) {
       setState(() => _r2Check = '$e');
-    } finally {
-      c.close();
     }
   }
 
@@ -275,7 +272,7 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
                       await ctl.setCloudflareToken(v);
                       unawaited(_load());
                     },
-                    verify: CloudflareClient.verifyToken,
+                    verify: (k) => ref.read(aiProvider).verifyKey('cloudflare', key: k),
                     help: Uri.parse('https://dash.cloudflare.com/profile/api-tokens'),
                   ),
                   Padding(
@@ -389,7 +386,7 @@ class E2bTab extends ConsumerStatefulWidget {
 }
 
 class _E2bTabState extends ConsumerState<E2bTab> {
-  List<E2bSandboxInfo>? _account;
+  List<E2BSandboxInfo>? _account;
   String? _error;
   String? _busy;
   Timer? _tick;
@@ -413,9 +410,8 @@ class _E2bTabState extends ConsumerState<E2bTab> {
   Future<void> _loadAccount() async {
     final s = ref.read(settingsProvider);
     if (!s.hasE2bKey) return;
-    final c = E2bClient(s.e2bKey);
     try {
-      final list = await c.list();
+      final list = await ref.read(e2bSessionProvider).client().sandboxes();
       if (mounted) {
         setState(() {
           _account = list;
@@ -424,8 +420,6 @@ class _E2bTabState extends ConsumerState<E2bTab> {
       }
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
-    } finally {
-      c.close();
     }
   }
 
@@ -477,7 +471,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                           await ctl.setE2bKey(v);
                           unawaited(_loadAccount());
                         },
-                        verify: E2bClient.verifyKey,
+                        verify: (k) => ref.read(aiProvider).verifyKey('e2b', key: k),
                         help: Uri.parse('https://e2b.dev/dashboard?tab=keys'),
                       ),
                     ],
@@ -577,7 +571,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                       ),
                       KeyField(
                         label: 'Template',
-                        hint: E2bClient.defaultTemplate,
+                        hint: E2BClient.defaultTemplate,
                         value: s.e2bTemplate,
                         onSave: ctl.setE2bTemplate,
                       ),
@@ -592,7 +586,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                           Padding(padding: const EdgeInsets.all(Space.l), child: Text(_error!, style: context.text.bodySmall?.copyWith(color: AppColors.danger))),
                         if (_account != null && _account!.isEmpty)
                           Padding(padding: const EdgeInsets.all(Space.l), child: Text('Nothing running.', style: context.text.bodySmall)),
-                        for (final b in _account ?? const <E2bSandboxInfo>[])
+                        for (final b in _account ?? const <E2BSandboxInfo>[])
                           ListTile(
                             dense: true,
                             leading: Icon(Icons.circle, size: 10, color: b.state == 'running' ? AppColors.success : AppColors.warning),
@@ -617,12 +611,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                                       if (b.id == box?.id) {
                                         await session.stop(null, 'shut down in Settings');
                                       } else {
-                                        final c = E2bClient(s.e2bKey);
-                                        try {
-                                          await c.kill(b.id);
-                                        } finally {
-                                          c.close();
-                                        }
+                                        await session.client().kill(b.id);
                                         await session.markStopped(b.id, 'shut down in Settings');
                                       }
                                     }),

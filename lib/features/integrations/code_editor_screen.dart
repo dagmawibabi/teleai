@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/theme.dart';
 import '../../core/widgets/code_highlight.dart';
 import '../settings/data/settings.dart';
-import 'e2b_client.dart';
+import 'package:omni_ai/omni_ai.dart' show E2BClient;
 import 'e2b_session.dart';
 
 /// Write, edit and run code in the E2B sandbox by hand, with syntax
@@ -55,7 +55,7 @@ summary(x)
 };
 
 class _CodeEditorScreenState extends ConsumerState<CodeEditorScreen> {
-  late String _language = E2bClient.languages.contains(widget.language) ? widget.language : 'python';
+  late String _language = E2BClient.languages.contains(widget.language) ? widget.language : 'python';
   late final HighlightingController _code = HighlightingController(
     text: widget.code ?? '',
     language: _language,
@@ -84,7 +84,7 @@ class _CodeEditorScreenState extends ConsumerState<CodeEditorScreen> {
     final text = p.getString(_draftKey);
     if (!mounted) return;
     setState(() {
-      if (lang != null && E2bClient.languages.contains(lang)) _language = _code.language = lang;
+      if (lang != null && E2BClient.languages.contains(lang)) _language = _code.language = lang;
       _code.text = text ?? _examples[_language]!;
     });
   }
@@ -217,7 +217,7 @@ class _CodeEditorScreenState extends ConsumerState<CodeEditorScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final l in E2bClient.languages) ...[
+                  for (final l in E2BClient.languages) ...[
                     ChoiceChip(
                       label: Text(l == 'javascript' ? 'JavaScript' : (l == 'r' ? 'R' : '${l[0].toUpperCase()}${l.substring(1)}')),
                       selected: _language == l,

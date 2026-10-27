@@ -61,8 +61,18 @@ class ChatRepository {
     }
   }
 
+  /// The save in progress; saves run one after another, since they share
+  /// the conversation's temp file and the index.
+  Future<void> _saving = Future.value();
+
   /// Writes the conversation and moves it to the top of the index.
-  Future<List<ConversationSummary>> save(Conversation c) async {
+  Future<List<ConversationSummary>> save(Conversation c) {
+    final done = _saving.then((_) => _save(c));
+    _saving = done.then((_) {}, onError: (_) {});
+    return done;
+  }
+
+  Future<List<ConversationSummary>> _save(Conversation c) async {
     final dir = await _root();
     final tmp = File('${dir.path}/${c.id}.json.tmp');
     await tmp.writeAsString(jsonEncode(c.toJson()));

@@ -25,7 +25,7 @@ final _cloudTools = <TelegramTool>[
         'and rerun it.',
     parameters: _obj({
       'code': {'type': 'string'},
-      'language': {'type': 'string', 'enum': E2bClient.languages},
+      'language': {'type': 'string', 'enum': E2BClient.languages},
       'timeout_seconds': {'type': 'integer', 'description': '10-600, default 120.'},
     }, ['code']),
   ),
@@ -414,7 +414,7 @@ extension _CloudToolRuns on TelegramToolRunner {
           if (code.trim().isEmpty) return const ToolOutput({'error': 'code is empty'});
           final run = await session.run(
             code,
-            language: E2bClient.languages.contains(_arg(a, 'language')) ? _arg(a, 'language') : 'python',
+            language: E2BClient.languages.contains(_arg(a, 'language')) ? _arg(a, 'language') : 'python',
             timeout: Duration(seconds: secs('timeout_seconds', 120, 600)),
           );
           return ToolOutput(run.toJson());
@@ -422,21 +422,20 @@ extension _CloudToolRuns on TelegramToolRunner {
           final cmd = _arg(a, 'command');
           if (cmd.isEmpty) return const ToolOutput({'error': 'command is empty'});
           final t = secs('timeout_seconds', 120, 600);
-          final run = await session.run(
-            'import subprocess, json\n'
-            'p = subprocess.run(${jsonEncode(cmd)}, shell=True, capture_output=True, text=True, cwd=${jsonEncode(_arg(a, 'cwd').isEmpty ? '/home/user' : _arg(a, 'cwd'))}, timeout=$t)\n'
-            'print("__TRIANGLE__" + json.dumps({"code": p.returncode, "out": p.stdout[-12000:], "err": p.stderr[-6000:]}))',
-            timeout: Duration(seconds: t + 15),
+          final j = await session.withSandbox(
+            (c, box) => c.command(
+              box,
+              cmd,
+              cwd: _arg(a, 'cwd').isEmpty ? '/home/user' : _arg(a, 'cwd'),
+              timeout: Duration(seconds: t),
+            ),
           );
-          if (run.error != null) return ToolOutput({'error': '${run.error!['name']}: ${run.error!['value']}'});
-          final i = run.stdout.indexOf('__TRIANGLE__');
-          final j = i < 0 ? const {} : jsonDecode(run.stdout.substring(i + '__TRIANGLE__'.length).trim()) as Map;
           return ToolOutput({
             'sandbox': 'e2b',
             'command': cmd,
-            'exit_code': j['code'],
-            if ('${j['out'] ?? ''}'.isNotEmpty) 'stdout': j['out'],
-            if ('${j['err'] ?? ''}'.isNotEmpty) 'stderr': j['err'],
+            'exit_code': j['exit_code'],
+            if ('${j['stdout'] ?? ''}'.isNotEmpty) 'stdout': j['stdout'],
+            if ('${j['stderr'] ?? ''}'.isNotEmpty) 'stderr': j['stderr'],
           });
         case 'e2b_upload_file':
           final f = File(_arg(a, 'file'));
@@ -465,19 +464,14 @@ extension _CloudToolRuns on TelegramToolRunner {
           final files = await session.withSandbox((c, box) => c.listFiles(box, path));
           return ToolOutput({'sandbox': 'e2b', 'path': path, 'files': files});
         case 'e2b_sandboxes':
-          final c = session.client();
-          try {
-            final all = await c.list();
-            return ToolOutput({
-              'sandbox': 'e2b',
-              'current': session.current?.id,
-              'template': _settings.e2bTemplate,
-              'keeps_sandbox': _settings.e2bKeepAlive,
-              'sandboxes': [for (final s in all) s.toJson()],
-            });
-          } finally {
-            c.close();
-          }
+          final all = await session.client().sandboxes();
+          return ToolOutput({
+            'sandbox': 'e2b',
+            'current': session.current?.id,
+            'template': _settings.e2bTemplate,
+            'keeps_sandbox': _settings.e2bKeepAlive,
+            'sandboxes': [for (final s in all) s.toJson()],
+          });
         case 'e2b_reset_sandbox':
           final had = session.current?.id;
           await session.stop(null, 'stopped by the assistant');
@@ -487,24 +481,20 @@ extension _CloudToolRuns on TelegramToolRunner {
           if (id == session.current?.id) {
             await session.stop(null, 'stopped by the assistant');
           } else {
-            final c = session.client();
-            try {
-              await c.kill(id);
-            } finally {
-              c.close();
-            }
+            await session.client().kill(id);
             await session.markStopped(id, 'stopped by the assistant');
           }
           return ToolOutput({'stopped': id});
       }
-    } on E2bException catch (e) {
+    } on AiException catch (e) {
       return ToolOutput({'error': 'E2B: ${e.message}'});
     }
     return ToolOutput({'error': 'Unknown tool $name'});
   }
 
+  /// omni_ai's Cloudflare client, with the token and R2 keys from Settings.
   CloudflareClient _cf() => CloudflareClient(
-    _settings.cloudflareToken,
+    token: _settings.cloudflareToken,
     accountId: _settings.cloudflareAccountId,
     r2: R2Credentials(
       accountId: _settings.cloudflareAccountId,
@@ -514,15 +504,16 @@ extension _CloudToolRuns on TelegramToolRunner {
   );
 
   Future<String> _zoneId(CloudflareClient c, String zone) async {
-    if (RegExp(r'^[0-9a-f]{32}$').hasMatch(zone)) return zone;
-    final list = await c.call('GET', '/zones', query: {'name': zone.toLowerCase()});
-    if (list is List && list.isNotEmpty) return '${(list.first as Map)['id']}';
-    throw CloudflareException('No zone "$zone" on this account. Use cloudflare_zones.');
+    try {
+      return await c.zoneId(zone.toLowerCase());
+    } on AiException {
+      throw AiException('No zone "$zone" on this account. Use cloudflare_zones.', provider: 'cloudflare');
+    }
   }
 
   String _bucket(Map<String, dynamic> a) {
     final b = _arg(a, 'bucket').isEmpty ? _settings.r2Bucket : _arg(a, 'bucket');
-    if (b.isEmpty) throw CloudflareException('Which bucket? Name one, or set a default in Settings → Apps & web → Cloudflare.');
+    if (b.isEmpty) throw AiException('Which bucket? Name one, or set a default in Settings → Apps & web → Cloudflare.', provider: 'cloudflare');
     return b;
   }
 
@@ -536,7 +527,7 @@ extension _CloudToolRuns on TelegramToolRunner {
       if (_settings.cloudflareAccountId.isNotEmpty) return c;
       final id = await c.account();
       return CloudflareClient(
-        _settings.cloudflareToken,
+        token: _settings.cloudflareToken,
         accountId: id,
         r2: R2Credentials(accountId: id, accessKeyId: _settings.r2AccessKeyId, secretAccessKey: _settings.r2SecretKey),
       );
@@ -785,10 +776,8 @@ extension _CloudToolRuns on TelegramToolRunner {
           }
           return ToolOutput({'deleted': keys, 'bucket': bucket});
       }
-    } on CloudflareException catch (e) {
+    } on AiException catch (e) {
       return ToolOutput({'error': 'Cloudflare: ${e.message}'});
-    } finally {
-      c.close();
     }
     return ToolOutput({'error': 'Unknown tool $name'});
   }

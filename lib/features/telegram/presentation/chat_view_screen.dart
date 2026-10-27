@@ -1140,7 +1140,7 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
     final d = ref.read(dictationProvider);
     if (d.listening) return d.stop();
     _typed = _text.text;
-    await d.start((words, done) {
+    await d.start(onText: (words, done) {
       if (!mounted) return;
       final t = joinDictation(_typed, words);
       _text.value = TextEditingValue(

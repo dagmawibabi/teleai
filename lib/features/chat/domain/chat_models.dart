@@ -81,7 +81,7 @@ class ModelStep {
     this.reasoning = '',
     this.text = '',
     List<ToolPart>? tools,
-    this.reasoningDetails,
+    this.providerData,
     this.thinkingMs,
     this.usage,
   }) : tools = tools ?? [];
@@ -92,14 +92,16 @@ class ModelStep {
   String reasoning;
   String text;
   final List<ToolPart> tools;
-  List<dynamic>? reasoningDetails;
+  /// What the provider wants back with this turn (OpenRouter and gateway
+  /// `reasoning_details`), as omni_ai keeps it.
+  Map<String, dynamic>? providerData;
   int? thinkingMs;
 
   Map<String, dynamic> toJson() => {
     'reasoning': reasoning,
     'text': text,
     'tools': [for (final t in tools) t.toJson()],
-    if (reasoningDetails != null) 'rd': reasoningDetails,
+    if (providerData != null) 'pd': providerData,
     'tms': thinkingMs,
     if (usage != null) 'u': usage!.toJson(),
   };
@@ -108,7 +110,10 @@ class ModelStep {
     reasoning: j['reasoning'] ?? '',
     text: j['text'] ?? '',
     tools: [for (final t in (j['tools'] as List? ?? const [])) ToolPart.fromJson(Map<String, dynamic>.from(t))],
-    reasoningDetails: j['rd'] as List?,
+    // Earlier versions kept only the reasoning details.
+    providerData: j['pd'] is Map
+        ? Map<String, dynamic>.from(j['pd'] as Map)
+        : (j['rd'] is List ? {'reasoning_details': j['rd']} : null),
     thinkingMs: j['tms'],
     usage: j['u'] is Map ? StepUsage.fromJson(Map<String, dynamic>.from(j['u'])) : null,
   );

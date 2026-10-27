@@ -6,10 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import '../../../app/theme.dart';
-import '../../ai/data/gateway_client.dart';
+import '../../ai/data/ai.dart';
 import '../../settings/data/settings.dart';
 import '../../usage/usage.dart';
-import '../../ai/data/model_catalog.dart';
 import '../data/message_content.dart';
 import '../data/telegram_tools.dart';
 
@@ -180,35 +179,19 @@ class _TranslateViewState extends ConsumerState<_TranslateView> {
 Future<String> translateWithAi(WidgetRef ref, String text, String language) async {
   final settings = ref.read(settingsProvider);
   if (!settings.hasAnyKey) throw StateError('Add an AI key in Settings to translate.');
-  final buf = StringBuffer();
-  await for (final e in GatewayClient(settings).streamTurn(
-    model: settings.model,
-    messages: [
-      {
-        'role': 'system',
-        'content':
-            'Translate the user\'s text into $language. Reply with the translation only, keeping line breaks, emoji, '
+  final model = canonicalModelId(settings.model);
+  final result = await ref
+      .read(aiProvider)
+      .generateText(
+        model: model,
+        system:
+            "Translate the user's text into $language. Reply with the translation only, keeping line breaks, emoji, "
             'links and names. If it is already in $language, return it unchanged.',
-      },
-      {'role': 'user', 'content': text},
-    ],
-  )) {
-    switch (e) {
-      case ContentDelta(:final text):
-        buf.write(text);
-      case TurnEnd(:final usage?):
-        ref
-            .read(usageProvider.notifier)
-            .recordChat(
-              model: settings.model,
-              usage: usage,
-              info: ref.read(modelCatalogProvider).byId(settings.model),
-            );
-      default:
-        break;
-    }
-  }
-  final out = buf.toString().trim();
+        prompt: text,
+        reasoning: reasoningFor(settings.thinking),
+      );
+  ref.read(usageProvider.notifier).recordChat(model: model, usage: result.usage, info: ref.read(modelCatalogProvider).byId(model));
+  final out = result.text.trim();
   if (out.isEmpty) throw StateError('The model returned nothing.');
   return out;
 }

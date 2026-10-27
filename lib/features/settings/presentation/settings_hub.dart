@@ -16,7 +16,7 @@ import '../../../app/theme.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
-import '../../ai/data/model_catalog.dart';
+import '../../ai/data/ai.dart';
 import '../../integrations/integrations_store.dart';
 import '../../assistant/watch_engine.dart';
 import '../../assistant/watches.dart';
@@ -550,8 +550,8 @@ class SettingsHub extends ConsumerWidget {
                   SettingsSection.ai.icon,
                   SettingsSection.ai.title,
                   s.hasAnyKey
-                      ? (cat.byId(s.model)?.name ?? AiRoute.bare(s.model))
-                      : 'Add your AI key to start',
+                      ? (cat.byId(s.model)?.name ?? modelLabel(s.model))
+                      : 'Add an AI provider API key to start',
                   () => _open(
                     context,
                     const SettingsScreen(section: SettingsSection.ai),

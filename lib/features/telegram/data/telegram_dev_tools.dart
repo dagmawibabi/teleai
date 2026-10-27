@@ -379,7 +379,7 @@ extension _DevTools on TelegramToolRunner {
   Future<ToolOutput> _runCode(Map<String, dynamic> args) => _guard(() async {
     final code = '${args['code'] ?? ''}';
     if (code.trim().isEmpty) throw ArgumentError('code is empty');
-    final inputs = <String, List<int>>{};
+    final inputs = <String, Uint8List>{};
     for (final f in (args['files'] as List? ?? const [])) {
       final file = File('$f');
       if (!file.existsSync())
@@ -389,19 +389,20 @@ extension _DevTools on TelegramToolRunner {
       n = n.replaceFirst(RegExp(r'^[0-9a-f]{8}_'), '');
       inputs[n] = await file.readAsBytes();
     }
-    final r = await _sandbox.run(
+    final run = await _sandbox.run(
       language: '${args['language'] ?? 'python'}',
       code: code,
       inputs: inputs,
     );
-    final images = r.files
-        .where(
-          (f) => RegExp(
-            r'\.(png|jpe?g|gif|webp)$',
-            caseSensitive: false,
-          ).hasMatch(f.path),
-        )
-        .toList();
+    // What the code made is kept with the conversation's files.
+    final dir = Directory('${(await getApplicationSupportDirectory()).path}/sandbox/${DateTime.now().millisecondsSinceEpoch}');
+    final files = <File>[];
+    for (final f in run.files) {
+      if (!await dir.exists()) await dir.create(recursive: true);
+      files.add(await File('${dir.path}/${f.name}').writeAsBytes(f.file.bytes));
+    }
+    final r = (output: run.output, result: run.result, error: run.error, files: files);
+    final images = files.where((f) => f.path.contains(RegExp(r'\.(png|jpe?g|gif|webp)$', caseSensitive: false))).toList();
     return ToolOutput({
       if (r.error == null) 'done': true,
       if (r.output.isNotEmpty)

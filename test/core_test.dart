@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:teleai/features/ai/data/model_catalog.dart';
+import 'package:omni_ai/omni_ai.dart' show MemoryKeyStore, OmniAI;
+import 'package:teleai/features/ai/data/ai.dart';
 import 'package:teleai/features/assistant/watches.dart';
 import 'package:teleai/features/usage/usage.dart';
 import 'package:teleai/features/chat/domain/chat_models.dart';
@@ -43,52 +44,55 @@ void main() {
     expect(const TelegramException(420, 'FLOOD_WAIT_7').retryAfterSeconds, 7);
   });
 
-  test('catalogs merge with models.dev details', () {
-    final gateway = jsonEncode({
-      'data': [
-        {
-          'id': 'anthropic/claude-x',
-          'name': 'Claude X',
-          'type': 'language',
-          'owned_by': 'anthropic',
-          'context_window': 200000,
-          'pricing': {'input': '0.000003', 'output': '0.000015'},
-          'tags': ['tool-use'],
-        },
-        {'id': 'bfl/flux', 'type': 'image'},
+  test('model ids saved by earlier versions become omni_ai ids', () {
+    expect(canonicalModelId('anthropic/claude-x'), 'gateway:anthropic/claude-x');
+    expect(canonicalModelId('or:openai/gpt-x:free'), 'openrouter:openai/gpt-x:free');
+    expect(canonicalModelId('g:gemini-3-flash'), 'google:gemini-3-flash');
+    expect(canonicalModelId('google:gemini-3-flash'), 'google:gemini-3-flash');
+    expect(modelLabel('or:openai/gpt-x'), 'openai/gpt-x');
+    expect(AiRouter.of('or:openai/gpt-x'), AiRouter.openRouter);
+  });
+
+  test('models follow the keys the person added', () {
+    final ai = OmniAI(keyStore: MemoryKeyStore(), loadSavedKeys: false, googleKey: 'g');
+    final chat = usableModel(ai, 'gateway:anthropic/claude-sonnet-5.5', ModelType.text);
+    expect(chat, startsWith('google:'));
+    expect(usableModel(ai, 'google:gemini-3-flash', ModelType.text), 'google:gemini-3-flash');
+    expect(usableModel(ai, 'g:gemini-3-flash', ModelType.text), 'google:gemini-3-flash');
+    final none = OmniAI(keyStore: MemoryKeyStore(), loadSavedKeys: false);
+    expect(usableModel(none, 'gateway:anthropic/claude-sonnet-5.5', ModelType.text), 'gateway:anthropic/claude-sonnet-5.5');
+  });
+
+  test('voice and dictation engines follow the keys', () {
+    final none = OmniAI(keyStore: MemoryKeyStore(), loadSavedKeys: false);
+    // ElevenLabs picked but its key removed: back to the device voice.
+    const lost = AppSettings(loaded: true, voiceEngine: VoiceEngine.elevenLabs, dictationEngine: DictationEngine.elevenLabs);
+    final f = fitToKeys(none, lost, before: const AppSettings(loaded: true, elevenKey: 'x', voiceEngine: VoiceEngine.elevenLabs));
+    expect(f.voiceEngine, VoiceEngine.device);
+    expect(f.dictationEngine, DictationEngine.device);
+    // A new ElevenLabs key: reading aloud switches to it.
+    final eleven = OmniAI(keyStore: MemoryKeyStore(), loadSavedKeys: false, elevenLabsKey: 'e');
+    const added = AppSettings(loaded: true, elevenKey: 'e');
+    expect(fitToKeys(eleven, added, before: const AppSettings(loaded: true)).voiceEngine, VoiceEngine.elevenLabs);
+    // Only a Google key: the AI voice and dictation models come from Google.
+    final google = OmniAI(keyStore: MemoryKeyStore(), loadSavedKeys: false, googleKey: 'g');
+    final g = fitToKeys(google, const AppSettings(loaded: true, geminiKey: 'g', voiceEngine: VoiceEngine.ai, dictationEngine: DictationEngine.ai));
+    expect(g.speech, startsWith('google:'));
+    expect(g.transcription, startsWith('google:'));
+    expect(g.voiceEngine, VoiceEngine.ai);
+    expect(keysChanged(const AppSettings(), const AppSettings(geminiKey: 'g')), isTrue);
+    expect(keysChanged(const AppSettings(), const AppSettings(model: 'google:x')), isFalse);
+  });
+
+  test('saved reasoning details load as provider data', () {
+    final step = ModelStep.fromJson({
+      'text': 'hi',
+      'rd': [
+        {'type': 'reasoning.text', 'text': 'x'},
       ],
     });
-    final dev = jsonEncode({
-      'vercel': {
-        'models': {
-          'anthropic/claude-x': {'reasoning': true, 'tool_call': true, 'knowledge': '2026-03', 'release_date': '2026-05-01'},
-        },
-      },
-    });
-    final openRouter = jsonEncode({
-      'data': [
-        {
-          'id': 'openai/gpt-x:free',
-          'name': 'OpenAI: GPT X',
-          'context_length': 128000,
-          'architecture': {'input_modalities': ['text', 'image'], 'output_modalities': ['text']},
-          'pricing': {'prompt': '0', 'completion': '0'},
-          'supported_parameters': ['tools'],
-        },
-      ],
-    });
-    final models = mergeCatalogs((gateway, dev, openRouter));
-    expect(models.map((m) => m.id), ['anthropic/claude-x', 'bfl/flux', 'or:openai/gpt-x:free']);
-    expect(models.where((m) => m.fits(ModelKind.text)).map((m) => m.id), ['anthropic/claude-x', 'or:openai/gpt-x:free']);
-    expect(models.where((m) => m.fits(ModelKind.image)).map((m) => m.id), ['bfl/flux']);
-    final claude = models.first;
-    expect(claude.inputPrice, closeTo(3, 1e-9));
-    expect(claude.reasoning && claude.toolCall, isTrue);
-    expect(claude.knowledge, '2026-03');
-    final gpt = models.last;
-    expect(gpt.fits(ModelKind.transcription), isFalse);
-    expect(gpt.name, 'GPT X');
-    expect(gpt.isFree && gpt.vision && gpt.toolCall, isTrue);
+    expect(step.providerData?['reasoning_details'], isA<List>());
+    expect(ModelStep.fromJson(jsonDecode(jsonEncode(step.toJson()))).providerData, step.providerData);
   });
 
   test('a send left waiting for approval reloads as declined', () {
@@ -146,9 +150,9 @@ void main() {
   });
 
   test('list prices count cached input at the cached rate', () {
-    const m = ModelInfo(id: 'a/b', name: 'B', provider: 'a', inputPrice: 3, outputPrice: 15, cacheReadPrice: 0.3);
+    const m = ModelInfo(provider: 'gateway', modelId: 'a/b', name: 'B', inputPrice: 3, outputPrice: 15, cacheReadPrice: 0.3);
     // 1M input of which 400K cached, 100K output.
-    final cost = UsageStore.listPrice(m, 1000000, 100000, 400000);
+    final cost = m.estimateCost(1000000, 100000, cachedInput: 400000)!;
     expect(cost, closeTo(0.6 * 3 + 0.4 * 0.3 + 0.1 * 15, 1e-9));
     final e = UsageEvent.fromJson(
       UsageEvent(at: DateTime(2026), model: 'a/b', modality: Modality.image, units: 1, cost: 0.04, estimated: true).toJson(),

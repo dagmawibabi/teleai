@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
-import '../../ai/data/model_catalog.dart';
+import '../../ai/data/ai.dart';
 import '../data/settings.dart';
 
 enum _Sort { recommended, cheapest, newest, context, name }
@@ -13,10 +13,10 @@ class ModelPickerScreen extends ConsumerStatefulWidget {
   const ModelPickerScreen({
     super.key,
     required this.current,
-    this.kind = ModelKind.text,
+    this.kind = ModelType.text,
   });
   final String current;
-  final ModelKind kind;
+  final ModelType kind;
 
   @override
   ConsumerState<ModelPickerScreen> createState() => _ModelPickerScreenState();
@@ -26,7 +26,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
   String _q = '';
   String? _provider;
   AiRouter? _router;
-  late bool _tools = widget.kind == ModelKind.text;
+  late bool _tools = widget.kind == ModelType.text;
   bool _free = false;
   bool _reasoning = false;
   bool _vision = false;
@@ -67,6 +67,8 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     if (s.hasVercelKey && !s.hasOpenRouterKey) _router = AiRouter.vercel;
     if (s.hasGeminiKey && !s.hasVercelKey && !s.hasOpenRouterKey)
       _router = AiRouter.gemini;
+    if (s.hasLmStudio && !s.hasGeminiKey && !s.hasVercelKey && !s.hasOpenRouterKey)
+      _router = AiRouter.lmStudio;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => ref.read(modelCatalogProvider.notifier).ensureLoaded(),
     );
@@ -86,12 +88,12 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
               controller: ctrl,
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: 'provider/model or or:provider/model',
+                hintText: 'gateway:openai/gpt-5',
               ),
             ),
             const SizedBox(height: Space.s),
             Text(
-              'Prefix with "or:" for OpenRouter or "g:" for Google AI Studio.',
+              'provider:model, where provider is gateway (Vercel AI Gateway), openrouter or google (AI Studio).',
               style: context.text.bodySmall,
             ),
           ],
@@ -117,7 +119,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     final settings = ref.watch(settingsProvider);
     final all = cat.ofKind(widget.kind);
     final textKind =
-        widget.kind == ModelKind.text || widget.kind == ModelKind.transcription;
+        widget.kind == ModelType.text || widget.kind == ModelType.transcription;
     final counts = {
       for (final r in AiRouter.values)
         r: all.where((m) => m.router == r).length,
@@ -125,14 +127,14 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     final providers =
         all
             .where((m) => _router == null || m.router == _router)
-            .map((m) => m.provider)
+            .map((m) => m.maker)
             .toSet()
             .toList()
           ..sort();
     final q = _q.toLowerCase().trim();
     final list = all.where((m) {
       if (_router != null && m.router != _router) return false;
-      if (_provider != null && m.provider != _provider) return false;
+      if (_provider != null && m.maker != _provider) return false;
       if (_tools && !m.toolCall) return false;
       if (_free && !m.isFree) return false;
       if (_reasoning && !m.reasoning) return false;
@@ -146,7 +148,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
     switch (_sort) {
       case _Sort.recommended:
         int rank(ModelInfo m) {
-          final i = _favored.indexOf(m.provider);
+          final i = _favored.indexOf(m.maker);
           return i < 0 ? 99 : i;
         }
         list.sort(
@@ -156,7 +158,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
         );
       case _Sort.cheapest:
         list.sort((a, b) {
-          final c = a.sortPrice.compareTo(b.sortPrice);
+          final c = a.blendedPrice.compareTo(b.blendedPrice);
           return c != 0
               ? c
               : (b.releaseDate ?? '').compareTo(a.releaseDate ?? '');
@@ -178,11 +180,12 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
           AiRouter.openRouter => settings.hasOpenRouterKey,
           AiRouter.gemini => settings.hasGeminiKey,
           AiRouter.vercel => settings.hasVercelKey,
+          AiRouter.lmStudio => settings.hasLmStudio,
         };
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.kind.title),
+        title: Text(widget.kind.pickerTitle),
         actions: [
           IconButton(
             tooltip: 'Enter an ID',
@@ -247,6 +250,16 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                           maxLines: 1,
                         ),
                       ),
+                      if (settings.hasLmStudio)
+                        ButtonSegment(
+                          value: AiRouter.lmStudio,
+                          label: Text(
+                            'LM Studio · ${counts[AiRouter.lmStudio]}',
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                          ),
+                        ),
                     ],
                     selected: {_router},
                     onSelectionChanged: (v) => setState(() {
@@ -339,17 +352,18 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                     0,
                   ),
                   child: Text(
-                    'Add your ${switch (_router) {
-                      AiRouter.openRouter => 'OpenRouter',
-                      AiRouter.gemini => 'Google AI Studio Gemini',
-                      _ => 'Vercel AI Gateway',
-                    }} key in Settings to use these models.',
+                    switch (_router) {
+                      AiRouter.lmStudio => 'Add your LM Studio server address in Settings to use these models.',
+                      AiRouter.openRouter => 'Add your OpenRouter key in Settings to use these models.',
+                      AiRouter.gemini => 'Add your Google AI Studio Gemini key in Settings to use these models.',
+                      _ => 'Add your Vercel AI Gateway key in Settings to use these models.',
+                    },
                     style: context.text.bodySmall?.copyWith(
                       color: AppColors.warning,
                     ),
                   ),
                 ),
-              if (_tools || widget.kind != ModelKind.text)
+              if (_tools || widget.kind != ModelType.text)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     Space.l,
@@ -359,10 +373,11 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                   ),
                   child: Text(
                     switch (widget.kind) {
-                      ModelKind.text => 'Showing models that can call tools, which Triangle needs to read your Telegram.',
-                      ModelKind.image => 'Models that create images, used by the generate_image tool.',
-                      ModelKind.speech => 'Voices that read answers aloud.',
-                      ModelKind.transcription => 'Chat models that accept audio, used to turn speech into text.',
+                      ModelType.text => 'Showing models that can call tools, which Triangle needs to read your Telegram.',
+                      ModelType.image => 'Models that create images, used by the generate_image tool.',
+                      ModelType.speech => 'Voices that read answers aloud.',
+                      ModelType.transcription => 'Chat models that accept audio, used to turn speech into text.',
+                      _ => '',
                     },
                     style: context.text.bodySmall?.copyWith(
                       color: AppColors.text3,
@@ -384,7 +399,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      widget.kind == ModelKind.image
+                      widget.kind == ModelType.image
                           ? 'Price per image'
                           : 'Input / output per 1M tokens',
                       style: context.text.labelSmall,
@@ -599,7 +614,7 @@ class _ModelTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      m.bareId,
+                      m.modelId,
                       style: context.text.bodySmall?.copyWith(
                         color: AppColors.text3,
                         fontSize: 12,
@@ -684,11 +699,11 @@ Future<void> showModelDetails(
   String price(double? v) =>
       v == null ? '—' : (v == 0 ? 'Free' : '${ModelInfo.usd(v)} / 1M');
   final rows = <(String, String)>[
-    ('Router', AiRoute.routerName(m.id)),
-    ('Type', m.type),
+    ('Router', AiRouter.nameOf(m.id)),
+    ('Type', m.kindLabel),
     if (m.imagePrice != null) ('Per image', ModelInfo.usd(m.imagePrice!)),
     if (m.voices.isNotEmpty) ('Voices', m.voices.join(', ')),
-    ('Provider', m.provider),
+    ('Provider', m.maker),
     if (m.family != null) ('Family', m.family!),
     (
       'Context window',
@@ -735,7 +750,7 @@ Future<void> showModelDetails(
           Text(m.name, style: context.text.headlineSmall),
           const SizedBox(height: Space.xs),
           SelectableText(
-            m.bareId,
+            m.modelId,
             style: context.text.bodySmall?.copyWith(fontFamily: 'monospace'),
           ),
           if (m.description.isNotEmpty) ...[
