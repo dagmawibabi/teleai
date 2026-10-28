@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
@@ -458,12 +459,15 @@ List<WidgetItem> parseWidgetText(String text) => [
 
 WidgetItem _row(String block) {
   final lines = block.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-  String? image, link;
+  String? image, link, local;
   var title = '';
   final text = <String>[];
   for (final (i, l) in lines.indexed) {
     final uri = Uri.tryParse(l);
-    if (uri != null && uri.scheme == 'https' && !l.contains(' ')) {
+    if (uri != null && uri.scheme == 'file') {
+      // A picture from the gallery, kept on this phone.
+      local ??= uri.toFilePath();
+    } else if (uri != null && uri.scheme == 'https' && !l.contains(' ')) {
       if (RegExp(r'\.(png|jpe?g|webp|gif)(\?.*)?$', caseSensitive: false).hasMatch(uri.path) || l.contains('image')) {
         image ??= l;
       } else {
@@ -475,13 +479,18 @@ WidgetItem _row(String block) {
       text.add(l);
     }
   }
-  return WidgetItem(title: title, text: text.join('\n'), imageUrl: image, link: link);
+  return WidgetItem(title: title, text: text.join('\n'), imageUrl: image, imagePath: image == null ? local : null, link: link);
 }
 
 /// [items] back as editable text, the way [parseWidgetText] reads it.
 String widgetText(List<WidgetItem> items) => [
   for (final i in items)
-    [if (i.title.isNotEmpty) '${i.title}:', if (i.text.isNotEmpty) i.text, ?i.imageUrl, ?i.link].join('\n'),
+    [
+      if (i.title.isNotEmpty) '${i.title}:',
+      if (i.text.isNotEmpty) i.text,
+      if (i.imageUrl != null) i.imageUrl! else if (i.imagePath != null) Uri.file(i.imagePath!).toString(),
+      ?i.link,
+    ].join('\n'),
 ].join('\n\n');
 
 /// One widget: what it shows, and changing, refreshing or deleting it.
@@ -527,6 +536,21 @@ class _WidgetSheetState extends ConsumerState<_WidgetSheet> {
         Navigator.pop(context);
         showSnack(context, 'Saved ${_title.text.trim().isEmpty ? d.title : _title.text.trim()}');
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// A picture from the gallery as a new row (rows typed so far are kept).
+  Future<void> _addPicture(HomeWidgetDef d) async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1600);
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final store = ref.read(homeWidgetsProvider.notifier);
+      await store.setItems(d.id, parseWidgetText(_text.text));
+      final updated = await store.addPicture(d.id, File(picked.path));
+      if (updated != null && mounted) _text.text = widgetText(updated.items);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -589,17 +613,28 @@ class _WidgetSheetState extends ConsumerState<_WidgetSheet> {
                   ),
               ],
             ),
-          ] else
+          ] else ...[
             TextField(
               controller: _text,
               minLines: 4,
               maxLines: 14,
               decoration: const InputDecoration(
                 labelText: 'Rows',
-                helperText: 'A blank line starts a new row. "Title:" on a row\'s first line makes it bold; a picture link shows the picture.',
-                helperMaxLines: 3,
+                helperText: 'A blank line starts a new row. "Title:" on a row\'s first line makes it bold; a picture link '
+                    '(or a file:// line from "Add a picture") shows the picture, any other link opens on tap.',
+                helperMaxLines: 4,
               ),
             ),
+            const SizedBox(height: Space.s),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _busy ? null : () => _addPicture(d),
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                label: const Text('Add a picture from the gallery'),
+              ),
+            ),
+          ],
           const SizedBox(height: Space.l),
           Row(
             children: [

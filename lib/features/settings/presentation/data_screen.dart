@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme.dart';
@@ -48,6 +49,8 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       bytes: Uint8List.fromList(AppData.encode(profile)),
     );
     if (path == null || !mounted) return;
+    // For System check's "last backup".
+    await (await SharedPreferences.getInstance()).setString(AppData.lastBackupKey, DateTime.now().toIso8601String());
     if (mounted) showSnack(context, 'Profile saved');
   });
 

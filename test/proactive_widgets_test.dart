@@ -121,8 +121,11 @@ void main() {
       final d = await widgets.create(title: 'Subs', prompt: 'My subscriber count', everyHours: 6);
       final quiet = DateTime.now();
       await widgets.recordRun(d.watchId!, started: quiet, result: 'I could not find the channel.');
-      // Let the refresh that creating it started finish too.
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      // Let the refresh that creating it started finish too (it first waits
+      // for settings to load).
+      for (var i = 0; i < 120 && !widgets.byId(d.id)!.runs.any((r) => r.note.contains('No AI key')); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
       var now = widgets.byId(d.id)!;
       expect(now.runs.where((r) => r.note == 'I could not find the channel.' && !r.ok), hasLength(1));
       // Made → refreshed at once (here without an AI key, so it failed).
@@ -146,6 +149,15 @@ void main() {
       expect(rows[1].link, 'https://example.com/news');
       expect(rows[1].text, 'Bread');
       expect(parseWidgetText(widgetText(rows)).map((r) => r.toJson()), rows.map((r) => r.toJson()));
+    });
+
+    test('a picture from the gallery survives editing the rows as text', () {
+      const rows = [WidgetItem(text: 'Our trip', imagePath: '/data/widgets/w1/pick.1.jpg')];
+      final again = parseWidgetText(widgetText(rows));
+      // The host's own path spelling (the phone keeps forward slashes).
+      expect(again.single.imagePath, Uri.file('/data/widgets/w1/pick.1.jpg').toFilePath());
+      expect(again.single.text, 'Our trip');
+      expect(again.single.imageUrl, isNull);
     });
 
     test('the launcher payload is compact', () {

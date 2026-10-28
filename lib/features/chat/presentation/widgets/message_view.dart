@@ -449,26 +449,10 @@ class _CodeHighlighter extends SyntaxHighlighter {
 
   @override
   TextSpan format(String source) {
-    final colors = switch (theme) {
-      CodeThemeChoice.midnight => (
-        const Color(0xFF7DD3FC),
-        const Color(0xFFC4B5FD),
-        const Color(0xFFFDE68A),
-        const Color(0xFF94A3B8),
-      ),
-      CodeThemeChoice.ocean => (
-        const Color(0xFF67E8F9),
-        const Color(0xFF86EFAC),
-        const Color(0xFFF9A8D4),
-        const Color(0xFF9CA3AF),
-      ),
-      CodeThemeChoice.ember => (
-        const Color(0xFFFDA4AF),
-        const Color(0xFFFCD34D),
-        const Color(0xFF86EFAC),
-        const Color(0xFFA1A1AA),
-      ),
-    };
+    // Chat code uses the same colours as the code theme's preview, deepened
+    // on a light page.
+    final p = CodePalette.of(theme);
+    final colors = (p.keyword, p.number, p.string, p.comment);
     final token = RegExp(
       r'''("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\n]*|#[^\n]*|\b(?:class|final|const|return|if|else|for|while|import|from|def|function|async|await|void|int|double|String|true|false|null)\b|\b\d+(?:\.\d+)?\b)''',
     );

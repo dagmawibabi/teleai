@@ -51,6 +51,15 @@ class WatchStatus {
   final String? last;
   final String? error;
 
+  WatchStatus clearError() => WatchStatus(
+    listening: listening,
+    heard: heard,
+    matched: matched,
+    opened: opened,
+    last: last,
+    background: background,
+  );
+
   WatchStatus copyWith({
     bool? listening,
     int? heard,
@@ -494,6 +503,8 @@ class WatchEngine {
   }
 
   void _tick() {
+    // Nothing runs before settings (and so the keys) have loaded.
+    if (!_ref.read(settingsProvider).loaded) return;
     unawaited(_syncKeepAlive());
     unawaited(_syncOpenChats());
     unawaited(_ref.read(briefStoreProvider.notifier).tick());
@@ -708,6 +719,8 @@ class WatchEngine {
                     _ => '',
                   }}): ${_line(m, store)}'].join('\n')}';
       final result = await controller.runAutomatic(w, event);
+      // The app may have shut down while the run went on.
+      if (!_ref.mounted) return;
       // A widget's refresh: its history says whether it updated.
       await _ref.read(homeWidgetsProvider.notifier).recordRun(
         w.id,
@@ -721,6 +734,8 @@ class WatchEngine {
         );
         return;
       }
+      // It ran: an earlier problem is no longer current.
+      if (status.value.error != null) status.value = status.value.clearError();
       // An app watch, the check-in or a schedule that found nothing stays quiet.
       if ((w.scope == WatchScope.app || w.scope == WatchScope.schedule) && result.text.trim().contains(nothingNew)) return;
       if (!settings.notifications || !w.notify || result.seen) return;
@@ -735,7 +750,7 @@ class WatchEngine {
     } catch (e) {
       debugPrint('[Watch ${w.name}] $e');
       status.value = status.value.copyWith(error: '${w.name}: $e');
-      await _ref.read(homeWidgetsProvider.notifier).recordRun(w.id, started: started, result: '$e', failed: true);
+      if (_ref.mounted) await _ref.read(homeWidgetsProvider.notifier).recordRun(w.id, started: started, result: '$e', failed: true);
     } finally {
       _running.remove(w.id);
     }

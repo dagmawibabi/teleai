@@ -768,6 +768,11 @@ class ChatController extends Notifier<ChatState> {
     Watch watch,
     String event,
   ) async {
+    // Keys load from secure storage a moment after start (or a restore):
+    // a watch firing then waits for them instead of reporting none.
+    for (var i = 0; i < 40 && !ref.read(settingsProvider).loaded; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
     final settings = ref.read(settingsProvider);
     if (!settings.hasAnyKey) return null;
     final c = await _targetFor(watch);

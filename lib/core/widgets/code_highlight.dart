@@ -16,7 +16,30 @@ class CodePalette {
   });
   final Color keyword, string, number, comment, function, type, decorator;
 
-  static CodePalette of(CodeThemeChoice theme) => switch (theme) {
+  /// [theme]'s colours, deepened on a light page so they stay readable.
+  static CodePalette of(CodeThemeChoice theme) {
+    final p = _of(theme);
+    return AppColors.isLight ? p._forLight() : p;
+  }
+
+  CodePalette _forLight() {
+    Color d(Color c) {
+      final hsl = HSLColor.fromColor(c);
+      return hsl.withLightness(0.34).withSaturation((hsl.saturation * 1.1).clamp(0, 1)).toColor();
+    }
+
+    return CodePalette(
+      keyword: d(keyword),
+      string: d(string),
+      number: d(number),
+      comment: const Color(0xFF6B7280),
+      function: d(function),
+      type: d(type),
+      decorator: d(decorator),
+    );
+  }
+
+  static CodePalette _of(CodeThemeChoice theme) => switch (theme) {
     CodeThemeChoice.midnight => const CodePalette(
       keyword: Color(0xFF7DD3FC),
       string: Color(0xFFFDE68A),
@@ -141,7 +164,9 @@ List<TextSpan> highlightCode(String source, String language, CodePalette p) {
   return spans;
 }
 
-final codeTextStyle = TextStyle(fontFamily: 'monospace', fontSize: 13.5, height: 1.45, color: AppColors.text);
+/// Read on every use: the text colour follows a switch between light and
+/// dark.
+TextStyle get codeTextStyle => TextStyle(fontFamily: 'monospace', fontSize: 13.5, height: 1.45, color: AppColors.text);
 
 /// Read-only highlighted code, selectable, scrolling sideways.
 class HighlightedCode extends StatelessWidget {

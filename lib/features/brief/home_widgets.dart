@@ -429,6 +429,18 @@ class HomeWidgetStore extends Notifier<List<HomeWidgetDef>> {
       .replaceAll('&lt;', '<')
       .replaceAll('&gt;', '>');
 
+  /// Adds a picture from this phone (the gallery) as a new row, with an
+  /// optional caption.
+  Future<HomeWidgetDef?> addPicture(String id, File picture, {String caption = ''}) async {
+    await ready;
+    final d = byId(id);
+    if (d == null || d.isBrief) return null;
+    final dir = await _dir(id);
+    final ext = picture.path.split('.').last.toLowerCase();
+    final copy = await picture.copy('${dir.path}/pick.${DateTime.now().millisecondsSinceEpoch}.${ext.length <= 4 ? ext : 'jpg'}');
+    return setItems(id, [...d.items, WidgetItem(text: caption.trim(), imagePath: copy.path)], note: 'Picture added');
+  }
+
   String? _reuse(HomeWidgetDef d, String url) => d.items.where((i) => i.imageUrl == url).firstOrNull?.imagePath;
 
   /// Deletes a widget, its pictures and its refresh watch. The brief stays.

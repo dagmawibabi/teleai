@@ -29,6 +29,9 @@ abstract final class AppData {
   /// 2 added MCP servers without their headers, for exports without keys.
   static const version = 2;
 
+  /// When a profile was last exported (Settings → System check).
+  static const lastBackupKey = 'last_backup_at';
+
   /// Where omni_ai keeps installed MCP servers (secure storage, with their
   /// headers), and the plain copy a keyless profile restores into.
   static const _mcpKey = 'omni_ai.mcp.servers';

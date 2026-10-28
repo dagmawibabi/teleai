@@ -1146,7 +1146,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _AppearancePreview(
-                      accent: Color(s.accent.value),
+                      accent: AppColors.activeAccent,
                       fontSize: s.chatFontSize,
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),

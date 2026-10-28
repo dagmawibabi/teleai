@@ -225,6 +225,8 @@ class _McpTabState extends ConsumerState<McpTab> with AutomaticKeepAliveClientMi
   Widget build(BuildContext context) {
     super.build(context);
     final mcp = ref.watch(aiProvider).mcp;
+    // A no-op once loaded; a new client (after a restore) reads its servers.
+    unawaited(mcp.load());
     return _Page(
       children: [
         const SettingsHeader('Installed'),
@@ -838,6 +840,7 @@ class _SkillsTabState extends ConsumerState<SkillsTab> with AutomaticKeepAliveCl
   Widget build(BuildContext context) {
     super.build(context);
     final skills = ref.watch(aiProvider).skills;
+    unawaited(skills.load());
     return _Page(
       children: [
         const SettingsHeader('Installed'),

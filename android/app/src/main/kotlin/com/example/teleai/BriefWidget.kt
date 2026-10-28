@@ -140,13 +140,14 @@ class BriefWidget : AppWidgetProvider() {
                 R.id.brief_root,
                 PendingIntent.getActivity(context, widgetId, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
             )
-            // Rows add their link to this (so it must be mutable).
+            // Rows add their link to this (so it must be mutable); a link opens
+            // straight in the browser (WidgetTapActivity).
             views.setPendingIntentTemplate(
                 R.id.widget_list,
                 PendingIntent.getActivity(
                     context,
                     100000 + widgetId,
-                    Intent(open),
+                    Intent(open).setClass(context, WidgetTapActivity::class.java),
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
                 ),
             )

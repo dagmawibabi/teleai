@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:omni_ai/omni_ai.dart';
@@ -17,6 +19,10 @@ final aiProvider = Provider<OmniAI>((ref) {
     appName: 'Triangle',
     appUrl: 'https://github.com/dagmawibabi/triangle',
   );
+  // Installed MCP servers and skills, read now: a new client (after a
+  // restore, say) would otherwise list none until something asked.
+  unawaited(ai.mcp.load());
+  unawaited(ai.skills.load());
   void sync(AppSettings s) {
     // Unchanged keys are ignored, so this is cheap on every settings change.
     ai.setApiKey('gateway', s.vercelKey, persist: false);

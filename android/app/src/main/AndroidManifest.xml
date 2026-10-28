@@ -75,6 +75,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+        </activity>
+        <!-- Shares and "Ask Triangle" arrive here and are handed to the app in
+             its own task (ShareActivity.kt). -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:label="Triangle"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <!-- "Ask Triangle" beside Copy and Select all when text is
                  selected in another app. -->
             <intent-filter android:label="Ask Triangle">
@@ -102,6 +113,14 @@
                 <data android:mimeType="text/*"/>
             </intent-filter>
         </activity>
+        <!-- Taps on a widget's rows: links open directly (WidgetTapActivity.kt). -->
+        <activity
+            android:name=".WidgetTapActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- flutter_foreground_task's service; keeps the app's process alive
              while watches listen for new messages. The name must not change. -->
         <service

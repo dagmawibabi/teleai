@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:omni_ai/omni_ai.dart' show JevClient;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/theme.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
@@ -14,7 +17,11 @@ import '../../assistant/presentation/watches_screen.dart';
 import '../../assistant/reminders.dart';
 import '../../assistant/watch_engine.dart';
 import '../../assistant/watches.dart';
+import '../../brief/brief_settings_screen.dart';
+import '../../brief/brief_store.dart';
 import '../../brief/home_widgets.dart';
+import '../../account/storage_screen.dart';
+import '../data/app_data.dart';
 import '../../brief/widget_customizer_screen.dart';
 import '../../chat/data/chat_controller.dart';
 import '../../integrations/integrations_store.dart';
@@ -115,6 +122,7 @@ class _SystemCheckScreenState extends ConsumerState<SystemCheckScreen> {
       (CheckGroup('Home-screen widgets', Icons.widgets_outlined), _widgets),
       (CheckGroup('Voice', Icons.graphic_eq_rounded), _voice),
       (CheckGroup('Tools, usage & data', Icons.build_outlined), _tools),
+      (CheckGroup('Memory, briefs, backup & storage', Icons.inventory_2_outlined), _upkeep),
     ];
     setState(() {
       _running = true;
@@ -176,6 +184,17 @@ class _SystemCheckScreenState extends ConsumerState<SystemCheckScreen> {
     if (s.imageModel.isEmpty) {
       g.results.add(const CheckResult(CheckStatus.info, 'No image model chosen', 'Pictures use the default.'));
     }
+    Widget media() => const SettingsScreen(section: SettingsSection.ai);
+    final telegramReady = ref.read(telegramClientProvider).authState is td.AuthorizationStateReady;
+    for (final name in ['generate_image', if (s.videoEnabled) 'generate_video']) {
+      final tool = telegramTools.where((t) => t.name == name).firstOrNull;
+      if (tool == null) continue;
+      final problems = toolPrerequisiteProblems(tool, s, telegram: telegramReady, connected: ref.read(integrationsProvider).connected);
+      g.results.add(problems.isEmpty
+          ? CheckResult(CheckStatus.ok, name == 'generate_image' ? 'Images: ${s.imageModel}' : 'Video: ${s.videoModel}')
+          : CheckResult(CheckStatus.warn, name == 'generate_image' ? "Pictures can't be made" : "Videos can't be made", problems.join(' '), media));
+    }
+    if (!s.videoEnabled) g.results.add(CheckResult(CheckStatus.info, 'Video is off', 'Turn it on and pick a model in Images & video.', media));
   }
 
   Future<void> _telegram(CheckGroup g) async {
@@ -410,6 +429,62 @@ class _SystemCheckScreenState extends ConsumerState<SystemCheckScreen> {
     }
     final chats = ref.read(chatControllerProvider).history.length;
     g.results.add(CheckResult(CheckStatus.info, '$chats AI chats on this phone', 'Back them up in Data & backup.', () => const DataScreen()));
+  }
+
+  Future<void> _upkeep(CheckGroup g) async {
+    final s = ref.read(settingsProvider);
+    final memories = await _try(ref.read(aiProvider).memory.all());
+    if (memories != null) {
+      g.results.add(CheckResult(
+        memories.isEmpty ? CheckStatus.improve : CheckStatus.ok,
+        memories.isEmpty ? 'No memories yet' : '${memories.length} memories',
+        memories.isEmpty ? 'Tell the assistant what to remember (your name, work, preferences) so it can tailor answers.' : '',
+        () => const SettingsScreen(section: SettingsSection.assistant),
+      ));
+    }
+    final briefs = ref.read(briefStoreProvider).briefs;
+    if (!s.briefsScheduled) {
+      g.results.add(CheckResult(CheckStatus.improve, "Briefs aren't scheduled", 'A morning and evening brief of what happened and what needs you.', () => const BriefSettingsScreen()));
+    } else {
+      g.results.add(CheckResult(CheckStatus.ok, 'Briefs at ${s.briefMorning} and ${s.briefNight}'));
+    }
+    final last = briefs.firstOrNull;
+    if (last?.error != null) {
+      g.results.add(CheckResult(CheckStatus.warn, 'The last brief failed', last!.error!, () => const BriefSettingsScreen()));
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final backup = DateTime.tryParse(prefs.getString(AppData.lastBackupKey) ?? '');
+    if (backup == null) {
+      g.results.add(CheckResult(CheckStatus.improve, 'Never backed up', 'Export a profile so settings, watches, widgets, skills and memories survive a reinstall.', () => const DataScreen()));
+    } else {
+      final days = DateTime.now().difference(backup).inDays;
+      g.results.add(CheckResult(
+        days > 30 ? CheckStatus.improve : CheckStatus.ok,
+        days == 0 ? 'Backed up today' : 'Backed up $days day${days == 1 ? '' : 's'} ago',
+        days > 30 ? 'A fresh export keeps what changed since.' : '',
+        () => const DataScreen(),
+      ));
+    }
+    final size = await _try(_folderSize(), timeout: const Duration(seconds: 20));
+    if (size != null) {
+      final mb = size / (1024 * 1024);
+      g.results.add(CheckResult(
+        mb > 1500 ? CheckStatus.warn : CheckStatus.info,
+        "Triangle's files: ${mb < 1 ? '<1' : mb.round()} MB",
+        mb > 1500 ? "Downloads, generated files and voice notes add up: clear what you don't need." : "Chats, files the assistant made, downloads and caches (not Telegram's own data).",
+        () => const StorageScreen(),
+      ));
+    }
+    if (s.quietHours) g.results.add(CheckResult(CheckStatus.info, 'Quiet hours ${s.quietStart}–${s.quietEnd}', 'Notifications wait until they end.'));
+  }
+
+  static Future<int> _folderSize() async {
+    final root = Directory((await getApplicationSupportDirectory()).path);
+    var total = 0;
+    await for (final e in root.list(recursive: true, followLinks: false)) {
+      if (e is File) total += await e.length().catchError((_) => 0);
+    }
+    return total;
   }
 
   // ---- the page --------------------------------------------------------------------
