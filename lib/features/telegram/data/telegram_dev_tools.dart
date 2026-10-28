@@ -68,7 +68,7 @@ final _devTools = <TelegramTool>[
   TelegramTool(
     name: 'run_code',
     label: 'Running code',
-    category: ToolCategory.developer,
+    category: ToolCategory.code,
     cost: ToolCost.device,
     description:
         'Runs code in a sandbox on the phone, cut off from the app and Telegram: Python (Pyodide: the standard library '

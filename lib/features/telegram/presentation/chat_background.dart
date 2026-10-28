@@ -58,7 +58,7 @@ class BackgroundView extends StatelessWidget {
         ),
       ),
       td.BackgroundTypeFill(:final fill) => DecoratedBox(decoration: BoxDecoration(gradient: _gradient(fill))),
-      td.BackgroundTypeChatTheme() => const ColoredBox(color: AppColors.surface),
+      td.BackgroundTypeChatTheme() => ColoredBox(color: AppColors.surface),
     };
     // Keep messages readable on bright wallpapers in the dark UI.
     final dim = (dimming > 0 ? dimming / 100 : 0.35).clamp(0.0, 0.85);
@@ -81,7 +81,7 @@ class _Wallpaper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = document;
-    if (d == null) return const ColoredBox(color: AppColors.surface);
+    if (d == null) return ColoredBox(color: AppColors.surface);
     final file = thumb ? (d.thumbnail?.file ?? d.document) : d.document;
     return TdFileImage(file: file, minithumbnail: d.minithumbnail, priority: thumb ? 2 : 6);
   }

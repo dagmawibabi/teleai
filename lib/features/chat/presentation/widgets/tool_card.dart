@@ -22,6 +22,7 @@ import '../../data/chat_controller.dart';
 import '../../domain/chat_models.dart';
 import 'json_tree.dart';
 import 'rich_results.dart';
+import 'tool_controls.dart';
 import 'tool_result_view.dart';
 
 IconData toolIcon(String name) => switch (name) {
@@ -132,8 +133,11 @@ IconData toolIcon(String name) => switch (name) {
   'create_chat' => Icons.add_box_outlined,
   'join_chat' => Icons.login_rounded,
   'list_blocked' => Icons.block_rounded,
-  'list_briefs' || 'read_brief' => Icons.wb_twilight_rounded,
+  'list_briefs' || 'read_brief' || 'write_brief' => Icons.wb_twilight_rounded,
   'canvas_overview' => Icons.dashboard_outlined,
+  'download_message_file' => Icons.download_rounded,
+  'transcribe_message' => Icons.hearing_rounded,
+  'view_stickers_and_gifs' => Icons.emoji_emotions_outlined,
   'canvas_create_folder' ||
   'canvas_update_folder' => Icons.create_new_folder_outlined,
   'canvas_delete_folder' || 'canvas_remove' => Icons.folder_delete_outlined,
@@ -330,11 +334,11 @@ class ToolCallCard extends ConsumerWidget {
         AppColors.text2,
       ),
       ToolStatus.done => (
-        const Icon(Icons.check_rounded, size: 15, color: AppColors.success),
+        Icon(Icons.check_rounded, size: 15, color: AppColors.success),
         AppColors.text2,
       ),
       ToolStatus.error => (
-        const Icon(
+        Icon(
           Icons.error_outline_rounded,
           size: 15,
           color: AppColors.danger,
@@ -342,7 +346,7 @@ class ToolCallCard extends ConsumerWidget {
         AppColors.danger,
       ),
       ToolStatus.denied => (
-        const Icon(Icons.block_rounded, size: 15, color: AppColors.text3),
+        Icon(Icons.block_rounded, size: 15, color: AppColors.text3),
         AppColors.text3,
       ),
       ToolStatus.awaitingApproval => (const SizedBox.shrink(), AppColors.text2),
@@ -384,7 +388,7 @@ class ToolCallCard extends ConsumerWidget {
                               text: part.status == ToolStatus.denied
                                   ? 'Declined: ${tool?.label ?? part.name}'
                                   : (tool?.label ?? part.name),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.text,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -392,7 +396,7 @@ class ToolCallCard extends ConsumerWidget {
                             if (subject.isNotEmpty)
                               TextSpan(
                                 text: '  $subject',
-                                style: const TextStyle(color: AppColors.text3),
+                                style: TextStyle(color: AppColors.text3),
                               ),
                           ],
                         ),
@@ -417,7 +421,7 @@ class ToolCallCard extends ConsumerWidget {
                       InkWell(
                         borderRadius: BorderRadius.circular(99),
                         onTap: () => BrowserScreen.open(context),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 4),
                           child: Tooltip(
                             message: 'Watch the browser',
@@ -431,7 +435,7 @@ class ToolCallCard extends ConsumerWidget {
                       ),
                     if (part.autoApproved) ...[
                       const SizedBox(width: Space.s),
-                      const Tooltip(
+                      Tooltip(
                         message: 'Ran without asking (Settings → Approvals)',
                         child: Icon(
                           Icons.bolt_rounded,
@@ -451,7 +455,7 @@ class ToolCallCard extends ConsumerWidget {
                         onTap: () => ref
                             .read(chatControllerProvider.notifier)
                             .cancelTool(part),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.only(left: Space.s),
                           child: Tooltip(
                             message: 'Stop',
@@ -741,7 +745,7 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         tooltip: 'Add photos or videos',
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.photo_library_outlined,
                           size: 20,
                           color: AppColors.text2,
@@ -751,7 +755,7 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         tooltip: 'Add files',
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.attach_file_rounded,
                           size: 20,
                           color: AppColors.text2,
@@ -803,7 +807,7 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 44),
                     foregroundColor: AppColors.text,
-                    side: const BorderSide(color: AppColors.line),
+                    side: BorderSide(color: AppColors.line),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(Radii.m),
                     ),
@@ -945,13 +949,13 @@ class _DraftFile extends StatelessWidget {
                     color: AppColors.surface3,
                     padding: const EdgeInsets.symmetric(horizontal: Space.s),
                     child: video
-                        ? const Icon(
+                        ? Icon(
                             Icons.play_circle_outline_rounded,
                             color: AppColors.text2,
                           )
                         : Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.description_outlined,
                                 size: 18,
                                 color: AppColors.text2,
@@ -962,7 +966,7 @@ class _DraftFile extends StatelessWidget {
                                   a.name,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 11,
                                     color: AppColors.text,
                                   ),
@@ -979,11 +983,11 @@ class _DraftFile extends StatelessWidget {
               onTap: onRemove,
               child: Container(
                 padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.text,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.close_rounded,
                   size: 13,
                   color: AppColors.bg,
@@ -1039,7 +1043,7 @@ class _ImageStrip extends StatelessWidget {
             height: height ?? 160,
             color: AppColors.surface2,
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.broken_image_outlined,
               color: AppColors.text3,
             ),
@@ -1094,11 +1098,13 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
   bool _raw = false;
   final _argsTree = JsonTreeController();
   final _resultTree = JsonTreeController();
+  final _fullTree = JsonTreeController();
 
   @override
   void dispose() {
     _argsTree.dispose();
     _resultTree.dispose();
+    _fullTree.dispose();
     super.dispose();
   }
 
@@ -1171,7 +1177,7 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
               _Pill('${(part.durationMs! / 1000).toStringAsFixed(2)} s'),
             if (tool != null) _Pill(tool.cost.label),
             if (part.autoApproved)
-              const _Pill('Ran without asking', color: AppColors.warning)
+              _Pill('Ran without asking', color: AppColors.warning)
             else if (tool?.requiresApproval ?? false)
               const _Pill('Needs approval'),
             _Pill(TimeOfDay.fromDateTime(part.startedAt).format(context)),
@@ -1208,6 +1214,7 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             label: const Text('Decline'),
           ),
         ],
+        if (hasToolControls(part)) ToolControls(part: part, result: result),
         const SizedBox(height: Space.l),
         SegmentedButton<bool>(
           showSelectedIcon: false,
@@ -1263,6 +1270,25 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             )
           else
             ToolResultView(name: part.name, json: result),
+          if (part.full != null) ...[
+            const SizedBox(height: Space.s),
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text('FULL RESPONSE', style: context.text.labelSmall),
+                subtitle: Text(
+                  'Everything the app returned. The assistant got the shorter version above.',
+                  style: context.text.bodySmall,
+                ),
+                children: [
+                  _RawSection(title: 'Full response', raw: part.full!, controller: _fullTree, compact: true),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: Space.xl),
           Text('ABOUT THIS CALL', style: context.text.labelSmall),
           const SizedBox(height: Space.s),
@@ -1298,8 +1324,11 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
                 ? (part.status == ToolStatus.denied
                       ? 'You declined it'
                       : 'Asked you first')
+                : (tool?.modifiesData ?? false)
+                ? 'Not needed for this tool'
                 : 'Not needed (read-only)',
           ),
+          if (tool != null) _InfoRow('Access', tool.access.label),
           _InfoRow(
             'Arguments',
             '${args.length} · ${part.arguments.length} characters',
@@ -1309,6 +1338,8 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
               'Result size',
               '${part.result!.length} characters (≈${(part.result!.length / 4).round()} tokens sent back to the model)',
             ),
+          if (part.full != null)
+            _InfoRow('Full response', '${part.full!.length} characters, kept on this phone only'),
           if (result case {'error': final err?}) _InfoRow('Error', '$err'),
           _InfoRow('Call ID', part.callId),
         ] else ...[
@@ -1317,8 +1348,10 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             raw: part.arguments.isEmpty ? '{}' : part.arguments,
             controller: _argsTree,
           ),
+          if (part.full != null)
+            _RawSection(title: 'Full response', raw: part.full!, controller: _fullTree),
           _RawSection(
-            title: 'Result',
+            title: part.full != null ? 'Sent to the model' : 'Result',
             raw: part.result ?? 'null',
             controller: _resultTree,
           ),
@@ -1357,11 +1390,11 @@ class _ArgChip extends StatelessWidget {
           children: [
             TextSpan(
               text: '${name.replaceAll('_', ' ')}  ',
-              style: const TextStyle(color: AppColors.text3),
+              style: TextStyle(color: AppColors.text3),
             ),
             TextSpan(
               text: shown,
-              style: const TextStyle(color: AppColors.text),
+              style: TextStyle(color: AppColors.text),
             ),
           ],
         ),
@@ -1374,9 +1407,10 @@ class _ArgChip extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill(this.text, {this.color = AppColors.text2});
+  const _Pill(this.text, {Color? color}) : _color = color;
   final String text;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? AppColors.text2;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1394,10 +1428,14 @@ class _RawSection extends StatefulWidget {
     required this.title,
     required this.raw,
     required this.controller,
+    this.compact = false,
   });
   final String title;
   final String raw;
   final JsonTreeController controller;
+
+  /// Inside another section: less space above.
+  final bool compact;
 
   @override
   State<_RawSection> createState() => _RawSectionState();
@@ -1425,13 +1463,13 @@ class _RawSectionState extends State<_RawSection> {
   Widget build(BuildContext context) {
     final parsed = _parsed;
     return Padding(
-      padding: const EdgeInsets.only(top: Space.xl),
+      padding: EdgeInsets.only(top: widget.compact ? 0 : Space.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(widget.title.toUpperCase(), style: context.text.labelSmall),
+              if (!widget.compact) Text(widget.title.toUpperCase(), style: context.text.labelSmall),
               const Spacer(),
               if (parsed is Map || parsed is List) ...[
                 _Mini(
@@ -1485,7 +1523,7 @@ class _RawSectionState extends State<_RawSection> {
                       _pretty.length > 30000
                           ? '${_pretty.substring(0, 30000)}\n…'
                           : _pretty,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
                         height: 1.45,
@@ -1530,13 +1568,13 @@ class _InfoRow extends StatelessWidget {
           width: 104,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+            style: TextStyle(fontSize: 12.5, color: AppColors.text3),
           ),
         ),
         Expanded(
           child: SelectableText(
             value,
-            style: const TextStyle(fontSize: 13, color: AppColors.text),
+            style: TextStyle(fontSize: 13, color: AppColors.text),
           ),
         ),
       ],

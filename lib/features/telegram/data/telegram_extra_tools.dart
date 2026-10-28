@@ -19,7 +19,7 @@ final _extraTools = <TelegramTool>[
   TelegramTool(
     name: 'add_contact',
     label: 'Adding a contact',
-    category: ToolCategory.actions,
+    category: ToolCategory.contacts,
     requiresApproval: true,
     description:
         'Adds a user to contacts with a first and last name (user_id), or imports a phone number. share_phone: '
@@ -48,7 +48,7 @@ final _extraTools = <TelegramTool>[
   TelegramTool(
     name: 'start_bot',
     label: 'Starting a bot',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description: 'Presses Start on a bot (bot user_id), with an optional start parameter from a deep link. Needs approval.',
     parameters: _obj({
@@ -59,7 +59,7 @@ final _extraTools = <TelegramTool>[
   TelegramTool(
     name: 'get_chat_stats',
     label: 'Reading statistics',
-    category: ToolCategory.chats,
+    category: ToolCategory.analytics,
     description:
         'Statistics of a channel or group you admin (Telegram offers them for bigger chats): members and growth, '
         'views, shares and reactions per post, top posters, recent post performance, and boost level.',
@@ -70,7 +70,7 @@ final _extraTools = <TelegramTool>[
   TelegramTool(
     name: 'get_post_stats',
     label: 'Reading post statistics',
-    category: ToolCategory.chats,
+    category: ToolCategory.analytics,
     description: 'Views, shares and reactions of one channel post you admin (chat_id, message_id).',
     parameters: _obj({
       'chat_id': {'type': 'integer'},

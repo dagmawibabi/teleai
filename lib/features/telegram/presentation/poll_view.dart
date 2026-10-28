@@ -128,14 +128,14 @@ class _PollViewState extends ConsumerState<PollView> {
         const SizedBox(height: 2),
         Row(
           children: [
-            Text(kind, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
-            if (closesAt != null) Text(' · closes $closesAt', style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+            Text(kind, style: TextStyle(fontSize: 12, color: AppColors.text3)),
+            if (closesAt != null) Text(' · closes $closesAt', style: TextStyle(fontSize: 12, color: AppColors.text3)),
             const Spacer(),
             if (!_poll.isClosed && (_voted || _canStop))
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 iconSize: 18,
-                icon: const Icon(Icons.more_horiz_rounded, size: 18, color: AppColors.text3),
+                icon: Icon(Icons.more_horiz_rounded, size: 18, color: AppColors.text3),
                 onSelected: (v) => v == 'retract' ? _vote(const []) : _close(),
                 itemBuilder: (_) => [
                   if (_voted && quiz == null) const PopupMenuItem(value: 'retract', child: Text('Take back my vote')),
@@ -163,7 +163,7 @@ class _PollViewState extends ConsumerState<PollView> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.lightbulb_outline_rounded, size: 16, color: AppColors.warning),
+                Icon(Icons.lightbulb_outline_rounded, size: 16, color: AppColors.warning),
                 const SizedBox(width: Space.s),
                 Expanded(child: Text(quiz.explanation.text, style: const TextStyle(fontSize: 13))),
               ],
@@ -173,7 +173,7 @@ class _PollViewState extends ConsumerState<PollView> {
         Text(
           '${NumberFormat.decimalPattern().format(_poll.totalVoterCount)} ${_poll.totalVoterCount == 1 ? 'vote' : 'votes'}'
           '${_showResults || _poll.isAnonymous ? '' : ' · vote to see results'}',
-          style: const TextStyle(fontSize: 12, color: AppColors.text3),
+          style: TextStyle(fontSize: 12, color: AppColors.text3),
         ),
       ],
     );

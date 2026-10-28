@@ -15,7 +15,12 @@ class ToolPart {
     this.durationMs,
     this.autoApproved = false,
     this.extra,
+    this.full,
   }) : startedAt = startedAt ?? DateTime.now();
+
+  /// The complete response as JSON text, when [result] is a shorter version
+  /// for the model (connected apps). Shown in the tool sheet only.
+  String? full;
 
   /// What the provider attached to the call and wants back with it
   /// (Gemini's thought signature).
@@ -55,6 +60,7 @@ class ToolPart {
     'ms': durationMs,
     if (autoApproved) 'auto': true,
     if (extra != null) 'x': extra,
+    if (full != null) 'full': full,
   };
 
   factory ToolPart.fromJson(Map<String, dynamic> j) => ToolPart(
@@ -72,6 +78,7 @@ class ToolPart {
     durationMs: j['ms'],
     autoApproved: j['auto'] ?? false,
     extra: j['x'] is Map ? Map<String, dynamic>.from(j['x'] as Map) : null,
+    full: j['full'] as String?,
   );
 }
 
@@ -323,6 +330,9 @@ class Conversation {
     List<ChatEntry>? entries,
     Map<String, PostSnapshot>? posts,
     this.unread = 0,
+    this.summary,
+    this.summaryUntil,
+    this.compactedAt,
   }) : createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
        entries = entries ?? [],
@@ -340,6 +350,17 @@ class Conversation {
   /// Watch updates added while the person wasn't looking.
   int unread;
 
+  /// What the conversation said up to [summaryUntil], written when it was
+  /// compacted. The model gets this in place of those older entries.
+  String? summary;
+
+  /// The id of the last entry [summary] covers.
+  String? summaryUntil;
+
+  /// When it was last compacted: usage reported before then counts the
+  /// messages the summary replaced.
+  DateTime? compactedAt;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
@@ -348,6 +369,9 @@ class Conversation {
     'entries': [for (final e in entries) e.toJson()],
     'posts': {for (final p in posts.entries) p.key: p.value.toJson()},
     if (unread > 0) 'unread': unread,
+    'summary': ?summary,
+    'summary_until': ?summaryUntil,
+    'compacted_at': ?compactedAt?.toIso8601String(),
   };
 
   factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
@@ -361,16 +385,42 @@ class Conversation {
         '${p.key}': PostSnapshot.fromJson(Map<String, dynamic>.from(p.value)),
     },
     unread: (j['unread'] as num?)?.toInt() ?? 0,
+    summary: j['summary'] as String?,
+    summaryUntil: j['summary_until'] as String?,
+    compactedAt: DateTime.tryParse('${j['compacted_at'] ?? ''}'),
   );
 }
 
 /// A conversation as the history drawer lists it.
 class ConversationSummary {
-  const ConversationSummary({required this.id, required this.title, required this.updatedAt, this.unread = 0});
+  const ConversationSummary({
+    required this.id,
+    required this.title,
+    required this.updatedAt,
+    this.unread = 0,
+    this.pinned = false,
+    this.archived = false,
+  });
   final String id;
   final String title;
   final DateTime updatedAt;
 
   /// Watch updates not seen yet.
   final int unread;
+
+  /// Kept at the top of the drawer.
+  final bool pinned;
+
+  /// Out of the drawer's list, under Archived.
+  final bool archived;
+
+  ConversationSummary copyWith({String? title, DateTime? updatedAt, int? unread, bool? pinned, bool? archived}) =>
+      ConversationSummary(
+        id: id,
+        title: title ?? this.title,
+        updatedAt: updatedAt ?? this.updatedAt,
+        unread: unread ?? this.unread,
+        pinned: pinned ?? this.pinned,
+        archived: archived ?? this.archived,
+      );
 }

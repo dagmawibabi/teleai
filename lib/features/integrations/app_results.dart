@@ -51,6 +51,7 @@ abstract final class AppResults {
           'document': {
             'title': _str(_find(value, 'title')) ?? _str(_find(value, 'name')) ?? '',
             'text': text.length > _maxDoc ? '${text.substring(0, _maxDoc)}…' : text,
+            if (text.length > _maxDoc) 'truncated_from_chars': text.length,
             'url': ?_str(_find(value, 'url')),
           },
         };
@@ -66,11 +67,16 @@ abstract final class AppResults {
     final tasks = <Map<String, dynamic>>[];
     final files = <Map<String, dynamic>>[];
     final seen = <String>{};
+    // Records past the cap, by kind, so the model is told the list goes on.
+    final skipped = <List<Map<String, dynamic>>, int>{};
 
     bool add(List<Map<String, dynamic>> list, Map<String, dynamic>? item, String key) {
       if (item == null) return false;
-      if (list.length >= _maxItems) return true;
       if (!seen.add(key)) return true;
+      if (list.length >= _maxItems) {
+        skipped[list] = (skipped[list] ?? 0) + 1;
+        return true;
+      }
       list.add(item);
       return true;
     }
@@ -120,6 +126,23 @@ abstract final class AppResults {
       if (tasks.isNotEmpty) 'tasks': tasks,
       if (files.isNotEmpty) 'files': files,
     };
+    final names = {
+      emails: 'emails',
+      events: 'events',
+      messages: 'messages',
+      channels: 'channels',
+      notifications: 'notifications',
+      issues: 'issues',
+      pages: 'pages',
+      tasks: 'tasks',
+      files: 'files',
+    };
+    if (skipped.isNotEmpty) {
+      out['not_shown'] = {for (final e in skipped.entries) names[e.key]!: e.value};
+      out['not_shown_note'] =
+          'Only the first $_maxItems of each kind are listed here; the user can see the full response in the tool '
+          'details. Ask for fewer results or the next page to read the rest.';
+    }
     if (out.isEmpty) {
       final rows = _find(value, 'values');
       if (rows is List && rows.isNotEmpty && rows.every((r) => r is List)) {
@@ -404,6 +427,10 @@ abstract final class AppResults {
   // ---- helpers ---------------------------------------------------------------
 
   /// Tool data is often JSON inside a string; open it up.
+  /// [data] with JSON held in strings opened up: the complete response as
+  /// the tool sheet shows it.
+  static dynamic parse(dynamic data) => _deepParse(data);
+
   static dynamic _deepParse(dynamic v, [int depth = 0]) {
     if (depth > 6) return v;
     if (v is String) {

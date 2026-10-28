@@ -56,16 +56,16 @@ class _PendingDraftBubbleState extends ConsumerState<PendingDraftBubble> {
             if (u.content case td.MessageRichMessage(:final message))
               RichMessageView(message: message)
             else if (empty)
-              const Text('Thinking…', style: TextStyle(fontStyle: FontStyle.italic, color: AppColors.text3))
+              Text('Thinking…', style: TextStyle(fontStyle: FontStyle.italic, color: AppColors.text3))
             else
-              Text(g.text, style: const TextStyle(fontSize: 15, height: 1.4, color: AppColors.text)),
+              Text(g.text, style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.text)),
             const SizedBox(height: 6),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox.square(dimension: 10, child: CircularProgressIndicator(strokeWidth: 1.5)),
                 const SizedBox(width: 6),
-                const Text('writing', style: TextStyle(fontSize: 11, color: AppColors.text3)),
+                Text('writing', style: TextStyle(fontSize: 11, color: AppColors.text3)),
                 if (u.canStop) ...[
                   const SizedBox(width: Space.m),
                   InkWell(

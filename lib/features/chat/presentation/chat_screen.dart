@@ -25,6 +25,9 @@ import '../../../app/app.dart' show appRouteObserver;
 import '../../telegram/presentation/attach_sheet.dart';
 import '../../telegram/presentation/chat_view_screen.dart';
 import 'history_drawer.dart';
+import '../../share/ask_sheet.dart';
+import '../../share/share_intake.dart';
+import 'widgets/chat_sheets.dart';
 import 'widgets/message_view.dart';
 import 'widgets/chat_date_divider.dart';
 
@@ -122,9 +125,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
       ref.read(chatControllerProvider.notifier).open(id);
     });
+    ShareIntake.listen(_onShared);
   }
 
   StreamSubscription<String>? _taps;
+  final _composerKey = GlobalKey<_ComposerState>();
+
+  /// Shared from another app: selected text opens Ask Triangle; text and
+  /// files go into a new chat's input box, ready for a question.
+  Future<void> _onShared(SharedPayload p) async {
+    // After the app's own resume handling, which may start a fresh chat.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    ref.read(chatControllerProvider.notifier).newChat();
+    if (p.selection) {
+      final question = await showAskSheet(context, p.text);
+      if (question != null && mounted) _send(question);
+      return;
+    }
+    _input.text = p.text;
+    final files = [for (final (path, name) in p.files) await ChatController.attach(path, name: name)];
+    if (!mounted) return;
+    _composerKey.currentState?.addAttachments(files);
+    _focus.requestFocus();
+  }
 
   @override
   void dispose() {
@@ -205,6 +230,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           onTap: _pickModel,
         ),
         actions: [
+          const ContextMeter(),
           IconButton(
             tooltip: 'New chat',
             icon: const Icon(Icons.edit_outlined, size: 21),
@@ -246,7 +272,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             child: Center(
                               child: Material(
                                 color: AppColors.surface3,
-                                shape: const CircleBorder(
+                                shape: CircleBorder(
                                   side: BorderSide(color: AppColors.line),
                                 ),
                                 child: InkWell(
@@ -267,18 +293,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ),
             ),
             const NowReadingBar(),
-            _Composer(
-              controller: _input,
-              focus: _focus,
-              busy: chat.busy,
-              onSend: _send,
-              onStop: () => ref.read(chatControllerProvider.notifier).stop(),
-            ),
+            if (ref.watch(settingsProvider.select((s) => s.aiChatEnabled)))
+              _Composer(
+                key: _composerKey,
+                controller: _input,
+                focus: _focus,
+                busy: chat.busy,
+                onSend: _send,
+                onStop: () => ref.read(chatControllerProvider.notifier).stop(),
+              )
+            else
+              const _ChatOffBar(),
           ],
         ),
       ),
     );
   }
+}
+
+/// In place of the input box while AI chat is off in Settings.
+class _ChatOffBar extends ConsumerWidget {
+  const _ChatOffBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => SafeArea(
+    top: false,
+    child: Container(
+      margin: const EdgeInsets.fromLTRB(Space.m, Space.xs, Space.m, Space.m),
+      padding: const EdgeInsets.fromLTRB(Space.l, Space.s, Space.s, Space.s),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(Radii.xl + 4),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.pause_circle_outline_rounded, color: AppColors.text3),
+          const SizedBox(width: Space.m),
+          Expanded(child: Text('AI chat is off in Settings', style: context.text.bodyMedium)),
+          TextButton(
+            onPressed: () => ref.read(settingsProvider.notifier).setAiChatEnabled(true),
+            child: const Text('Turn on'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ModelButton extends StatelessWidget {
@@ -308,7 +368,7 @@ class _ModelButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 2),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 20,
               color: AppColors.text3,
@@ -320,7 +380,7 @@ class _ModelButton extends StatelessWidget {
   }
 }
 
-class _MessageList extends StatelessWidget {
+class _MessageList extends ConsumerWidget {
   const _MessageList({
     required this.scroll,
     required this.conversation,
@@ -332,8 +392,17 @@ class _MessageList extends StatelessWidget {
   final bool busy;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showDateTime = ref.watch(settingsProvider.select((s) => s.showChatDateTime));
     final entries = conversation.entries;
+    // Where a compaction under way will end: just before the last question but one.
+    final users = [
+      for (final (i, e) in entries.indexed)
+        if (e is UserEntry) i,
+    ];
+    final compactingAt = ref.read(chatControllerProvider.notifier).isCompacting(conversation.id) && users.length >= 3
+        ? entries[users[users.length - 2] - 1].id
+        : null;
     return ListView.builder(
       controller: scroll,
       reverse: true,
@@ -363,8 +432,16 @@ class _MessageList extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (startsDay) ChatDateDivider(date: e.at),
+                  if (showDateTime && startsDay) ChatDateDivider(date: e.at),
                   child,
+                  // Above here the model reads a summary, not the messages.
+                  if (e.id == compactingAt)
+                    const CompactionDivider(compacting: true)
+                  else if (e.id == conversation.summaryUntil)
+                    CompactionDivider(
+                      compacting: false,
+                      onTap: () => showCompactionSheet(context, conversation),
+                    ),
                 ],
               ),
             ),
@@ -644,6 +721,7 @@ class _EmptyState extends StatelessWidget {
 
 class _Composer extends ConsumerStatefulWidget {
   const _Composer({
+    super.key,
     required this.controller,
     required this.focus,
     required this.busy,
@@ -663,6 +741,9 @@ class _Composer extends ConsumerStatefulWidget {
 
 class _ComposerState extends ConsumerState<_Composer> {
   final List<Attachment> _files = [];
+
+  /// Files shared from another app, added as if picked here.
+  void addAttachments(List<Attachment> files) => setState(() => _files.addAll(files));
   bool _adding = false;
   String _typedBeforeDictation = '';
 
@@ -831,7 +912,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                       ),
                     ),
                     const SizedBox(width: Space.xs),
-                    if (!widget.busy && (!canSend || listening))
+                    if (!widget.busy && (!canSend || listening) && ref.watch(settingsProvider.select((s) => s.voiceEnabled)))
                       _MicButton(
                         listening: listening,
                         transcribing: dictation.transcribing,
@@ -909,7 +990,7 @@ class _AttachmentPreview extends StatelessWidget {
                             a.name,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11.5,
                               color: AppColors.text,
                             ),
@@ -926,11 +1007,11 @@ class _AttachmentPreview extends StatelessWidget {
               onTap: onRemove,
               child: Container(
                 padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.text,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.close_rounded,
                   size: 13,
                   color: AppColors.bg,

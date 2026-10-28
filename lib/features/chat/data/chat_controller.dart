@@ -11,10 +11,12 @@ import 'package:omni_ai/omni_ai.dart' as omni;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/files/generated_files.dart';
 import '../../ai/data/ai.dart';
 import '../../brief/brief_store.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../integrations/app_toolkits.dart';
+import '../../integrations/e2b_session.dart';
 import '../../integrations/integrations_store.dart';
 import '../../usage/usage.dart';
 import '../../assistant/notifications.dart';
@@ -78,6 +80,8 @@ const _localTools = {
   'list_attachments',
   'list_briefs',
   'read_brief',
+  'write_brief',
+  'transcribe_message',
   'view_image',
   'create_reminder',
   'list_reminders',
@@ -117,26 +121,36 @@ class ChatController extends Notifier<ChatState> {
   bool _onScreen(Conversation c) => identical(state.conversation, c);
 
   void _touch(Conversation c) {
-    if (ref.mounted && _onScreen(c)) state = state.copyWith();
+    if (ref.mounted && (_onScreen(c) || _observed.contains(c.id))) state = state.copyWith();
   }
 
   /// Conversations run out of sight (briefs): never saved to the history,
   /// and only allowed to read.
   final Set<String> _hidden = {};
 
+  /// Hidden conversations someone is watching live: their progress still
+  /// bumps the revision.
+  final Set<String> _observed = {};
+
   /// Runs one read-only turn in a conversation of its own that doesn't
   /// appear in the history, and returns it once the answer is written.
-  Future<Conversation> runHidden(String title, String prompt) async {
+  /// [onStart] gets the conversation as it begins, to follow it live.
+  Future<Conversation> runHidden(String title, String prompt, {void Function(Conversation c)? onStart}) async {
     final settings = ref.read(settingsProvider);
     final c = Conversation(id: _uuid.v4(), title: title);
     _hidden.add(c.id);
     c.entries.add(UserEntry(id: _uuid.v4(), text: prompt, event: title));
     final reply = AssistantEntry(id: _uuid.v4(), model: settings.model);
     c.entries.add(reply);
+    if (onStart != null) {
+      _observed.add(c.id);
+      onStart(c);
+    }
     try {
       await _runTurn(c, reply);
     } finally {
       reply.done = true;
+      _observed.remove(c.id);
     }
     return c;
   }
@@ -266,6 +280,160 @@ class ChatController extends Notifier<ChatState> {
     state = state.copyWith(history: history);
   }
 
+  /// Pins conversation [id] to the top of the drawer, or unpins it.
+  Future<void> pin(String id, bool pinned) async =>
+      state = state.copyWith(history: await _repo.mark(id, pinned: pinned));
+
+  /// Moves conversation [id] under Archived in the drawer, or back. An
+  /// archived chat isn't pinned.
+  Future<void> archive(String id, bool archived) async => state = state.copyWith(
+    history: await _repo.mark(id, archived: archived, pinned: archived ? false : null),
+  );
+
+  /// The conversation [id], from the screen, a running turn or storage.
+  Future<Conversation?> conversationById(String id) async =>
+      state.conversation.id == id ? state.conversation : _live[id] ?? await _repo.load(id);
+
+  /// A short model call for housekeeping (titles, summaries) with the chat
+  /// model, counted in usage like any other.
+  Future<String> _ask(String system, String prompt, {int maxOutputTokens = 800}) async {
+    final settings = ref.read(settingsProvider);
+    final model = canonicalModelId(settings.model);
+    final result = await ref
+        .read(aiProvider)
+        .generateText(model: model, system: system, prompt: prompt, maxOutputTokens: maxOutputTokens);
+    ref.read(usageProvider.notifier).recordChat(
+      model: model,
+      usage: result.usage,
+      info: ref.read(modelCatalogProvider).byId(model),
+    );
+    return result.text.trim();
+  }
+
+  /// The conversation as plain text for a model to read: what was asked,
+  /// what was answered, and which tools ran. [upTo] stops after that entry.
+  static String transcript(Conversation c, {String? upTo, int maxChars = 60000}) {
+    final b = StringBuffer();
+    for (final e in c.entries) {
+      switch (e) {
+        case UserEntry(:final text, :final attachments):
+          b.writeln('User: $text${attachments.isEmpty ? '' : ' [files: ${attachments.map((a) => a.name).join(', ')}]'}');
+        case AssistantEntry(:final steps):
+          final tools = [for (final s in steps) for (final t in s.tools) t.name];
+          final text = steps.map((s) => s.text).where((t) => t.trim().isNotEmpty).join('\n');
+          if (tools.isNotEmpty) b.writeln('(Assistant used: ${tools.toSet().join(', ')})');
+          if (text.isNotEmpty) b.writeln('Assistant: $text');
+      }
+      b.writeln();
+      if (e.id == upTo || b.length > maxChars) break;
+    }
+    return b.toString();
+  }
+
+  /// A title for [c] written by the chat model from how it began.
+  Future<String?> suggestTitle(Conversation c) async {
+    if (c.entries.isEmpty || !ref.read(settingsProvider).hasAnyKey) return null;
+    try {
+      final title = await _ask(
+        'Write a short title (2 to 6 words) for this conversation, in its language. Reply with the title only: '
+        'no quotes, no full stop.',
+        transcript(c, maxChars: 4000),
+        maxOutputTokens: 40,
+      );
+      final line = title.split('\n').first.replaceAll(RegExp(r'^["“”\x27*#\s]+|["“”\x27*.\s]+$'), '');
+      return line.isEmpty ? null : _titleFrom(line);
+    } catch (e) {
+      debugPrint('[Chat] title: $e');
+      return null;
+    }
+  }
+
+  /// Names [c] with the model after its first answer, unless renamed since.
+  Future<void> _autoTitle(Conversation c, String firstLine) async {
+    if (c.title != firstLine) return;
+    final title = await suggestTitle(c);
+    if (title == null || c.title != firstLine) return;
+    await rename(c.id, title);
+  }
+
+  /// How full the model's context is for [c]: the prompt the last model
+  /// call sent (or an estimate from the text) against the model's window.
+  ({int used, int? window, bool estimated}) contextOf(Conversation c) {
+    final settings = ref.read(settingsProvider);
+    final window = ref.read(modelCatalogProvider).byId(canonicalModelId(settings.model))?.contextWindow;
+    // What the model reads besides the chat (instructions, tools, memories),
+    // learned from the last real measurement when there is one.
+    var overhead = 6000;
+    for (final e in c.entries.reversed) {
+      if (e is AssistantEntry) {
+        final last = e.steps.lastWhere((s) => s.usage != null && s.usage!.input > 0, orElse: () => ModelStep());
+        if (last.usage case final u?) {
+          final measured = u.input + u.output;
+          // Measured before a compaction: it still counted what the summary replaced.
+          if (c.compactedAt == null || e.at.isAfter(c.compactedAt!)) {
+            return (used: measured, window: window, estimated: false);
+          }
+          final before = transcript(c, upTo: e.id, maxChars: 1 << 30).length ~/ 4;
+          overhead = (measured - before).clamp(0, measured);
+          break;
+        }
+      }
+    }
+    return (used: overhead + _modelText(c).length ~/ 4, window: window, estimated: true);
+  }
+
+  /// The chat as the model reads it now: the summary, then what follows it.
+  static String _modelText(Conversation c) {
+    final covered = c.summaryUntil == null ? -1 : c.entries.indexWhere((e) => e.id == c.summaryUntil);
+    if (covered < 0) return transcript(c, maxChars: 1 << 30);
+    final rest = Conversation(id: c.id, entries: c.entries.sublist(covered + 1));
+    return '${c.summary ?? ''}\n${transcript(rest, maxChars: 1 << 30)}';
+  }
+
+  /// Conversations being compacted right now.
+  final Set<String> _compacting = {};
+  bool isCompacting(String conversationId) => _compacting.contains(conversationId);
+
+  /// Summarises everything before [c]'s last two questions, so the model
+  /// reads the summary instead of those messages. The chat itself keeps
+  /// every message on screen.
+  Future<bool> compact([Conversation? conversation]) async {
+    final c = conversation ?? state.conversation;
+    final users = [
+      for (final (i, e) in c.entries.indexed)
+        if (e is UserEntry) i,
+    ];
+    if (users.length < 3 || _compacting.contains(c.id)) return false;
+    final until = c.entries[users[users.length - 2] - 1];
+    // Kept by the controller, not the sheet that asked: it finishes (and
+    // shows in the chat) even when the sheet is closed.
+    _compacting.add(c.id);
+    _touch(c);
+    try {
+      final previous = c.summary == null ? '' : 'Summary of what came before:\n${c.summary}\n\n';
+      final summary = await _ask(
+        'Summarise this conversation so it can continue without the original messages. Keep every fact, '
+        'decision, preference and open task; names, numbers, dates, chat ids and post refs (post:chat:message) '
+        'exactly; and what the user is working toward. Use short bullet points under headings. No preamble.',
+        '$previous${transcript(c, upTo: until.id, maxChars: 120000)}',
+        maxOutputTokens: 2000,
+      );
+      if (summary.isEmpty) return false;
+      c
+        ..summary = summary
+        ..summaryUntil = until.id
+        ..compactedAt = DateTime.now();
+      await _persist(c);
+      return true;
+    } catch (e) {
+      debugPrint('[Chat] compact: $e');
+      return false;
+    } finally {
+      _compacting.remove(c.id);
+      _touch(c);
+    }
+  }
+
   // ---- approvals -----------------------------------------------------------
 
   /// Approves a pending call. For a message, [text] and [files] are what
@@ -373,13 +541,17 @@ class ChatController extends Notifier<ChatState> {
         unawaited(ref.read(aiProvider).browser.session.stop());
       case 'web_screenshot' || 'web_inspect' || 'web_run_async_js':
         unawaited(ref.read(inAppEngineProvider).stop());
+      // E2B can't interrupt a running cell, so the sandbox itself goes.
+      case 'e2b_run_code' || 'e2b_run_command':
+        unawaited(ref.read(e2bSessionProvider).stop(null, 'stopped by the user'));
     }
-    final sends = toolNamed(part.name)?.requiresApproval ?? false;
+    final e2b = part.name == 'e2b_run_code' || part.name == 'e2b_run_command';
+    final sends = toolNamed(part.name)?.modifiesData ?? false;
     waiter.complete(
       ToolOutput({
         'error':
             'Stopped by the user before it finished.'
-            '${sends ? ' It may already have reached Telegram or the site; check before trying again.' : ''}',
+            '${e2b ? ' The E2B sandbox was shut down, so its files and variables are gone.' : sends ? ' It may already have reached Telegram or the site; check before trying again.' : ''}',
         'stopped': true,
       }),
     );
@@ -431,6 +603,8 @@ class ChatController extends Notifier<ChatState> {
   }) async {
     text = text.trim();
     final c = state.conversation;
+    // AI chat turned off in Settings: nothing reaches a model from here.
+    if (!ref.read(settingsProvider).aiChatEnabled) return;
     if ((text.isEmpty && attachments.isEmpty) || _live.containsKey(c.id))
       return;
     final settings = ref.read(settingsProvider);
@@ -447,8 +621,13 @@ class ChatController extends Notifier<ChatState> {
     _live[c.id] = c;
     state = state.copyWith(busy: true);
     unawaited(_persist(c));
+    final firstTitle = c.entries.length == 2 ? c.title : null;
     try {
+      // Near the model's limit: summarise older messages first.
+      final ctx = contextOf(c);
+      if (settings.autoCompact && ctx.window != null && ctx.used > ctx.window! * 0.8) await compact(c);
       await _runTurn(c, reply);
+      if (firstTitle != null && reply.error == null) unawaited(_autoTitle(c, firstTitle));
     } finally {
       _live.remove(c.id);
       if (ref.mounted) {
@@ -521,28 +700,24 @@ class ChatController extends Notifier<ChatState> {
     final telegram = ref.read(telegramClientProvider).authState is td.AuthorizationStateReady;
     final offered = [
       for (final t in telegramTools)
+        // Hidden runs (briefs) only read, so they aren't offered the rest.
         if (t.isOn(settings) &&
-            (telegram || !t.category.needsTelegram) &&
-            appToolReady(t, settings, connected) &&
-            creativeToolNeeds(t, settings) == null &&
-            cloudToolReady(t, settings) &&
-            deviceToolReady(t))
+            !(_hidden.contains(c.id) && t.modifiesData) &&
+            toolPrerequisiteProblems(t, settings, telegram: telegram,
+              connected: connected, modelSeesImages: _modelSees()).isEmpty)
           t,
     ];
     bool stopped() => _stopping.contains(c.id);
 
     final agent = ai.agent(
       name: 'triangle',
-      instructions: _systemPrompt(watch: watch),
+      instructions: '${_systemPrompt(watch: watch)}\n${await ai.memory.prompt() ?? ''}',
       model: model,
       tools: [
         for (final t in offered)
-          if (!_memoryTools.contains(t.name)) _asTool(t, c, runner, watch),
+          _asTool(t, c, runner, watch),
       ],
-      // omni_ai's memory: its tools, and what is remembered in the prompt.
-      toolkits: [
-        ai.memory.where((t) => offered.any((o) => o.name == t.name)),
-      ],
+      // Memory tools use the same per-call read-only and approval guards.
       limits: omni.AgentLimits(maxSteps: settings.maxSteps.clamp(2, 40)),
       reasoning: reasoningFor(settings.thinking),
       onToolApproval: (call) => _approve(call, c, watch),
@@ -760,10 +935,10 @@ class ChatController extends Notifier<ChatState> {
     final part = _partOf(c, callId) ?? ToolPart(callId: callId, name: tool.name);
     final timer = Stopwatch()..start();
     final settings = ref.read(settingsProvider);
-    if (!tool.isOn(settings)) {
+    if (!tool.isOn(settings) || (_hidden.contains(c.id) && tool.modifiesData)) {
       // Turned off in Settings while the answer was running.
       final out = {
-        'error': settings.readOnlyMode && tool.requiresApproval
+        'error': (settings.readOnlyMode || _hidden.contains(c.id)) && tool.modifiesData
             ? 'Read-only mode is on in Settings: nothing can be sent or changed.'
             : 'The user turned this tool off in Settings.',
       };
@@ -777,6 +952,12 @@ class ChatController extends Notifier<ChatState> {
     _touch(c);
     _resolveFiles(part, c);
     Future<ToolOutput> work() async {
+      if (_memoryTools.contains(part.name)) {
+        final memoryTool = (await ref.read(aiProvider).memory.tools())
+            .firstWhere((t) => t.name == part.name);
+        final result = await memoryTool.execute!(part.args);
+        return ToolOutput(Map<String, dynamic>.from(result as Map));
+      }
       if (part.name == generateImageTool.name) return _generateImage(part.args, c);
       if (part.name == generateAudioTool.name) return _generateAudio(part.args);
       if (part.name == generateAddisVoiceTool.name) return _generateAddisAudio(part.args);
@@ -811,10 +992,23 @@ class ChatController extends Notifier<ChatState> {
     }
     part
       ..result = out.encode()
+      ..full = _fullText(out.full)
       ..status = out.json.containsKey('error') ? ToolStatus.error : ToolStatus.done
       ..durationMs = timer.elapsedMilliseconds;
     _touch(c);
     return omni.ToolOutput(out.json, modelFiles: await _imagesFor(out.json));
+  }
+
+  /// A tool's complete response as stored with the conversation; very large
+  /// ones are left out so saving the chat stays quick.
+  static String? _fullText(Object? full) {
+    if (full == null) return null;
+    try {
+      final text = jsonEncode(full);
+      return text.length > 2 << 20 ? null : text;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Pictures a tool fetched for the model to look at (view_image,
@@ -1012,6 +1206,47 @@ class ChatController extends Notifier<ChatState> {
               },
           ],
           'note': 'Send any of these with send_message (or send_voice_message for voice notes) by passing the name in files.',
+        });
+      case 'transcribe_message':
+        final chatId = (a['chat_id'] as num?)?.toInt();
+        final messageId = (a['message_id'] as num?)?.toInt();
+        if (chatId == null || messageId == null) return const ToolOutput({'error': 'chat_id and message_id are required.'});
+        final f = await ref.read(toolRunnerProvider).downloadMessageFile(chatId, messageId);
+        if (f == null || !const {'voice', 'audio', 'video_note', 'video'}.contains(f.kind)) {
+          return const ToolOutput({'error': 'That message has no voice, audio or video to listen to.'});
+        }
+        final text = await _transcript(
+          Attachment(path: f.path, name: f.name, mime: f.mime, size: f.size),
+          language: (a['language'] as String?)?.trim(),
+        );
+        if (text == null) {
+          return ToolOutput({
+            'error':
+                'Couldn\'t transcribe it. Add an ElevenLabs key, or pick a dictation model whose key is set, in Settings → AI & models → Voice.',
+            'created_files': [f.path],
+          });
+        }
+        return ToolOutput({
+          'chat': ref.read(telegramStoreProvider).chat(chatId)?.title,
+          'kind': f.kind,
+          'duration_seconds': ?f.duration,
+          'transcript': text,
+          'created_files': [f.path],
+        });
+      case 'write_brief':
+        final hours = (a['since_hours'] as num?)?.toDouble().clamp(1, 72);
+        final b = await ref
+            .read(briefStoreProvider.notifier)
+            .generate(BriefKind.manual, window: hours == null ? null : Duration(minutes: (hours * 60).round()));
+        if (b == null) {
+          return const ToolOutput({'error': 'A brief is already being written, or no AI key is set.'});
+        }
+        return ToolOutput({
+          'brief_id': b.id,
+          'written': b.at.toIso8601String().substring(0, 16),
+          'covers_since': b.since.toIso8601String().substring(0, 16),
+          'text': b.text,
+          'error': ?b.error,
         });
       case 'list_briefs':
         final briefs = ref.read(briefStoreProvider).briefs;
@@ -1281,29 +1516,45 @@ class ChatController extends Notifier<ChatState> {
 
   final Map<String, String?> _transcripts = {};
 
-  /// What a voice note says, when a transcriber is set up (ElevenLabs
-  /// Scribe takes Telegram's Opus files as they are). Kept per file.
-  Future<String?> _transcript(Attachment a) async {
-    if (_transcripts.containsKey(a.path)) return _transcripts[a.path];
+  /// What a voice note says, when a transcriber is set up: ElevenLabs Scribe
+  /// (it takes Telegram's Opus files as they are), else the dictation model
+  /// from Settings. Kept per file.
+  Future<String?> _transcript(Attachment a, {String? language}) async {
+    final key = '${a.path}|${language ?? ''}';
+    if (_transcripts.containsKey(key)) return _transcripts[key];
+    final settings = ref.read(settingsProvider);
+    final ai = ref.read(aiProvider);
+    // Addis AI knows Amharic and Afaan Oromo best: first for those, or when
+    // it is the voice engine; otherwise a fallback.
+    final addisFirst = settings.hasAddisKey &&
+        (const {'am', 'om', 'amharic', 'oromo'}.contains(language?.toLowerCase()) || settings.voiceEngine == VoiceEngine.addis);
+    final models = [
+      if (addisFirst) 'addis:stt-v2',
+      if (settings.hasElevenKey) 'elevenlabs:scribe_v1',
+      if (AiRouter.of(settings.transcriptionModel) case final r? when ai.provider(r.providerId).isConfigured)
+        canonicalModelId(settings.transcriptionModel),
+      if (settings.hasAddisKey && !addisFirst) 'addis:stt-v2',
+    ];
     String? text;
-    if (ref.read(settingsProvider).hasElevenKey) {
+    for (final model in models) {
       try {
-        text = (await ref
-                .read(aiProvider)
-                .transcribe(model: 'elevenlabs:scribe_v1', audio: await File(a.path).readAsBytes(), mediaType: a.mime))
-            .text;
+        text = (await ai.transcribe(
+          model: model,
+          audio: await File(a.path).readAsBytes(),
+          mediaType: a.mime,
+          language: model.startsWith('addis:') ? (language == 'om' || language == 'oromo' ? 'om' : 'am') : language,
+        )).text;
+        if (text.trim().isNotEmpty) break;
       } catch (e) {
-        debugPrint('[Chat] transcript of ${a.name}: $e');
+        debugPrint('[Chat] transcript of ${a.name} with $model: $e');
       }
     }
-    return _transcripts[a.path] = (text == null || text.isEmpty) ? null : text;
+    return _transcripts[key] = (text == null || text.trim().isEmpty) ? null : text.trim();
   }
 
   /// Keeps generated media in the app's folder, with what made it beside it.
   Future<File> _saveGenerated(omni.GeneratedFile media, Map<String, dynamic> meta) async {
-    final dir = Directory('${(await getApplicationSupportDirectory()).path}/generated');
-    if (!await dir.exists()) await dir.create(recursive: true);
-    final file = await File('${dir.path}/${_uuid.v4()}.${media.extension}').writeAsBytes(media.bytes);
+    final file = await saveGeneratedBytes('${meta['kind'] ?? 'media'}.${media.extension}', media.bytes);
     await _writeGeneratedMeta(file, {...meta, 'created_at': DateTime.now().toIso8601String()});
     return file;
   }
@@ -1358,7 +1609,8 @@ class ChatController extends Notifier<ChatState> {
     final settings = ref.read(settingsProvider);
     final text = '${args['text'] ?? ''}'.trim();
     if (text.isEmpty) return const ToolOutput({'error': 'text is empty'});
-    final voice = '${args['voice'] ?? settings.aiVoice}';
+    final eleven = settings.voiceEngine == VoiceEngine.elevenLabs;
+    final voice = '${args['voice'] ?? (eleven ? settings.elevenVoiceId : settings.aiVoice)}';
     if (settings.voiceEngine == VoiceEngine.addis) {
       // The model may name a voice from another engine; Addis needs one of
       // its own, and its language.
@@ -1366,9 +1618,12 @@ class ChatController extends Notifier<ChatState> {
       final language = await addis.languageOfVoice(voice) ?? await addis.languageOfVoice(settings.aiVoice) ?? 'am';
       return _generateAddisAudio({'text': text, 'voice_id': voice, 'language': language});
     }
-    final model = canonicalModelId(settings.speechModel);
+    // The same model and voice read-aloud uses, so generated audio sounds the same.
+    final model = eleven ? 'elevenlabs:${settings.elevenModel}' : canonicalModelId(settings.speechModel);
     try {
-      final audio = await ref.read(aiProvider).generateSpeech(model: model, text: text, voice: voice);
+      final audio = await ref
+          .read(aiProvider)
+          .generateSpeech(model: model, text: text, voice: voice.isEmpty ? null : voice);
       final file = await _saveGenerated(audio, {'kind': 'audio', 'text': text, 'model': model, 'voice': voice});
       return ToolOutput({
         'created': true,
@@ -1605,6 +1860,8 @@ ${dangerOn.isEmpty ? "- Deleting, leaving, blocking and banning are turned off. 
 - Content Canvas (the user's own folders of saved posts, on the phone): canvas_overview first, then canvas_create_folder, canvas_add (refs from earlier results; one call per folder when classifying), canvas_add_note, canvas_move, canvas_remove, canvas_update_folder, canvas_delete_folder, canvas_export (a folder as JSON, Markdown, HTML or PDF; send the file with send_message). To "organise posts into folders", read them, decide the categories, then file each group.
 - Briefs: list_briefs and read_brief show the morning, night and on-demand briefs already written.
 ${me == null ? '- Telegram is not connected, so there are no Telegram tools. If the user asks about their chats, say they can connect Telegram under Settings → Apps & web → Telegram; meanwhile help with everything else.\n' : ''}${_appsNote(settings)}${_cloudNote(settings)}${Platform.isAndroid ? _deviceNote : ''}- forward_message can send to several chats at once with to_chat_ids.
+- Files and voice in Telegram messages: download_message_file gets any document, PDF, photo, video, sticker or GIF a message carries (text files come back as text, pictures are shown to you); transcribe_message says what a voice note, audio or video says. Never say you can't open or hear them.
+- Stickers and GIFs: view_stickers_and_gifs shows you stickers and GIFs from the sticker and GIF tools before you pick one to send with send_sticker or send_gif; view_image shows one inside a message.
 - The user may send voice messages: you get a transcript or the audio itself. Act on what they say; the recording can also be sent on to a chat with send_voice_message.
 - The user may attach pictures, voice notes and files; read them directly. Use view_image to inspect any accessible image: earlier attachments, generated images, screenshots, downloaded/local files, direct HTTP/HTTPS image URLs, image data URLs, or Telegram photos, video thumbnails, stickers and link previews. Pass attachment names/local paths in files, direct image URLs in urls, and Telegram message refs in refs. Only Telegram refs require Telegram; the current model must support image input. To send a file to a chat, pass its name in files. Use send_voice_message for a recorded voice-note attachment; generate_image for pictures, generate_audio for speech, generate_sound_effect for effects and ambience, and generate_music for music. Sound effects and music require the ElevenLabs key. Creative tools are listed under Settings → Tools → Apps & web.
 - Reminders and scheduled jobs: "remind me to walk in 5 minutes" → create_reminder(text, in_minutes). Use at for a clock time and cron for repeats; add prompt when something should be done at that time (a job). list_reminders, update_reminder, delete_reminder manage them. Reminders are separate from watches, which react to new messages.
@@ -1658,6 +1915,9 @@ How to answer:
     final out = <omni.Message>[];
     // Long-running watch conversations keep only their recent history.
     var entries = c.entries;
+    // A compacted chat: the summary stands in for what it covers.
+    final covered = c.summaryUntil == null ? -1 : entries.indexWhere((e) => e.id == c.summaryUntil);
+    if (covered >= 0) entries = entries.sublist(covered + 1);
     if (entries.length > 40) entries = entries.sublist(entries.length - 40);
     while (entries.isNotEmpty && entries.first is! UserEntry) {
       entries = entries.sublist(1);
@@ -1719,6 +1979,13 @@ How to answer:
             }
           }
       }
+    }
+    // The summary rides on the first question, so turns still alternate.
+    if (covered >= 0 && c.summary != null && out.isNotEmpty && out.first.role == omni.Role.user) {
+      out[0] = omni.Message(omni.Role.user, [
+        omni.TextPart('[Summary of the earlier part of this conversation]\n${c.summary}\n[End of summary]\n\n'),
+        ...out.first.parts,
+      ]);
     }
     return out;
   }

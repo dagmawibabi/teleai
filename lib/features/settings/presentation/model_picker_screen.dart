@@ -277,7 +277,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                   Space.m,
                 ),
                 child: TextField(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search models',
                     prefixIcon: Icon(
                       Icons.search_rounded,
@@ -294,6 +294,13 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: Space.l),
                   children: [
+                    // Free first: the filter people reach for most.
+                    _filter(
+                      'Free',
+                      _free,
+                      (v) => _free = v,
+                      icon: Icons.money_off_rounded,
+                    ),
                     _menuChip<_Sort>(Icons.sort_rounded, _sortLabels[_sort]!, [
                       for (final s in _Sort.values) (s, _sortLabels[s]!),
                     ], (s) => setState(() => _sort = s)),
@@ -329,12 +336,6 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                       ),
                     ],
                     _filter(
-                      'Free',
-                      _free,
-                      (v) => _free = v,
-                      icon: Icons.money_off_rounded,
-                    ),
-                    _filter(
                       'Open weights',
                       _openWeights,
                       (v) => _openWeights = v,
@@ -361,6 +362,15 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                     style: context.text.bodySmall?.copyWith(
                       color: AppColors.warning,
                     ),
+                  ),
+                ),
+              // A router whose list failed says why, rather than looking empty.
+              if ((missingKey || _router == null ? null : cat.providerErrors[_router!.providerId]) case final error?)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, 0),
+                  child: Text(
+                    'Couldn\'t list ${_router!.title} models: $error',
+                    style: context.text.bodySmall?.copyWith(color: AppColors.danger),
                   ),
                 ),
               if (_tools || widget.kind != ModelType.text)
@@ -493,7 +503,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(label),
-            const Icon(
+            Icon(
               Icons.arrow_drop_down_rounded,
               size: 18,
               color: AppColors.text3,
@@ -510,12 +520,13 @@ class Tag extends StatelessWidget {
     this.text, {
     super.key,
     this.icon,
-    this.color = AppColors.text2,
+    Color? color,
     this.filled = false,
-  });
+  }) : _color = color;
   final String text;
   final IconData? icon;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? AppColors.text2;
   final bool filled;
 
   @override
@@ -634,7 +645,7 @@ class _ModelTile extends StatelessWidget {
                                     : AppColors.text2),
                         ),
                         if (m.isFree)
-                          const Tag(
+                          Tag(
                             'Free',
                             icon: Icons.money_off_rounded,
                             color: AppColors.success,
@@ -675,7 +686,7 @@ class _ModelTile extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Details',
-                icon: const Icon(
+                icon: Icon(
                   Icons.info_outline_rounded,
                   size: 20,
                   color: AppColors.text3,
@@ -695,6 +706,7 @@ Future<void> showModelDetails(
   BuildContext context,
   ModelInfo m, {
   VoidCallback? onUse,
+  String useLabel = 'Use this model',
 }) {
   String price(double? v) =>
       v == null ? '—' : (v == 0 ? 'Free' : '${ModelInfo.usd(v)} / 1M');
@@ -830,7 +842,7 @@ Future<void> showModelDetails(
                 Navigator.pop(context);
                 onUse();
               },
-              child: const Text('Use this model'),
+              child: Text(useLabel),
             ),
           ],
         ],

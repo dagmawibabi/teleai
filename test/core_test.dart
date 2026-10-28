@@ -179,7 +179,7 @@ void main() {
     test('read-only mode keeps only reading tools', () {
       final s = const AppSettings().copyWith(readOnlyMode: true);
       for (final t in telegramTools) {
-        expect(t.isOn(s), !t.requiresApproval && !t.destructive, reason: t.name);
+        expect(t.isOn(s), !t.modifiesData, reason: t.name);
       }
     });
 

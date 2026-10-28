@@ -356,7 +356,7 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
                   'Your account',
                   trailing: _loading
                       ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : InkWell(onTap: _load, child: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.text3)),
+                      : InkWell(onTap: _load, child: Icon(Icons.refresh_rounded, size: 18, color: AppColors.text3)),
                   children: [
                     if (_error != null)
                       Padding(padding: const EdgeInsets.all(Space.l), child: Text(_error!, style: context.text.bodySmall?.copyWith(color: AppColors.danger))),
@@ -591,7 +591,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                   if (s.hasE2bKey)
                     _Section(
                       'Running on your E2B account',
-                      trailing: InkWell(onTap: _loadAccount, child: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.text3)),
+                      trailing: InkWell(onTap: _loadAccount, child: Icon(Icons.refresh_rounded, size: 18, color: AppColors.text3)),
                       children: [
                         if (_error != null)
                           Padding(padding: const EdgeInsets.all(Space.l), child: Text(_error!, style: context.text.bodySmall?.copyWith(color: AppColors.danger))),
@@ -607,7 +607,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                             ),
                             trailing: IconButton(
                               tooltip: 'Shut down',
-                              icon: const Icon(Icons.power_settings_new_rounded, color: AppColors.danger, size: 20),
+                              icon: Icon(Icons.power_settings_new_rounded, color: AppColors.danger, size: 20),
                               onPressed: _busy != null
                                   ? null
                                   : () => _do('kill ${b.id}', () async {

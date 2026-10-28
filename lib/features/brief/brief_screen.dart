@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
+import '../chat/data/chat_controller.dart';
+import '../chat/domain/chat_models.dart';
 import '../chat/presentation/widgets/message_view.dart';
+import '../telegram/data/telegram_tools.dart' show toolNamed;
 import '../settings/data/settings.dart';
 import '../telegram/presentation/chat_actions.dart' show confirmAction;
 import 'brief_settings_screen.dart';
+import 'brief_schedule.dart';
 import 'brief_store.dart';
 
 /// Briefs: write one now, see the latest, browse earlier ones, and set the
@@ -21,16 +25,6 @@ class BriefScreen extends ConsumerWidget {
     final store = ref.read(briefStoreProvider.notifier);
     final latest = st.briefs.firstOrNull;
 
-    Future<void> pickTime(bool morning) async {
-      final cur = (morning ? s.briefMorning : s.briefNight).split(':');
-      final t = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay(hour: int.tryParse(cur.first) ?? 8, minute: int.tryParse(cur.last) ?? 0),
-      );
-      if (t == null) return;
-      final v = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-      await ref.read(settingsProvider.notifier).setBriefs(morning: morning ? v : null, night: morning ? null : v);
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -88,36 +82,14 @@ class BriefScreen extends ConsumerWidget {
                   ),
                 ),
                 const Divider(height: Space.xl),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Morning and night briefs'),
-                  subtitle: Text('Written automatically and sent as a notification', style: context.text.bodySmall),
-                  value: s.briefsScheduled,
-                  onChanged: (v) => ref.read(settingsProvider.notifier).setBriefs(scheduled: v),
-                ),
-                if (s.briefsScheduled)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Text('☀️'),
-                          label: Text('Morning ${s.briefMorning}'),
-                          onPressed: () => pickTime(true),
-                        ),
-                      ),
-                      const SizedBox(width: Space.s),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Text('🌙'),
-                          label: Text('Night ${s.briefNight}'),
-                          onPressed: () => pickTime(false),
-                        ),
-                      ),
-                    ],
-                  ),
+                const BriefSchedule(),
               ],
             ),
           ),
+          if (st.live case final live?) ...[
+            const SizedBox(height: Space.xl),
+            _LiveBrief(conversation: live, kind: st.running ?? BriefKind.manual),
+          ],
           if (latest != null) ...[
             const SizedBox(height: Space.xl),
             Text('LATEST', style: context.text.labelSmall),
@@ -135,6 +107,65 @@ class BriefScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(Space.x4),
               child: Center(child: Text('No briefs yet', style: context.text.bodySmall)),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The brief being written, live: which chats and apps it is reading (each
+/// tool call as it runs), its thinking, and the text as it streams in.
+class _LiveBrief extends ConsumerWidget {
+  const _LiveBrief({required this.conversation, required this.kind});
+  final Conversation conversation;
+  final BriefKind kind;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(chatControllerProvider.select((s) => s.revision));
+    final answer = conversation.entries.whereType<AssistantEntry>().lastOrNull;
+    final calls = [for (final s in answer?.steps ?? const <ModelStep>[]) ...s.tools];
+    final done = calls.where((t) => t.status == ToolStatus.done || t.status == ToolStatus.error).length;
+    final running = calls.where((t) => t.status == ToolStatus.running).lastOrNull;
+    final writing = (answer?.steps.lastOrNull?.text ?? '').isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(Space.l),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(Radii.l),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(width: Space.m),
+              Expanded(
+                child: Text('${kind.emoji} Writing your ${kind.label.toLowerCase()}', style: context.text.titleSmall),
+              ),
+              Text('$done step${done == 1 ? '' : 's'}', style: context.text.labelSmall),
+            ],
+          ),
+          const SizedBox(height: Space.xs),
+          Text(
+            writing
+                ? 'Writing it up…'
+                : running != null
+                ? (toolNamed(running.name)?.label ?? running.name)
+                : 'Thinking about what to read…',
+            style: context.text.bodySmall,
+          ),
+          const SizedBox(height: Space.s),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: const LinearProgressIndicator(minHeight: 3),
+          ),
+          if (answer != null) ...[
+            const SizedBox(height: Space.m),
+            AssistantMessage(entry: answer, posts: conversation.posts, streaming: true),
+          ],
         ],
       ),
     );

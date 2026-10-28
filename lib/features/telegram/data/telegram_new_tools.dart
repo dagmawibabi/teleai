@@ -106,7 +106,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'set_channel_dms',
     label: 'Changing channel DMs',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Turns a channel\'s direct messages on or off (as its owner or an admin), optionally charging '
@@ -172,7 +172,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'set_welcome_message',
     label: 'Setting a welcome message',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Adds a welcome message to a group or channel, or replaces one with welcome_message_id. text may be '
@@ -191,7 +191,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'delete_welcome_message',
     label: 'Deleting a welcome message',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     destructive: true,
     description: 'Deletes one welcome message (or all with all: true) from a group or channel. Needs approval.',
@@ -255,7 +255,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'set_private_note',
     label: 'Saving a private note',
-    category: ToolCategory.memory,
+    category: ToolCategory.contacts,
     description:
         'Saves a private note on a contact\'s profile that only the user sees in Telegram (e.g. "met at the '
         'conference, likes chess"). Empty note clears it. Supports **bold**, _italic_, __underline__, '
@@ -268,7 +268,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'get_private_note',
     label: 'Reading a private note',
-    category: ToolCategory.memory,
+    category: ToolCategory.contacts,
     description: 'The user\'s private Telegram note on a contact, if any.',
     parameters: _obj({
       'user_id': {'type': 'integer'},
@@ -279,7 +279,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'send_ephemeral_command',
     label: 'Sending a private bot command',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Sends a bot one of its ephemeral commands in a chat: only that bot receives it, and its answer is '
@@ -295,7 +295,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'get_bot_commands',
     label: 'Reading bot commands',
-    category: ToolCategory.chats,
+    category: ToolCategory.bots,
     description: 'A bot\'s commands with descriptions, and which are ephemeral (answered privately).',
     parameters: _obj({
       'bot_user_id': {'type': 'integer'},
@@ -304,7 +304,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'stop_bot_reply',
     label: 'Stopping a bot reply',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     description:
         'Stops a bot (an AI bot, usually) that is still writing its answer in a chat, keeping or dropping what it '
         'wrote as the bot decides.',
@@ -317,7 +317,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'connect_bot',
     label: 'Connecting a bot',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Lets the assistant act as one of the user\'s own bots: fetches its token from @BotFather and keeps it in '
@@ -331,7 +331,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'bot_api',
     label: 'Using the Bot API',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Calls a Telegram Bot API method as a connected bot (connect_bot first), e.g. getMe, getUpdates, '
@@ -348,7 +348,7 @@ final _newTools = <TelegramTool>[
   TelegramTool(
     name: 'stream_bot_message',
     label: 'Streaming a bot message',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Has a connected bot write a message to someone live, the way AI bots do: the text appears word by word '

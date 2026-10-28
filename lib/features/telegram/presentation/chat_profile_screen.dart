@@ -408,7 +408,7 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                         label: username != null
                             ? (kind == ChatKind.private ? 'Username' : 'Link')
                             : 'Invite link',
-                        trailing: const Icon(
+                        trailing: Icon(
                           Icons.copy_rounded,
                           size: 18,
                           color: AppColors.text3,
@@ -429,7 +429,8 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
               ],
               for (final (label, other) in [
                 ('Channel', personal),
-                ('Discussion', linked),
+                // A channel links to its discussion group, and the group back.
+                (kind == ChatKind.channel ? 'Discussion group' : 'Channel', linked),
               ])
                 if (other != null) ...[
                   const SizedBox(height: Space.m),
@@ -470,7 +471,7 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                                             case final n? when n > 0) ...[
                                           const SizedBox(width: Space.s),
                                           Text(
-                                            '${NumberFormat.compact().format(n)} subscribers',
+                                            '${NumberFormat.compact().format(n)} ${store.kindOf(other) == ChatKind.channel ? 'subscribers' : 'members'}',
                                             style: context.text.labelSmall,
                                           ),
                                         ],
@@ -498,7 +499,7 @@ class _ChatProfileScreenState extends ConsumerState<ChatProfileScreen> {
                                   ],
                                 ),
                               ),
-                              const Icon(
+                              Icon(
                                 Icons.chevron_right_rounded,
                                 color: AppColors.text3,
                               ),
@@ -826,7 +827,7 @@ class _StatRow extends StatelessWidget {
             ),
           ),
           if (onTap != null)
-            const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+            Icon(Icons.chevron_right_rounded, color: AppColors.text3),
         ],
       ),
     ),

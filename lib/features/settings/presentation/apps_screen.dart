@@ -140,7 +140,7 @@ class _AppsTabState extends ConsumerState<AppsTab> with WidgetsBindingObserver {
                     else
                       InkWell(
                         onTap: ref.read(integrationsProvider.notifier).refresh,
-                        child: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.text3),
+                        child: Icon(Icons.refresh_rounded, size: 18, color: AppColors.text3),
                       ),
                   ],
                 ),
@@ -292,7 +292,7 @@ class _AppRow extends StatelessWidget {
                     Flexible(child: Text(appLabel(slug), style: context.text.titleSmall)),
                     if (active) ...[
                       const SizedBox(width: 6),
-                      const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
+                      Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
                     ],
                   ],
                 ),
@@ -310,11 +310,11 @@ class _AppRow extends StatelessWidget {
             const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
           else if (active)
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded, color: AppColors.text3),
+              icon: Icon(Icons.more_vert_rounded, color: AppColors.text3),
               onSelected: (v) => v == 'open' ? launchUrl(Uri.parse(t!.openUrl!), mode: LaunchMode.externalApplication) : onDisconnect(),
               itemBuilder: (_) => [
                 if (t?.openUrl != null) PopupMenuItem(value: 'open', child: Text('Open ${t!.label}')),
-                const PopupMenuItem(value: 'disconnect', child: Text('Disconnect', style: TextStyle(color: AppColors.danger))),
+                PopupMenuItem(value: 'disconnect', child: Text('Disconnect', style: TextStyle(color: AppColors.danger))),
               ],
             )
           else
@@ -338,7 +338,7 @@ class _NoKey extends StatelessWidget {
         children: [
           keyCard,
           const SizedBox(height: Space.xl),
-          const Icon(Icons.hub_outlined, size: 44, color: AppColors.text2),
+          Icon(Icons.hub_outlined, size: 44, color: AppColors.text2),
           const SizedBox(height: Space.l),
           Text('Connect Gmail, Slack, Notion and more', style: context.text.titleMedium, textAlign: TextAlign.center),
           const SizedBox(height: Space.s),

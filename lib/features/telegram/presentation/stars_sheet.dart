@@ -178,7 +178,7 @@ class _StarSheetState extends ConsumerState<_StarSheet> {
                           ),
                           const SizedBox(width: Space.s),
                           anonymous
-                              ? const CircleAvatar(
+                              ? CircleAvatar(
                                   radius: 16,
                                   backgroundColor: AppColors.surface3,
                                   child: Icon(Icons.visibility_off_outlined, size: 15, color: AppColors.text3),

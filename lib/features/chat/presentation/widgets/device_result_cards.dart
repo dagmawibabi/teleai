@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../app/theme.dart';
 import '../../../device/device.dart';
 import '../../domain/chat_models.dart';
+import 'message_preview.dart';
 
 /// Cards for what the phone reports: its specs with RAM, storage and
 /// battery gauges, the network, installed apps (tap to open), text messages,
@@ -211,7 +212,7 @@ class _BatteryRow extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    if (charging) const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
+                    if (charging) Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
                     Text(
                       b['full'] == true ? 'Full' : (charging ? 'Charging${b['plugged'] == null ? '' : ' · ${b['plugged']}'}' : 'On battery'),
                       style: const TextStyle(fontWeight: FontWeight.w600),
@@ -369,7 +370,7 @@ class _AppsCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           child: a['icon_path'] is String && File(a['icon_path'] as String).existsSync()
                               ? Image.file(File(a['icon_path'] as String), width: 44, height: 44)
-                              : Container(width: 44, height: 44, color: AppColors.surface3, child: const Icon(Icons.android_rounded, color: AppColors.text3)),
+                              : Container(width: 44, height: 44, color: AppColors.surface3, child: Icon(Icons.android_rounded, color: AppColors.text3)),
                         ),
                         const SizedBox(height: 4),
                         Text('${a['name']}', maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5)),
@@ -401,6 +402,18 @@ class _SmsCard extends StatelessWidget {
       for (final (i, m) in messages.take(30).indexed) ...[
         if (i > 0) const Divider(height: 1, indent: Space.m, endIndent: Space.m),
         InkWell(
+          onTap: () => showMessagePreview(
+            context,
+            MessagePreview(
+              from: '${m['name'] ?? m['address'] ?? 'Unknown'}${m['name'] != null && m['address'] != null ? ' · ${m['address']}' : ''}',
+              text: '${m['body'] ?? ''}',
+              date: DateTime.tryParse('${m['date'] ?? ''}'),
+              source: 'SMS',
+              icon: Icons.sms_outlined,
+              sent: m['sent'] == true,
+              replyUrl: m['address'] == null ? null : 'sms:${m['address']}',
+            ),
+          ),
           onLongPress: () {
             Clipboard.setData(ClipboardData(text: '${m['body']}'));
             showSnack(context, 'Message copied');
@@ -430,7 +443,7 @@ class _SmsCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 2),
-                      SelectableText('${m['body'] ?? ''}', maxLines: 5, style: const TextStyle(fontSize: 13.5, height: 1.35)),
+                      Text('${m['body'] ?? ''}', maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, height: 1.35)),
                     ],
                   ),
                 ),
@@ -474,7 +487,7 @@ class _CallsCard extends StatelessWidget {
           ),
           trailing: IconButton(
             tooltip: 'Call back',
-            icon: const Icon(Icons.call_rounded, color: AppColors.success),
+            icon: Icon(Icons.call_rounded, color: AppColors.success),
             onPressed: () => _device(context, 'call', {'number': c['number'], 'direct': false}),
           ),
         ),
@@ -513,7 +526,7 @@ class _ContactsCard extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: 'Call',
-                  icon: const Icon(Icons.call_rounded, color: AppColors.success, size: 20),
+                  icon: Icon(Icons.call_rounded, color: AppColors.success, size: 20),
                   onPressed: () => _device(context, 'call', {'number': n['number'], 'direct': false}),
                 ),
               ],

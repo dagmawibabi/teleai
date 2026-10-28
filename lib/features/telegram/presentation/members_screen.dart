@@ -179,7 +179,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
               decoration: InputDecoration(
                 isDense: true,
                 hintText: 'Search ${channel ? 'subscribers' : 'members'}',
-                prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+                prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
@@ -204,7 +204,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.tune_rounded, size: 18, color: AppColors.text2),
+                            Icon(Icons.tune_rounded, size: 18, color: AppColors.text2),
                             const SizedBox(width: Space.s),
                             Expanded(
                               child: Text(
@@ -439,8 +439,8 @@ class _MemberTile extends ConsumerWidget {
               ),
             if (manageable && m.status is! td.ChatMemberStatusBanned) ...[
               ListTile(
-                leading: const Icon(Icons.person_remove_outlined, color: AppColors.danger),
-                title: const Text('Remove', style: TextStyle(color: AppColors.danger)),
+                leading: Icon(Icons.person_remove_outlined, color: AppColors.danger),
+                title: Text('Remove', style: TextStyle(color: AppColors.danger)),
                 subtitle: const Text('They can come back with a link'),
                 onTap: () async {
                   Navigator.pop(sheet);
@@ -462,8 +462,8 @@ class _MemberTile extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.gavel_rounded, color: AppColors.danger),
-                title: const Text('Ban', style: TextStyle(color: AppColors.danger)),
+                leading: Icon(Icons.gavel_rounded, color: AppColors.danger),
+                title: Text('Ban', style: TextStyle(color: AppColors.danger)),
                 onTap: () async {
                   Navigator.pop(sheet);
                   if (!await confirmAction(

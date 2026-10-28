@@ -237,7 +237,7 @@ class _ExpressionPanelState extends ConsumerState<ExpressionPanel> {
   Widget build(BuildContext context) {
     return Container(
       height: widget.height,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.xl)),
       ),
@@ -305,7 +305,7 @@ class _ExpressionPanelState extends ConsumerState<ExpressionPanel> {
       child: Row(
         children: [
           const SizedBox(width: Space.m),
-          const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+          Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
           const SizedBox(width: Space.s),
           SizedBox(
             width: 110,
@@ -355,7 +355,7 @@ class _ExpressionPanelState extends ConsumerState<ExpressionPanel> {
         _SetButton(
           selected: _setId == null,
           onTap: _loadStickerHome,
-          child: const Icon(Icons.star_outline_rounded, color: AppColors.text2),
+          child: Icon(Icons.star_outline_rounded, color: AppColors.text2),
         ),
         for (final s in _sets)
           _SetButton(

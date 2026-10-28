@@ -75,14 +75,20 @@ class Brief {
 }
 
 class BriefState {
-  const BriefState({this.briefs = const [], this.running});
+  const BriefState({this.briefs = const [], this.running, this.live});
   final List<Brief> briefs;
 
   /// The kind being written right now.
   final BriefKind? running;
 
-  BriefState copyWith({List<Brief>? briefs, BriefKind? running, bool idle = false}) =>
-      BriefState(briefs: briefs ?? this.briefs, running: idle ? null : (running ?? this.running));
+  /// The brief being written, as it happens: its tool calls and text.
+  final Conversation? live;
+
+  BriefState copyWith({List<Brief>? briefs, BriefKind? running, Conversation? live, bool idle = false}) => BriefState(
+    briefs: briefs ?? this.briefs,
+    running: idle ? null : (running ?? this.running),
+    live: idle ? null : (live ?? this.live),
+  );
 }
 
 String _briefPrompt(
@@ -208,9 +214,10 @@ class BriefStore extends Notifier<BriefState> {
     } catch (_) {}
   }
 
-  /// Writes a brief now. Returns null when one is already being written or
-  /// there is no AI key.
-  Future<Brief?> generate(BriefKind kind) async {
+  /// Writes a brief now, covering [window] back or the time since the last
+  /// one. Returns null when one is already being written or there is no AI
+  /// key.
+  Future<Brief?> generate(BriefKind kind, {Duration? window}) async {
     if (state.running != null) return null;
     final settings = ref.read(settingsProvider);
     if (!settings.hasAnyKey) return null;
@@ -220,6 +227,7 @@ class BriefStore extends Notifier<BriefState> {
     var since = last ?? now.subtract(const Duration(hours: 12));
     if (now.difference(since).inHours > 36) since = now.subtract(const Duration(hours: 36));
     if (now.difference(since).inMinutes < 60) since = now.subtract(const Duration(hours: 6));
+    if (window != null) since = now.subtract(window);
     try {
       final c = await ref
           .read(chatControllerProvider.notifier)
@@ -235,6 +243,7 @@ class BriefStore extends Notifier<BriefState> {
               apps: ref.read(settingsProvider).hasComposioKey ? ref.read(integrationsProvider).connected : const {},
               telegram: ref.read(telegramConnectedProvider),
             ),
+            onStart: (c) => state = state.copyWith(live: c),
           );
       final answer = c.entries.whereType<AssistantEntry>().lastOrNull;
       final b = Brief(
@@ -276,7 +285,10 @@ class BriefStore extends Notifier<BriefState> {
     final now = DateTime.now();
     if (_lastCheck != null && now.difference(_lastCheck!).inSeconds < 50) return;
     _lastCheck = now;
-    for (final (kind, at) in [(BriefKind.morning, s.briefMorning), (BriefKind.night, s.briefNight)]) {
+    for (final (kind, at) in [
+      if (s.briefMorningOn) (BriefKind.morning, s.briefMorning),
+      if (s.briefNightOn) (BriefKind.night, s.briefNight),
+    ]) {
       final parts = at.split(':');
       final due = DateTime(now.year, now.month, now.day, int.tryParse(parts.first) ?? 8, int.tryParse(parts.last) ?? 0);
       if (now.isBefore(due) || now.difference(due).inHours >= 2) continue;

@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         DeviceChannel.activity = this
         BriefWidget.handle(intent)
+        ShareChannel.handle(this, intent)
     }
 
     override fun onResume() {
@@ -39,9 +40,11 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /// The brief widget was tapped while the app was open.
+    /// The brief widget was tapped, or something was shared, while the app
+    /// was open.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         BriefWidget.handle(intent)
+        ShareChannel.handle(this, intent)
     }
 }

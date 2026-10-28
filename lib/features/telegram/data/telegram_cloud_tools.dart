@@ -417,7 +417,11 @@ extension _CloudToolRuns on TelegramToolRunner {
             language: E2BClient.languages.contains(_arg(a, 'language')) ? _arg(a, 'language') : 'python',
             timeout: Duration(seconds: secs('timeout_seconds', 120, 600)),
           );
-          return ToolOutput(run.toJson());
+          return ToolOutput({
+            ...run.toJson(),
+            // An exception is a failed run, not a finished one.
+            if (run.error != null) 'error': '${run.error!['name'] ?? 'Error'}: ${run.error!['value'] ?? ''}'.trim(),
+          });
         case 'e2b_run_command':
           final cmd = _arg(a, 'command');
           if (cmd.isEmpty) return const ToolOutput({'error': 'command is empty'});
@@ -436,6 +440,7 @@ extension _CloudToolRuns on TelegramToolRunner {
             'exit_code': j['exit_code'],
             if ('${j['stdout'] ?? ''}'.isNotEmpty) 'stdout': j['stdout'],
             if ('${j['stderr'] ?? ''}'.isNotEmpty) 'stderr': j['stderr'],
+            if (j['exit_code'] is num && j['exit_code'] != 0) 'error': 'The command exited with code ${j['exit_code']}.',
           });
         case 'e2b_upload_file':
           final f = File(_arg(a, 'file'));
@@ -449,8 +454,7 @@ extension _CloudToolRuns on TelegramToolRunner {
         case 'e2b_download_file':
           final path = _arg(a, 'path');
           final bytes = await session.withSandbox((c, box) => c.readFile(box, path));
-          final dir = await Directory('${(await getApplicationSupportDirectory()).path}/generated').create(recursive: true);
-          final file = await File('${dir.path}/${path.split('/').last}').writeAsBytes(bytes);
+          final file = await saveGeneratedBytes(path, bytes);
           final image = RegExp(r'\.(png|jpe?g|gif|webp)$', caseSensitive: false).hasMatch(file.path);
           return ToolOutput({
             'downloaded': true,
@@ -735,8 +739,7 @@ extension _CloudToolRuns on TelegramToolRunner {
           final key = _arg(a, 'key');
           final bytes = await cc.getObject(_bucket(a), key);
           if (bytes.length > 50 << 20) return const ToolOutput({'error': 'That object is over 50 MB.'});
-          final dir = await Directory('${(await getApplicationSupportDirectory()).path}/generated').create(recursive: true);
-          final file = await File('${dir.path}/${key.split('/').last}').writeAsBytes(bytes);
+          final file = await saveGeneratedBytes(key, bytes);
           final image = RegExp(r'\.(png|jpe?g|gif|webp)$', caseSensitive: false).hasMatch(file.path);
           return ToolOutput({'downloaded': true, 'key': key, 'size': bytes.length, 'created_files': [file.path], if (image) 'image_path': file.path});
         case 'r2_share_link':

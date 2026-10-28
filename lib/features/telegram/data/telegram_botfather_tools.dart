@@ -10,7 +10,7 @@ final _botFatherTools = <TelegramTool>[
   TelegramTool(
     name: 'list_my_bots',
     label: 'Listing your bots',
-    category: ToolCategory.account,
+    category: ToolCategory.bots,
     cost: ToolCost.local,
     description: 'Bots the user owns, with user_id, username and whether the assistant can act as it (connect_bot).',
     parameters: _obj({}),
@@ -18,7 +18,7 @@ final _botFatherTools = <TelegramTool>[
   TelegramTool(
     name: 'get_bot_profile',
     label: 'Reading a bot profile',
-    category: ToolCategory.account,
+    category: ToolCategory.bots,
     description: 'An owned bot\'s name, description (shown before Start) and short description (its bio).',
     parameters: _obj({
       'user_id': {'type': 'integer'},
@@ -27,7 +27,7 @@ final _botFatherTools = <TelegramTool>[
   TelegramTool(
     name: 'edit_bot',
     label: 'Editing a bot',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Changes an owned bot\'s name, description, short description (bio), or photo (an attached image\'s name '
@@ -43,7 +43,7 @@ final _botFatherTools = <TelegramTool>[
   TelegramTool(
     name: 'create_bot',
     label: 'Creating a bot',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Creates a new bot with a display name and a username ending in "bot". Its token is kept in the phone\'s '
@@ -58,7 +58,7 @@ final _botFatherTools = <TelegramTool>[
   TelegramTool(
     name: 'botfather',
     label: 'Talking to BotFather',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Sends @BotFather a command and its follow-up answers in order, e.g. ["/setcommands", "@my_bot", '

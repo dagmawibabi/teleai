@@ -10,6 +10,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_sheet.dart';
 import '../../canvas/canvas_export.dart';
 import '../../canvas/canvas_store.dart';
 import '../../chat/data/chat_controller.dart';
@@ -97,7 +98,7 @@ Future<void> showCanvasExport(BuildContext context, WidgetRef ref, CanvasFolder 
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 36),
+            Icon(Icons.check_circle_rounded, color: AppColors.success, size: 36),
             const SizedBox(height: Space.s),
             Text('Exported', style: c.text.titleMedium, textAlign: TextAlign.center),
             const SizedBox(height: 2),
@@ -291,8 +292,16 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
             ),
             IconButton(
               tooltip: 'Remove',
-              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+              icon: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
               onPressed: () async {
+                if (!await confirmDelete(
+                  context,
+                  title: 'Remove ${_picked.length} from the canvas?',
+                  message: 'Only the saved copies go. Telegram is not touched.',
+                  action: 'Remove',
+                )) {
+                  return;
+                }
                 await store.removeItems(_picked);
                 setState(_picked.clear);
               },
@@ -418,7 +427,7 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
             decoration: InputDecoration(
               isDense: true,
               hintText: folder == null ? 'Search the whole canvas' : 'Search ${folder.name}',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
             ),
@@ -433,7 +442,7 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
               padding: const EdgeInsets.symmetric(vertical: Space.x4),
               child: Column(
                 children: [
-                  const Icon(Icons.dashboard_customize_outlined, size: 44, color: AppColors.text3),
+                  Icon(Icons.dashboard_customize_outlined, size: 44, color: AppColors.text3),
                   const SizedBox(height: Space.m),
                   Text('Nothing on the canvas yet', style: context.text.titleMedium),
                   const SizedBox(height: Space.s),
@@ -649,13 +658,13 @@ class _ItemCard extends ConsumerWidget {
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           tooltip: 'Note',
-                          icon: const Icon(Icons.edit_note_rounded, size: 18, color: AppColors.text3),
+                          icon: Icon(Icons.edit_note_rounded, size: 18, color: AppColors.text3),
                           onPressed: () => _editNote(context, ref),
                         ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           tooltip: 'Copy',
-                          icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.text3),
+                          icon: Icon(Icons.copy_rounded, size: 16, color: AppColors.text3),
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: body));
                             showSnack(context, 'Copied');
@@ -699,7 +708,7 @@ class _Chip extends StatelessWidget {
       children: [
         Icon(icon, size: 11, color: AppColors.text3),
         const SizedBox(width: 3),
-        Text(text, style: const TextStyle(fontSize: 11, color: AppColors.text2)),
+        Text(text, style: TextStyle(fontSize: 11, color: AppColors.text2)),
       ],
     ),
   );

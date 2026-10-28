@@ -106,7 +106,7 @@ class _Sheet extends ConsumerWidget {
             IconButton(
               tooltip: 'Copy',
               visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.text3),
+              icon: Icon(Icons.copy_rounded, size: 16, color: AppColors.text3),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: entry.text));
                 showSnack(context, 'Copied');

@@ -53,7 +53,7 @@ class _PlayerSheet extends ConsumerWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.error_outline_rounded, size: 18, color: AppColors.warning),
+                    Icon(Icons.error_outline_rounded, size: 18, color: AppColors.warning),
                     const SizedBox(width: Space.s),
                     Expanded(
                       child: Text(
@@ -115,7 +115,7 @@ class _PlayerSheet extends ConsumerWidget {
                       child: SizedBox.square(
                         dimension: 64,
                         child: n.loading
-                            ? const Padding(
+                            ? Padding(
                                 padding: EdgeInsets.all(22),
                                 child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.bg),
                               )
@@ -164,7 +164,7 @@ class _PlayerSheet extends ConsumerWidget {
             Text('SPEED', style: context.text.labelSmall),
             Row(
               children: [
-                const Icon(Icons.slow_motion_video_rounded, size: 18, color: AppColors.text3),
+                Icon(Icons.slow_motion_video_rounded, size: 18, color: AppColors.text3),
                 Expanded(
                   child: Slider(
                     value: n.speed.clamp(0.5, 2.5),

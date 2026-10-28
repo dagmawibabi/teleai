@@ -58,7 +58,7 @@ class TelegramTab extends ConsumerWidget {
       leading: Icon(icon, color: AppColors.text2),
       title: Text(title),
       subtitle: Text(sub, style: context.text.bodySmall),
-      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+      trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
       onTap: () => open(page),
     );
 
@@ -163,7 +163,7 @@ class TelegramTab extends ConsumerWidget {
               ),
             section('How Triangle behaves', [
               SwitchListTile(
-                secondary: const Icon(Icons.circle, size: 14, color: AppColors.success),
+                secondary: Icon(Icons.circle, size: 14, color: AppColors.success),
                 title: const Text('Appear online while using the app'),
                 subtitle: Text('Lets Telegram send typing indicators and live status', style: context.text.bodySmall),
                 value: s.appearOnline,
@@ -228,7 +228,7 @@ class TelegramTab extends ConsumerWidget {
                 link(Icons.shield_outlined, 'Privacy & security', 'Check-up, devices, who sees what', const SecurityScreen()),
                 link(Icons.storage_rounded, 'Storage', 'What Telegram keeps on this phone', const StorageScreen()),
                 ListTile(
-                  leading: const Icon(Icons.speed_rounded, color: AppColors.text2),
+                  leading: Icon(Icons.speed_rounded, color: AppColors.text2),
                   title: const Text('Request pacing'),
                   subtitle: Text(
                     'Requests are paced (bursts of ${limiter.capacity}, then about one a second) and stop when Telegram asks to wait.',

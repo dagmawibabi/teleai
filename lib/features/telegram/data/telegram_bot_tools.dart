@@ -7,7 +7,7 @@ final _botTools = <TelegramTool>[
   TelegramTool(
     name: 'get_bot_buttons',
     label: 'Reading bot buttons',
-    category: ToolCategory.messages,
+    category: ToolCategory.bots,
     description:
         'The buttons on a bot message (chat_id, message_id), row by row, with their kind (callback, url, '
         'switch_inline, web_app, reply…). Use before press_bot_button.',
@@ -19,7 +19,7 @@ final _botTools = <TelegramTool>[
   TelegramTool(
     name: 'press_bot_button',
     label: 'Pressing a bot button',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description:
         'Presses a button on a bot message, by its text or by row/column (0-based) from get_bot_buttons. Callback '

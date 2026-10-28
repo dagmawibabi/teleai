@@ -124,7 +124,7 @@ class _StorageState extends ConsumerState<_Storage> with AutomaticKeepAliveClien
   Widget _clearButton(String tooltip, VoidCallback onPressed) => IconButton(
     tooltip: tooltip,
     visualDensity: VisualDensity.compact,
-    icon: const Icon(Icons.cleaning_services_outlined, size: 19, color: AppColors.text2),
+    icon: Icon(Icons.cleaning_services_outlined, size: 19, color: AppColors.text2),
     onPressed: onPressed,
   );
 
@@ -212,22 +212,22 @@ class _StorageState extends ConsumerState<_Storage> with AutomaticKeepAliveClien
                     leading: const IconBadge(Icons.history_toggle_off_rounded),
                     title: 'Older than a week',
                     subtitle: 'Keeps what you opened recently',
-                    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
                     onTap: () => _clean(olderThanDays: 7, what: 'Files you haven\'t opened for a week'),
                   ),
                   Tile(
                     leading: const IconBadge(Icons.calendar_month_outlined),
                     title: 'Older than a month',
                     subtitle: 'The gentle option',
-                    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
                     onTap: () => _clean(olderThanDays: 30, what: 'Files you haven\'t opened for a month'),
                   ),
                   Tile(
-                    leading: const IconBadge(Icons.delete_sweep_outlined, color: AppColors.danger),
+                    leading: IconBadge(Icons.delete_sweep_outlined, color: AppColors.danger),
                     title: 'Clear the whole cache',
                     titleColor: AppColors.danger,
                     subtitle: '${formatBytes(fast.filesSize)} back; everything downloads again when opened',
-                    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
                     onTap: () => _clean(what: 'Every cached file'),
                   ),
                 ],
@@ -305,7 +305,7 @@ class _StorageState extends ConsumerState<_Storage> with AutomaticKeepAliveClien
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Figure(s.data == null ? '…' : formatBytes(s.data!), color: AppColors.text, bold: true),
-                          const SizedBox(width: 40, child: Icon(Icons.chevron_right_rounded, color: AppColors.text3)),
+                          SizedBox(width: 40, child: Icon(Icons.chevron_right_rounded, color: AppColors.text3)),
                         ],
                       ),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const GeneratedFilesScreen())),

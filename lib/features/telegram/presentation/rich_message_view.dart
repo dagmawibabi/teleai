@@ -89,7 +89,7 @@ class _RichMessageViewState extends ConsumerState<RichMessageView> {
   Widget _text(td.RichText? t, {TextStyle? style, TextAlign? align}) => Text.rich(
     richSpan(context, t),
     textAlign: align,
-    style: const TextStyle(fontSize: 15, height: 1.4, color: AppColors.text).merge(style),
+    style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.text).merge(style),
   );
 
   TextStyle _heading(int size) => TextStyle(
@@ -114,8 +114,8 @@ class _RichMessageViewState extends ConsumerState<RichMessageView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (text.isNotEmpty) _text(c.text, style: const TextStyle(fontSize: 13, color: AppColors.text2)),
-          if (credit.isNotEmpty) _text(c.credit, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+          if (text.isNotEmpty) _text(c.text, style: TextStyle(fontSize: 13, color: AppColors.text2)),
+          if (credit.isNotEmpty) _text(c.credit, style: TextStyle(fontSize: 12, color: AppColors.text3)),
         ],
       ),
     );
@@ -146,7 +146,7 @@ class _RichMessageViewState extends ConsumerState<RichMessageView> {
         if (richTextMarkdown(credit, marks: false).trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: _text(credit, style: const TextStyle(fontSize: 13, color: AppColors.text3)),
+            child: _text(credit, style: TextStyle(fontSize: 13, color: AppColors.text3)),
           ),
       ],
     ),
@@ -154,26 +154,26 @@ class _RichMessageViewState extends ConsumerState<RichMessageView> {
 
   Widget _block(BuildContext context, td.PageBlock b) => switch (b) {
     td.PageBlockTitle(:final title) => _text(title, style: _heading(1)),
-    td.PageBlockSubtitle(:final subtitle) => _text(subtitle, style: const TextStyle(fontSize: 16, color: AppColors.text2)),
+    td.PageBlockSubtitle(:final subtitle) => _text(subtitle, style: TextStyle(fontSize: 16, color: AppColors.text2)),
     td.PageBlockHeader(:final header) => _text(header, style: _heading(2)),
     td.PageBlockSubheader(:final subheader) => _text(subheader, style: _heading(3)),
     td.PageBlockSectionHeading(:final text, :final size) => _text(text, style: _heading(size)),
     td.PageBlockKicker(:final kicker) => _text(
       kicker,
-      style: const TextStyle(fontSize: 12, letterSpacing: 1, fontWeight: FontWeight.w600, color: AppColors.text3),
+      style: TextStyle(fontSize: 12, letterSpacing: 1, fontWeight: FontWeight.w600, color: AppColors.text3),
     ),
-    td.PageBlockAuthorDate(:final author) => _text(author, style: const TextStyle(fontSize: 13, color: AppColors.text3)),
+    td.PageBlockAuthorDate(:final author) => _text(author, style: TextStyle(fontSize: 13, color: AppColors.text3)),
     td.PageBlockParagraph(:final text) => _text(text),
-    td.PageBlockFooter(:final footer) => _text(footer, style: const TextStyle(fontSize: 13, color: AppColors.text3)),
+    td.PageBlockFooter(:final footer) => _text(footer, style: TextStyle(fontSize: 13, color: AppColors.text3)),
     td.PageBlockThinking(:final text) => _text(
       text,
-      style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.text3, fontSize: 14),
+      style: TextStyle(fontStyle: FontStyle.italic, color: AppColors.text3, fontSize: 14),
     ),
     td.PageBlockPreformatted(:final text, :final language) => _CodeBlock(
       code: richTextMarkdown(text, marks: false),
       language: language,
     ),
-    td.PageBlockDivider() => const Divider(height: 12, color: AppColors.line),
+    td.PageBlockDivider() => Divider(height: 12, color: AppColors.line),
     td.PageBlockMathematicalExpression(:final expression) => _MathBlock(expression: expression),
     td.PageBlockAnchor() => const SizedBox.shrink(),
     td.PageBlockList(:final items) => Column(
@@ -197,7 +197,7 @@ class _RichMessageViewState extends ConsumerState<RichMessageView> {
                           padding: const EdgeInsets.only(top: 1),
                           child: Text(
                             it.label.isNotEmpty ? it.label : (it.value > 0 ? '${it.value}.' : '•'),
-                            style: const TextStyle(fontSize: 15, height: 1.4, color: AppColors.text2),
+                            style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.text2),
                           ),
                         ),
                 ),
@@ -368,7 +368,7 @@ class _RichMessageViewState extends ConsumerState<RichMessageView> {
           ),
       ],
     ),
-    td.PageBlockUnsupported() => const Text(
+    td.PageBlockUnsupported() => Text(
       'This part of the message isn\'t supported yet.',
       style: TextStyle(fontSize: 13, color: AppColors.text3),
     ),
@@ -402,7 +402,7 @@ InlineSpan richSpan(BuildContext context, td.RichText? t, {TextStyle style = con
     td.RichTextSuperscript(:final text) => inner(text, const TextStyle(fontSize: 11, fontFeatures: [FontFeature.superscripts()])),
     td.RichTextFixed(:final text) => inner(
       text,
-      const TextStyle(fontFamily: 'monospace', fontSize: 13.5, backgroundColor: AppColors.surface3),
+      TextStyle(fontFamily: 'monospace', fontSize: 13.5, backgroundColor: AppColors.surface3),
     ),
     td.RichTextUrl(:final text, :final url) => TextSpan(
       children: [richSpan(context, text, style: style.merge(link))],
@@ -434,8 +434,8 @@ InlineSpan richSpan(BuildContext context, td.RichText? t, {TextStyle style = con
     td.RichTextReference(:final text) => inner(text, const TextStyle()),
     td.RichTextDiff(:final text, :final oldText) => TextSpan(
       children: [
-        richSpan(context, oldText, style: style.merge(const TextStyle(decoration: TextDecoration.lineThrough, color: AppColors.danger))),
-        richSpan(context, text, style: style.merge(const TextStyle(color: AppColors.success))),
+        richSpan(context, oldText, style: style.merge(TextStyle(decoration: TextDecoration.lineThrough, color: AppColors.danger))),
+        richSpan(context, text, style: style.merge(TextStyle(color: AppColors.success))),
       ],
     ),
     td.RichTextCustomEmoji(:final alternativeText) => TextSpan(text: alternativeText, style: style),
@@ -539,7 +539,7 @@ class _DetailsState extends State<_Details> {
                 AnimatedRotation(
                   turns: _open ? 0.25 : 0,
                   duration: const Duration(milliseconds: 180),
-                  child: const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.text2),
+                  child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.text2),
                 ),
                 const SizedBox(width: 4),
                 Expanded(child: widget.header),
@@ -582,13 +582,13 @@ class _CodeBlock extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(language.isEmpty ? 'code' : language, style: const TextStyle(fontSize: 11.5, color: AppColors.text3)),
+                child: Text(language.isEmpty ? 'code' : language, style: TextStyle(fontSize: 11.5, color: AppColors.text3)),
               ),
               IconButton(
                 visualDensity: VisualDensity.compact,
                 iconSize: 16,
                 tooltip: 'Copy',
-                icon: const Icon(Icons.copy_rounded, color: AppColors.text3),
+                icon: Icon(Icons.copy_rounded, color: AppColors.text3),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: code));
                   showSnack(context, 'Code copied');
@@ -695,7 +695,7 @@ class _TableBlock extends StatelessWidget {
         if (hasCaption)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text.rich(span(caption, const TextStyle()), style: const TextStyle(fontSize: 13, color: AppColors.text2)),
+            child: Text.rich(span(caption, const TextStyle()), style: TextStyle(fontSize: 13, color: AppColors.text2)),
           ),
         ClipRRect(
           borderRadius: BorderRadius.circular(Radii.s),
@@ -708,7 +708,7 @@ class _TableBlock extends StatelessWidget {
                 defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                 border: bordered
                     ? TableBorder.all(color: AppColors.line, borderRadius: BorderRadius.circular(Radii.s))
-                    : const TableBorder(horizontalInside: BorderSide(color: AppColors.line)),
+                    : TableBorder(horizontalInside: BorderSide(color: AppColors.line)),
                 children: rows,
               ),
             ),

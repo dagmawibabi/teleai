@@ -107,7 +107,7 @@ class _CallListState extends ConsumerState<_CallList> with AutomaticKeepAliveCli
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.call_outlined, size: 40, color: AppColors.text3),
+                  Icon(Icons.call_outlined, size: 40, color: AppColors.text3),
                   const SizedBox(height: Space.m),
                   Text(_error ?? (widget.onlyMissed ? 'No missed calls' : 'No calls yet'), style: context.text.bodySmall),
                 ],

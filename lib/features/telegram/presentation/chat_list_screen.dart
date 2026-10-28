@@ -39,23 +39,29 @@ enum BrowseSection {
   };
 }
 
-/// Listed chats of a section, newest activity first.
-List<ChatInfo> chatsIn(TelegramStore store, BrowseSection section) {
-  final list =
-      store.chats.values
-          .where(
-            (c) =>
-                c.title.isNotEmpty &&
-                (section == BrowseSection.archived ? c.inArchive : c.inMain) &&
-                section.includes(store.kindOf(c)),
-          )
-          .toList()
-        ..sort(
-          (a, b) =>
-              (b.lastMessage?.date ?? 0).compareTo(a.lastMessage?.date ?? 0),
-        );
-  return list;
-}
+/// The TDLib list a section's chats come from: `main` or `archive`.
+String listKeyOf(BrowseSection section) => section == BrowseSection.archived ? 'archive' : 'main';
+
+/// [chats] in Telegram's order for list [key]: pinned chats first, in the
+/// order they were pinned, then the rest by latest activity.
+List<ChatInfo> inTelegramOrder(Iterable<ChatInfo> chats, String key) => chats.toList()
+  ..sort((a, b) {
+    final pinned = (b.pinnedIn.contains(key) ? 1 : 0).compareTo(a.pinnedIn.contains(key) ? 1 : 0);
+    if (pinned != 0) return pinned;
+    final order = (b.order[key] ?? 0).compareTo(a.order[key] ?? 0);
+    return order != 0 ? order : (b.lastMessage?.date ?? 0).compareTo(a.lastMessage?.date ?? 0);
+  });
+
+/// Listed chats of a section, pinned first, then newest activity.
+List<ChatInfo> chatsIn(TelegramStore store, BrowseSection section) => inTelegramOrder(
+  store.chats.values.where(
+    (c) =>
+        c.title.isNotEmpty &&
+        (section == BrowseSection.archived ? c.inArchive : c.inMain) &&
+        section.includes(store.kindOf(c)),
+  ),
+  listKeyOf(section),
+);
 
 /// 24-hour clock in times (set from Settings at the app's root).
 bool clock24 = true;
@@ -153,12 +159,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final folderIds = widget.folder == null
         ? null
         : store.folderChats[widget.folder!.id];
+    final listKey = widget.folder == null ? listKeyOf(widget.section) : 'folder:${widget.folder!.id}';
     final source = widget.folder == null
         ? chatsIn(store, widget.section)
-        : [
+        : inTelegramOrder([
             for (final id in folderIds ?? const <int>[])
               if (store.chat(id) case final c? when c.title.isNotEmpty) c,
-          ];
+          ], listKey);
 
     final Widget body;
     if (contacts) {
@@ -221,6 +228,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               itemCount: chats.length,
               itemBuilder: (_, i) => ChatTile(
                 chat: chats[i],
+                pinned: chats[i].pinnedIn.contains(listKey),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => ChatViewScreen(chatId: chats[i].id),
@@ -270,7 +278,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         borderSide: BorderSide.none,
                       ),
                       hintText: 'Search ${widget.title.toLowerCase()}',
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.search_rounded,
                         size: 20,
                         color: AppColors.text3,
@@ -351,9 +359,12 @@ class _Message extends StatelessWidget {
 }
 
 class ChatTile extends ConsumerWidget {
-  const ChatTile({super.key, required this.chat, required this.onTap, this.onLongPress});
+  const ChatTile({super.key, required this.chat, required this.onTap, this.onLongPress, this.pinned = false});
   final ChatInfo chat;
   final VoidCallback onTap;
+
+  /// Pinned in the list it is shown in: a pin where the unread badge goes.
+  final bool pinned;
 
   /// Defaults to the chat menu.
   final VoidCallback? onLongPress;
@@ -396,7 +407,7 @@ class ChatTile extends ConsumerWidget {
                   Row(
                     children: [
                       if (kind == ChatKind.channel)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(right: 4),
                           child: Icon(
                             Icons.campaign_outlined,
@@ -405,7 +416,7 @@ class ChatTile extends ConsumerWidget {
                           ),
                         ),
                       if (kind == ChatKind.bot)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(right: 4),
                           child: Icon(
                             Icons.smart_toy_outlined,
@@ -426,7 +437,7 @@ class ChatTile extends ConsumerWidget {
                         ),
                       ),
                       if (chat.isMuted)
-                        const Icon(
+                        Icon(
                           Icons.volume_off_rounded,
                           size: 14,
                           color: AppColors.text3,
@@ -451,7 +462,7 @@ class ChatTile extends ConsumerWidget {
                           preview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13.5,
                             color: AppColors.text2,
                           ),
@@ -468,6 +479,12 @@ class ChatTile extends ConsumerWidget {
                               ? NumberFormat.compact().format(chat.unreadCount)
                               : '',
                           muted: chat.isMuted,
+                        ),
+                      ] else if (pinned) ...[
+                        const SizedBox(width: Space.xs),
+                        Transform.rotate(
+                          angle: 0.6,
+                          child: Icon(Icons.push_pin_rounded, size: 15, color: AppColors.text3),
                         ),
                       ],
                     ],

@@ -301,7 +301,7 @@ class _EverywhereSearchScreenState extends ConsumerState<EverywhereSearchScreen>
               leading: const Icon(Icons.send_rounded, color: Color(0xFF2AABEE)),
               title: Text(q.isEmpty ? 'Search Telegram' : 'Search Telegram for “$q”'),
               subtitle: Text('Every chat: messages, photos, files, links, voice', style: context.text.bodySmall),
-              trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+              trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SearchScreen(initialQuery: q))),
             ),
           if (q.isEmpty)
@@ -370,7 +370,7 @@ class _WebResults extends StatelessWidget {
         for (final r in (j['results'] as List? ?? const []).whereType<Map>())
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: Space.xs),
-            leading: const Icon(Icons.public_rounded, color: AppColors.text2),
+            leading: Icon(Icons.public_rounded, color: AppColors.text2),
             title: Text('${r['title'] ?? r['url']}', maxLines: 2, overflow: TextOverflow.ellipsis),
             subtitle: Text(
               '${Uri.tryParse('${r['url']}')?.host ?? ''}${r['highlights'] is List && (r['highlights'] as List).isNotEmpty ? ' · ${(r['highlights'] as List).first}' : ''}',

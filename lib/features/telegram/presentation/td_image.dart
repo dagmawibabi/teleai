@@ -87,6 +87,6 @@ class _TdFileImageState extends ConsumerState<TdFileImage> {
         gaplessPlayback: true,
       );
     }
-    return widget.placeholder ?? const ColoredBox(color: AppColors.surface2);
+    return widget.placeholder ?? ColoredBox(color: AppColors.surface2);
   }
 }

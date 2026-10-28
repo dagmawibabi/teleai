@@ -26,7 +26,7 @@ final _backgroundTools = <TelegramTool>[
   TelegramTool(
     name: 'set_chat_background',
     label: 'Changing the background',
-    category: ToolCategory.actions,
+    category: ToolCategory.media,
     requiresApproval: true,
     description:
         'Sets a chat\'s background. Give exactly one of: background_id (from list_backgrounds), file (an image the '

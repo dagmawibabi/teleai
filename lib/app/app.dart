@@ -23,31 +23,76 @@ import '../features/telegram/presentation/link_opener.dart';
 /// Lets screens know when another route covers them.
 final appRouteObserver = RouteObserver<ModalRoute<void>>();
 
-class TeleAiApp extends ConsumerWidget {
+class TeleAiApp extends ConsumerStatefulWidget {
   const TeleAiApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TeleAiApp> createState() => _TeleAiAppState();
+}
+
+class _TeleAiAppState extends ConsumerState<TeleAiApp> with WidgetsBindingObserver {
+  Palette? _shown;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// The phone switched between light and dark.
+  @override
+  void didChangePlatformBrightness() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
     clock24 = ref.watch(settingsProvider.select((s) => s.use24h));
     final settings = ref.watch(settingsProvider);
+    final light = switch (settings.themeMode) {
+      AppThemeMode.light => true,
+      AppThemeMode.dark => false,
+      AppThemeMode.system =>
+        WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.light,
+    };
+    AppColors.palette = light ? Palette.light : Palette.dark;
     AppColors.applyAccent(Color(settings.accent.value));
+    // Colours are read while building, so a new palette rebuilds every
+    // screen in place (keeping where you are), not just the themed parts.
+    if (_shown != null && _shown != AppColors.palette) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => rebuildAllScreens(context));
+    }
+    _shown = AppColors.palette;
+    final theme = buildTheme(
+      accent: AppColors.accent,
+      chatFontSize: settings.chatFontSize,
+      chatFontFamily: settings.chatFont.family,
+    );
     return MaterialApp(
       title: 'Triangle',
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(
-        accent: Color(settings.accent.value),
-        chatFontSize: settings.chatFontSize,
-      ),
-      darkTheme: buildTheme(
-        accent: Color(settings.accent.value),
-        chatFontSize: settings.chatFontSize,
-      ),
-      themeMode: ThemeMode.dark,
+      theme: theme,
+      darkTheme: theme,
+      themeMode: light ? ThemeMode.light : ThemeMode.dark,
       navigatorKey: appNavigatorKey,
       navigatorObservers: [appRouteObserver],
       home: const AppGate(),
     );
   }
+}
+
+/// Marks every widget under [context] to build again.
+void rebuildAllScreens(BuildContext context) {
+  void mark(Element e) {
+    e.markNeedsBuild();
+    e.visitChildren(mark);
+  }
+
+  if (context is Element && context.mounted) context.visitChildren(mark);
 }
 
 /// Shows the screen TDLib's authorization state calls for, the way

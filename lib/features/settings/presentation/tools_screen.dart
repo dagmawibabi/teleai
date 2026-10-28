@@ -1,17 +1,21 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import '../../../app/theme.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../ai/data/ai.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../chat/presentation/widgets/tool_card.dart';
-import '../../integrations/app_toolkits.dart';
 import '../../integrations/integrations_store.dart';
 import '../../telegram/data/telegram_tools.dart';
 import '../../telegram/presentation/chat_actions.dart' show confirmAction;
 import '../data/settings.dart';
 import 'apps_screen.dart';
 import 'cloud_settings.dart';
+import 'settings_screen.dart' show SettingsScreen, SettingsSection;
 import 'telegram_tab.dart';
 
 /// The three kinds of tools Settings → Tools switches between.
@@ -26,8 +30,8 @@ enum ToolGroup {
 
   bool has(TelegramTool t) => switch (this) {
     ToolGroup.apps => t.category.onAppsScreen,
-    ToolGroup.device => t.category == ToolCategory.device,
-    ToolGroup.telegram => !t.category.onAppsScreen && t.category != ToolCategory.device,
+    ToolGroup.device => (t.category == ToolCategory.device || t.category == ToolCategory.code),
+    ToolGroup.telegram => !t.category.onAppsScreen && t.category != ToolCategory.device && t.category != ToolCategory.code,
   };
 }
 
@@ -52,35 +56,17 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final s = ref.watch(settingsProvider);
     final all = toolsIn(_group);
-    final safe = all.where((t) => !t.destructive).toList();
-    final danger = all.where((t) => t.destructive).toList();
-    final enabled = safe.where((t) => t.isOn(s)).length;
-    final dangerOn = danger.where((t) => t.isOn(s)).length;
-    final intro = switch (_group) {
-      ToolGroup.telegram =>
-        '$enabled of ${safe.length} Telegram tools on. The assistant only sees the tools that are on. Anything that sends or '
-            'changes something asks you first (see the approval setting).',
-      ToolGroup.apps =>
-        '$enabled of ${safe.length} tools on. App tools are offered only for apps you connected and services whose key you added '
-            '(Settings → Apps & web); the web, GitHub, books, music, film and YouTube tools need nothing.',
-      ToolGroup.device =>
-        '$enabled of ${safe.length} device tools on. Android asks for a permission the first time a tool needs one (text messages, '
-            'calls, contacts); actions like calling, texting or the flashlight ask you first.',
-    };
-    final dangerIntro = switch (_group) {
-      ToolGroup.telegram =>
-        'These delete, leave, block or ban, and most can\'t be undone. They are off until you turn them on, and every call '
-            'waits for your approval, even when approvals are otherwise skipped.',
-      ToolGroup.apps =>
-        'These delete, trash, archive or merge in your apps and cloud accounts, or run any app action, and some can\'t be '
-            'undone. They are off until you turn them on, and every call waits for your approval.',
-      ToolGroup.device => 'No device tool deletes anything, so there is nothing here.',
+    final partitions = {for (final access in ToolAccess.values)
+      access: all.where((t) => t.access == access).toList()};
+    String intro(ToolAccess access) => switch (access) {
+      ToolAccess.read => 'Reads and inspects data. These are the only tools available in read-only mode.',
+      ToolAccess.modify => 'Creates, sends, saves or changes data or device state. Hidden from the assistant in read-only mode. Approval follows your settings.',
+      ToolAccess.destructive => 'Deletes, removes or replaces data. Off until enabled and always asks for approval. Hidden in read-only mode.',
     };
     return DefaultTabController(
       key: ValueKey(_group),
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Tools'),
@@ -104,18 +90,11 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                   ),
                 ),
                 TabBar(
-                  tabs: [
-                    Tab(text: 'Tools · $enabled/${safe.length}'),
-                    Tab(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
-                          const SizedBox(width: 6),
-                          Text('Destructive · $dangerOn/${danger.length}', style: const TextStyle(color: AppColors.danger)),
-                        ],
-                      ),
-                    ),
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.center,
+                  tabs: [for (final access in ToolAccess.values)
+                    Tab(child: Text('${access.label} · ${partitions[access]!.length}',
+                      style: TextStyle(color: access == ToolAccess.destructive ? AppColors.danger : null))),
                   ],
                 ),
               ],
@@ -123,9 +102,9 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
           ),
         ),
         body: TabBarView(
-          children: [
-            _ToolList(key: ValueKey('safe$_group'), tools: safe, intro: intro),
-            _ToolList(key: ValueKey('danger$_group'), tools: danger, danger: true, intro: dangerIntro),
+          children: [for (final access in ToolAccess.values)
+            _ToolList(key: ValueKey('$_group-$access'), tools: partitions[access]!,
+              danger: access == ToolAccess.destructive, intro: intro(access)),
           ],
         ),
       ),
@@ -188,22 +167,11 @@ class _ToolList extends ConsumerStatefulWidget {
 class _ToolListState extends ConsumerState<_ToolList> {
   String _q = '';
 
-  /// What an app tool still needs before the assistant gets it.
-  static String? _needs(TelegramTool t, AppSettings s, Set<String> connected) {
-    if (creativeToolNeeds(t, s) case final needs?) return needs;
-    if (cloudToolNeeds(t, s) case final needs?) return needs;
-    if (!deviceToolReady(t)) return 'Android only';
-    if (!isAppTool(t.name)) return null;
-    if (!s.hasComposioKey) return 'Needs a Composio key';
-    final app = appToolkitOf(t.name);
-    if (app != null && !connected.contains(app)) return 'Connect ${appLabel(app)} first';
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(settingsProvider);
     final connected = ref.watch(integrationsProvider).connected;
+    final telegram = ref.watch(authStateProvider).value is td.AuthorizationStateReady;
     final danger = widget.danger;
     final intro = widget.intro;
     final q = _q.toLowerCase().trim();
@@ -213,7 +181,7 @@ class _ToolListState extends ConsumerState<_ToolList> {
         : all
               .where(
                 (t) =>
-                    t.name.contains(q) || t.label.toLowerCase().contains(q) || t.description.toLowerCase().contains(q),
+                    t.name.contains(q) || t.category.label.toLowerCase().contains(q) || t.label.toLowerCase().contains(q) || t.description.toLowerCase().contains(q),
               )
               .toList();
     return Center(
@@ -303,7 +271,7 @@ class _ToolListState extends ConsumerState<_ToolList> {
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Search ${all.length} tools',
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+                  prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
                 ),
@@ -339,8 +307,8 @@ class _ToolListState extends ConsumerState<_ToolList> {
                           _ToolRow(
                             tool: t,
                             enabled: s.toolChosen(t.name, destructive: t.destructive),
-                            blocked: s.readOnlyMode && (t.requiresApproval || t.destructive),
-                            needs: _needs(t, s, connected),
+                            blocked: s.readOnlyMode && t.modifiesData,
+                            needs: toolPrerequisiteProblems(t, s, telegram: telegram, connected: connected).firstOrNull,
                           ),
                         ],
                       ],
@@ -414,12 +382,13 @@ class _ToolRow extends ConsumerWidget {
                     spacing: 6,
                     children: [
                       _Tag(tool.cost.label, color: tool.cost == ToolCost.local ? AppColors.success : AppColors.text2),
-                      if (blocked) const _Tag('Off in read-only mode', color: AppColors.text3),
+                      if (blocked) _Tag('Off in read-only mode', color: AppColors.text3),
                       if (needs != null) _Tag(needs!, color: AppColors.text3),
                       if (tool.destructive)
-                        const _Tag('Destructive · always asks', color: AppColors.danger)
-                      else if (tool.requiresApproval)
-                        const _Tag('Asks first', color: AppColors.warning),
+                        _Tag('Destructive · always asks', color: AppColors.danger)
+                      else if (tool.alwaysAsk)
+                        _Tag('Always asks', color: AppColors.warning),
+                      _Tag(tool.access.label, color: AppColors.text2),
                     ],
                   ),
                 ],
@@ -451,25 +420,95 @@ class _Tag extends StatelessWidget {
   );
 }
 
+
 class ToolDetailScreen extends ConsumerWidget {
   const ToolDetailScreen({super.key, required this.tool});
   final TelegramTool tool;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(settingsProvider).toolChosen(tool.name, destructive: tool.destructive);
+    final s = ref.watch(settingsProvider);
+    final integrations = ref.watch(integrationsProvider);
+    final telegram = ref.watch(authStateProvider).value is td.AuthorizationStateReady;
+    final sees = ref.watch(modelCatalogProvider).byId(s.model)?.vision ?? true;
+    final enabled = s.toolChosen(tool.name, destructive: tool.destructive);
+    final readOnly = s.readOnlyMode && tool.modifiesData;
+    final needs = toolPrerequisiteProblems(
+      tool,
+      s,
+      telegram: telegram,
+      connected: integrations.connected,
+      modelSeesImages: sees,
+    );
+    final doc = tool.documentation;
     final props = ((tool.parameters['properties'] as Map?) ?? const {}).cast<String, dynamic>();
     final required = ((tool.parameters['required'] as List?) ?? const []).cast<String>().toSet();
+    final app = appToolkitOf(tool.name);
+    final account = app == null ? null : integrations.accountFor(app);
 
-    Widget card(List<Widget> children) => Container(
-      margin: const EdgeInsets.only(top: Space.m),
-      decoration: BoxDecoration(
+    final (status, statusColor) = !enabled
+        ? ('Off', AppColors.text3)
+        : readOnly
+        ? ('Off in read-only mode', AppColors.text3)
+        : needs.isNotEmpty
+        ? ('Needs setup', AppColors.warning)
+        : ('Ready', AppColors.success);
+    final accessColor = switch (tool.access) {
+      ToolAccess.read => AppColors.success,
+      ToolAccess.modify => AppColors.warning,
+      ToolAccess.destructive => AppColors.danger,
+    };
+
+    // A Material, not a decorated box, so row taps show their ripple.
+    Widget card(List<Widget> children) => Padding(
+      padding: const EdgeInsets.only(top: Space.s),
+      child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(Radii.l),
-        border: Border.all(color: AppColors.line),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Radii.l),
+          side: BorderSide(color: AppColors.line),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
     );
+    Widget label(String text) => Padding(
+      padding: const EdgeInsets.only(top: Space.xl),
+      child: Text(text, style: context.text.labelSmall),
+    );
+    Widget fact(IconData icon, String title, String body, {Color? color}) => ListTile(
+      leading: Icon(icon, color: color ?? AppColors.text2),
+      title: Text(title),
+      subtitle: Text(body, style: context.text.bodySmall?.copyWith(height: 1.4)),
+    );
+    List<Widget> divided(List<Widget> rows) => [
+      for (final (i, row) in rows.indexed) ...[if (i > 0) const Divider(indent: 56), row],
+    ];
+    Widget fold(IconData icon, String title, List<Widget> children) => ExpansionTile(
+      leading: Icon(icon, color: AppColors.text2),
+      title: Text(title),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      childrenPadding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
+      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+    void open(Widget screen) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+
+    final approval = tool.destructive || tool.alwaysAsk
+        ? 'Always asks first'
+        : tool.requiresApproval
+        ? 'Asks you first'
+        : 'Runs without asking';
+    final model = switch (tool.name) {
+      'generate_image' => s.imageModel,
+      'generate_audio' =>
+        s.voiceEngine == VoiceEngine.elevenLabs
+            ? 'ElevenLabs ${s.elevenModel} · ${s.elevenVoiceName.isEmpty ? 'default voice' : s.elevenVoiceName}'
+            : '${s.voiceEngine == VoiceEngine.addis ? 'addis:voices-2' : s.speechModel} · '
+                  '${s.aiVoice.isEmpty ? 'default voice' : s.aiVoice}',
+      _ => null,
+    };
 
     return Scaffold(
       appBar: AppBar(title: Text(tool.label)),
@@ -484,7 +523,7 @@ class ToolDetailScreen extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(Space.m),
                     decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.m)),
-                    child: Icon(toolIcon(tool.name), color: AppColors.accent),
+                    child: Icon(toolIcon(tool.name), color: tool.destructive ? AppColors.danger : AppColors.accent),
                   ),
                   const SizedBox(width: Space.l),
                   Expanded(
@@ -498,51 +537,89 @@ class ToolDetailScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: Space.m),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _Tag(status, color: statusColor),
+                  _Tag(tool.access.label, color: accessColor),
+                  _Tag(tool.cost.label, color: tool.cost == ToolCost.local ? AppColors.success : AppColors.text2),
+                ],
+              ),
+              const SizedBox(height: Space.s),
               card([
                 SwitchListTile(
                   title: const Text('Available to the assistant'),
                   subtitle: Text(
-                    enabled ? 'The assistant can call this tool.' : 'Hidden from the assistant.',
+                    readOnly
+                        ? 'Read-only mode keeps it hidden whatever this switch says.'
+                        : enabled
+                        ? 'The assistant can call this tool.'
+                        : 'Hidden from the assistant.',
                     style: context.text.bodySmall,
                   ),
                   value: enabled,
+                  activeThumbColor: tool.destructive ? AppColors.danger : null,
                   onChanged: (v) =>
                       ref.read(settingsProvider.notifier).setToolEnabled(tool.name, v, destructive: tool.destructive),
                 ),
+                if (needs.isNotEmpty) ...[
+                  const Divider(indent: Space.l, endIndent: Space.l),
+                  for (final need in needs)
+                    ListTile(
+                      dense: true,
+                      leading: Icon(Icons.error_outline_rounded, color: AppColors.warning, size: 20),
+                      title: Text(need, style: context.text.bodyMedium),
+                      trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                      onTap: () => open(
+                        need.contains('AI & models')
+                            ? const SettingsScreen(section: SettingsSection.ai)
+                            : const AppsWebScreen(),
+                      ),
+                    ),
+                ],
               ]),
-              const SizedBox(height: Space.l),
-              Text('WHAT IT DOES', style: context.text.labelSmall),
+              label('WHAT IT DOES'),
               const SizedBox(height: Space.s),
               Text(tool.description, style: context.text.bodyLarge),
-              const SizedBox(height: Space.l),
-              card([
-                ListTile(
-                  leading: Icon(
-                    tool.cost == ToolCost.local ? Icons.offline_bolt_outlined : Icons.cloud_outlined,
-                    color: AppColors.text2,
+              const SizedBox(height: Space.s),
+              card(
+                divided([
+                  fact(
+                    switch (tool.access) {
+                      ToolAccess.read => Icons.visibility_outlined,
+                      ToolAccess.modify => Icons.edit_outlined,
+                      ToolAccess.destructive => Icons.delete_outline_rounded,
+                    },
+                    tool.access.label,
+                    doc.effects,
+                    color: accessColor,
                   ),
-                  title: Text(tool.cost.label),
-                  subtitle: Text(tool.cost.explanation, style: context.text.bodySmall),
-                ),
-                const Divider(indent: 56),
-                ListTile(
-                  leading: Icon(
-                    tool.requiresApproval ? Icons.front_hand_outlined : Icons.visibility_outlined,
+                  fact(
+                    tool.requiresApproval ? Icons.front_hand_outlined : Icons.bolt_rounded,
+                    approval,
+                    toolApprovalDescription(tool, s),
                     color: tool.requiresApproval ? AppColors.warning : AppColors.text2,
                   ),
-                  title: Text(tool.requiresApproval ? 'Asks you first' : 'Read-only'),
-                  subtitle: Text(
-                    tool.requiresApproval
-                        ? 'Shows you exactly what it will do and waits for you to approve or decline.'
-                        : tool.cost == ToolCost.ai
-                        ? 'Creates something new; nothing in Telegram changes.'
-                        : 'Only reads. Nothing in Telegram changes and nothing is marked as read.',
-                    style: context.text.bodySmall,
+                  fact(
+                    tool.cost == ToolCost.local ? Icons.offline_bolt_outlined : Icons.cloud_outlined,
+                    doc.provider,
+                    doc.location,
                   ),
-                ),
-              ]),
-              const SizedBox(height: Space.xl),
-              Text('PARAMETERS', style: context.text.labelSmall),
+                  fact(Icons.payments_outlined, 'Cost', doc.billing),
+                  fact(Icons.checklist_rounded, 'Needs', doc.prerequisites),
+                  if (account != null)
+                    fact(
+                      Icons.account_circle_outlined,
+                      'Connected account',
+                      '${account.alias ?? account.toolkit} · ${account.status}',
+                    ),
+                  if (model != null) fact(Icons.tune_rounded, 'Current model', model),
+                  fact(Icons.stop_circle_outlined, 'Stopping a call', doc.cancellation),
+                ]),
+              ),
+              label('PARAMETERS'),
               if (props.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: Space.s),
@@ -554,41 +631,201 @@ class ToolDetailScreen extends ConsumerWidget {
                     if (i > 0) const Divider(),
                     Padding(
                       padding: const EdgeInsets.all(Space.l),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(e.key, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600)),
-                              const SizedBox(width: Space.s),
-                              _Tag('${(e.value as Map)['type']}', color: AppColors.text2),
-                              const SizedBox(width: 6),
-                              if (required.contains(e.key)) _Tag('required', color: AppColors.accent),
-                            ],
-                          ),
-                          if ((e.value as Map)['description'] != null) ...[
-                            const SizedBox(height: Space.xs),
-                            Text('${(e.value as Map)['description']}', style: context.text.bodySmall),
-                          ],
-                          if ((e.value as Map)['enum'] is List) ...[
-                            const SizedBox(height: Space.s),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (final v in (e.value as Map)['enum'] as List) _Tag('$v', color: AppColors.text2),
-                              ],
-                            ),
-                          ],
-                        ],
+                      child: _Param(
+                        name: e.key,
+                        schema: Map<String, dynamic>.from(e.value as Map),
+                        required: required.contains(e.key),
                       ),
                     ),
                   ],
                 ]),
+              if (doc.outputs.isNotEmpty) ...[
+                label('RETURNS'),
+                card([
+                  Padding(
+                    padding: const EdgeInsets.all(Space.l),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [for (final field in doc.outputs) _Code(field)],
+                    ),
+                  ),
+                ]),
+              ],
+              if (doc.limits.isNotEmpty) ...[
+                label('GOOD TO KNOW'),
+                card(
+                  divided([
+                    for (final limit in doc.limits)
+                      ListTile(
+                        dense: true,
+                        leading: Icon(Icons.info_outline_rounded, size: 20, color: AppColors.text3),
+                        title: Text(limit, style: context.text.bodySmall?.copyWith(height: 1.4)),
+                      ),
+                  ]),
+                ),
+              ],
+              label('REFERENCE'),
+              card([
+                if (doc.example.isNotEmpty) ...[
+                  fold(Icons.data_object_rounded, 'Example input', [
+                    _CodeBlock(const JsonEncoder.withIndent('  ').convert(doc.example)),
+                    const SizedBox(height: Space.s),
+                    Text('Placeholder values; nothing runs from here.', style: context.text.bodySmall),
+                  ]),
+                  const Divider(indent: 56),
+                ],
+                fold(Icons.schema_outlined, 'Full input schema', [
+                  _CodeBlock(const JsonEncoder.withIndent('  ').convert(tool.parameters)),
+                ]),
+                const Divider(indent: 56),
+                fold(Icons.replay_rounded, 'Errors and retrying', [
+                  Text(
+                    'Permissions, quotas and timeouts come back as an error on the call. A change can partly finish '
+                    'before failing, so check what already happened before retrying. Open the call in chat to see its '
+                    'recorded result.',
+                    style: context.text.bodySmall?.copyWith(height: 1.4),
+                  ),
+                ]),
+                const Divider(indent: 56),
+                ListTile(
+                  leading: Icon(Icons.menu_book_outlined, color: AppColors.text2),
+                  title: const Text('Service documentation'),
+                  subtitle: Text(Uri.parse(doc.referenceUrl).host, style: context.text.bodySmall),
+                  trailing: Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.text3),
+                  onTap: () => launchUrl(Uri.parse(doc.referenceUrl), mode: LaunchMode.externalApplication),
+                ),
+              ]),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// One input: its name, type, whether it is required, what it means and
+/// its rules, with nested fields indented underneath.
+class _Param extends StatelessWidget {
+  const _Param({required this.name, required this.schema, this.required = false});
+  final String name;
+  final Map<String, dynamic> schema;
+  final bool required;
+
+  static String _type(Map s) {
+    final items = s['items'];
+    if (s['type'] == 'array' && items is Map && items['type'] != null) return 'list of ${items['type']}';
+    if (s['type'] != null) return '${s['type']}';
+    return s.containsKey('oneOf') || s.containsKey('anyOf') ? 'one of' : 'any';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String v(String k) => schema[k] is String ? '${schema[k]}' : jsonEncode(schema[k]);
+    final rules = [
+      if (schema.containsKey('default')) 'default ${v('default')}',
+      if (schema.containsKey('minimum')) 'min ${v('minimum')}',
+      if (schema.containsKey('exclusiveMinimum')) 'over ${v('exclusiveMinimum')}',
+      if (schema.containsKey('maximum')) 'max ${v('maximum')}',
+      if (schema.containsKey('exclusiveMaximum')) 'under ${v('exclusiveMaximum')}',
+      if (schema.containsKey('minItems')) 'at least ${v('minItems')} items',
+      if (schema.containsKey('maxItems')) 'up to ${v('maxItems')} items',
+      if (schema.containsKey('minLength')) 'at least ${v('minLength')} chars',
+      if (schema.containsKey('maxLength')) 'up to ${v('maxLength')} chars',
+      if (schema.containsKey('format')) v('format'),
+      if (schema.containsKey('pattern')) 'pattern ${v('pattern')}',
+      if (schema['uniqueItems'] == true) 'no duplicates',
+    ];
+    final values = schema['enum'] is List ? schema['enum'] as List : const [];
+    final props = ((schema['properties'] as Map?) ?? const {}).cast<String, dynamic>();
+    final requiredFields = ((schema['required'] as List?) ?? const []).cast<String>().toSet();
+    final items = schema['items'];
+    final nested = <Widget>[
+      for (final e in props.entries)
+        _Param(name: e.key, schema: Map<String, dynamic>.from(e.value as Map), required: requiredFields.contains(e.key)),
+      if (items is Map && items['properties'] is Map)
+        for (final e in (items['properties'] as Map).entries)
+          _Param(
+            name: '${e.key}',
+            schema: Map<String, dynamic>.from(e.value as Map),
+            required: ((items['required'] as List?) ?? const []).contains(e.key),
+          ),
+      for (final key in const ['oneOf', 'anyOf'])
+        if (schema[key] is List)
+          for (final (i, option) in (schema[key] as List).indexed)
+            if (option is Map) _Param(name: 'option ${i + 1}', schema: Map<String, dynamic>.from(option)),
+    ];
+    final enumValues = values.isNotEmpty ? values : (items is Map && items['enum'] is List ? items['enum'] as List : const []);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(name, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+            _Tag(_type(schema), color: AppColors.text2),
+            if (required) _Tag('required', color: AppColors.accent),
+          ],
+        ),
+        if (schema['description'] != null) ...[
+          const SizedBox(height: Space.xs),
+          Text('${schema['description']}', style: context.text.bodySmall?.copyWith(height: 1.4)),
+        ],
+        if (rules.isNotEmpty) ...[
+          const SizedBox(height: Space.s),
+          Wrap(spacing: 6, runSpacing: 6, children: [for (final r in rules) _Tag(r, color: AppColors.text3)]),
+        ],
+        if (enumValues.isNotEmpty) ...[
+          const SizedBox(height: Space.s),
+          Wrap(spacing: 6, runSpacing: 6, children: [for (final e in enumValues) _Code('$e')]),
+        ],
+        if (schema['type'] == 'object' && props.isEmpty) ...[
+          const SizedBox(height: Space.xs),
+          Text('Any fields the service accepts.', style: context.text.bodySmall?.copyWith(color: AppColors.text3)),
+        ],
+        if (nested.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: Space.m, left: 2),
+            padding: const EdgeInsets.only(left: Space.m),
+            decoration: BoxDecoration(border: Border(left: BorderSide(color: AppColors.line, width: 2))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final (i, n) in nested.indexed) ...[if (i > 0) const SizedBox(height: Space.m), n],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _Code extends StatelessWidget {
+  const _Code(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(6)),
+    child: Text(text, style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppColors.text2)),
+  );
+}
+
+class _CodeBlock extends StatelessWidget {
+  const _CodeBlock(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(Space.m),
+    decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.m)),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.4)),
+    ),
+  );
 }

@@ -1,12 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 
+import '../../core/files/generated_files.dart';
 import '../settings/data/settings.dart';
 import 'package:omni_ai/omni_ai.dart' show AiException, E2BClient, E2BExecution, E2BSandbox, SandboxGoneException;
 
@@ -283,12 +281,10 @@ class E2bSession {
 
   Future<List<String>> _saveImages(E2BExecution ex) async {
     final out = <String>[];
-    Directory? dir;
     for (final r in ex.results) {
       final (b64, ext) = r['png'] is String ? ('${r['png']}', 'png') : (r['jpeg'] is String ? ('${r['jpeg']}', 'jpg') : (null, ''));
       if (b64 == null) continue;
-      dir ??= await Directory('${(await getApplicationSupportDirectory()).path}/generated').create(recursive: true);
-      final f = File('${dir.path}/e2b_${const Uuid().v4().substring(0, 8)}.$ext');
+      final f = await uniqueGeneratedFile('e2b.$ext');
       await f.writeAsBytes(base64Decode(b64));
       out.add(f.path);
     }

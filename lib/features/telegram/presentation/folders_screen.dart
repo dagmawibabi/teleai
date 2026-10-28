@@ -93,7 +93,7 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
                   leading: const Icon(Icons.folder_outlined),
                   title: Text(f.title),
                   subtitle: Text('${store.folderChats[f.id]?.length ?? '…'} chats', style: context.text.bodySmall),
-                  trailing: const Icon(Icons.drag_handle_rounded, color: AppColors.text3),
+                  trailing: Icon(Icons.drag_handle_rounded, color: AppColors.text3),
                   onTap: () => _edit(folder: f),
                 ),
             ],

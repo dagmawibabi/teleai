@@ -150,7 +150,7 @@ class _ScheduledScreenState extends ConsumerState<ScheduledScreen> {
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: 'Search',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+                      prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(999),
@@ -181,7 +181,7 @@ class _ScheduledScreenState extends ConsumerState<ScheduledScreen> {
                 padding: const EdgeInsets.all(Space.x4),
                 child: Column(
                   children: [
-                    const Icon(Icons.schedule_send_outlined, size: 44, color: AppColors.text3),
+                    Icon(Icons.schedule_send_outlined, size: 44, color: AppColors.text3),
                     const SizedBox(height: Space.m),
                     Text(_error ?? 'Nothing scheduled', style: context.text.bodySmall),
                     const SizedBox(height: Space.s),

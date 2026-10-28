@@ -31,6 +31,8 @@ class ChatRepository {
             title: r['title'] ?? 'New chat',
             updatedAt: DateTime.tryParse(r['updated'] ?? '') ?? DateTime.now(),
             unread: (r['unread'] as num?)?.toInt() ?? 0,
+            pinned: r['pinned'] == true,
+            archived: r['archived'] == true,
           ),
       ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return out;
@@ -45,7 +47,14 @@ class ChatRepository {
     await file.writeAsString(
       jsonEncode([
         for (final i in items)
-          {'id': i.id, 'title': i.title, 'updated': i.updatedAt.toIso8601String(), if (i.unread > 0) 'unread': i.unread},
+          {
+            'id': i.id,
+            'title': i.title,
+            'updated': i.updatedAt.toIso8601String(),
+            if (i.unread > 0) 'unread': i.unread,
+            if (i.pinned) 'pinned': true,
+            if (i.archived) 'archived': true,
+          },
       ]),
     );
   }
@@ -77,8 +86,21 @@ class ChatRepository {
     final tmp = File('${dir.path}/${c.id}.json.tmp');
     await tmp.writeAsString(jsonEncode(c.toJson()));
     await tmp.rename('${dir.path}/${c.id}.json');
-    final items = (await list()).where((i) => i.id != c.id).toList()
-      ..insert(0, ConversationSummary(id: c.id, title: c.title, updatedAt: c.updatedAt, unread: c.unread));
+    final all = await list();
+    // Pins and the archive belong to the index; a save keeps them.
+    final before = all.where((i) => i.id == c.id).firstOrNull;
+    final items = all.where((i) => i.id != c.id).toList()
+      ..insert(
+        0,
+        ConversationSummary(
+          id: c.id,
+          title: c.title,
+          updatedAt: c.updatedAt,
+          unread: c.unread,
+          pinned: before?.pinned ?? false,
+          archived: before?.archived ?? false,
+        ),
+      );
     await _writeIndex(items);
     return items;
   }
@@ -98,6 +120,16 @@ class ChatRepository {
     if (c == null) return list();
     c.title = title;
     return save(c);
+  }
+
+  /// Pins or archives conversation [id] in the drawer.
+  Future<List<ConversationSummary>> mark(String id, {bool? pinned, bool? archived}) async {
+    final items = [
+      for (final i in await list())
+        i.id == id ? i.copyWith(pinned: pinned, archived: archived) : i,
+    ];
+    await _writeIndex(items);
+    return items;
   }
 
   Future<void> clearAll() async {

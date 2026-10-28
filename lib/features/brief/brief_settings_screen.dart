@@ -10,6 +10,7 @@ import '../telegram/data/telegram_store.dart';
 import '../telegram/presentation/chat_actions.dart' show confirmAction;
 import '../telegram/presentation/tg_avatar.dart';
 import 'brief_prefs.dart';
+import 'brief_schedule.dart';
 import 'brief_store.dart';
 import 'brief_widget.dart';
 import 'widget_customizer_screen.dart';
@@ -28,16 +29,6 @@ class BriefSettingsScreen extends ConsumerWidget {
     final connected = ref.watch(integrationsProvider).connected;
     String title(int id) => store.chat(id)?.title ?? p.chatTitles[id] ?? 'Chat $id';
 
-    Future<void> pickTime(bool morning) async {
-      final cur = (morning ? s.briefMorning : s.briefNight).split(':');
-      final t = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay(hour: int.tryParse(cur.first) ?? 8, minute: int.tryParse(cur.last) ?? 0),
-      );
-      if (t == null) return;
-      final v = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-      await ref.read(settingsProvider.notifier).setBriefs(morning: morning ? v : null, night: morning ? null : v);
-    }
 
     Future<void> addChat({required bool excluded}) async {
       final picked = await showModalBottomSheet<(int, String)>(
@@ -112,38 +103,10 @@ class BriefSettingsScreen extends ConsumerWidget {
               const _Header('Schedule'),
               _Card(
                 children: [
-                  SwitchListTile(
-                    title: const Text('Morning and night briefs'),
-                    subtitle: Text(
-                      s.briefsScheduled ? 'Written at ${s.briefMorning} and ${s.briefNight}' : 'Only when you ask',
-                      style: context.text.bodySmall,
-                    ),
-                    value: s.briefsScheduled,
-                    onChanged: (v) => ref.read(settingsProvider.notifier).setBriefs(scheduled: v),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: Space.m),
+                    child: BriefSchedule(padding: EdgeInsets.only(left: Space.l, right: Space.xs)),
                   ),
-                  if (s.briefsScheduled)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.m),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.wb_sunny_outlined, size: 18),
-                              label: Text('Morning ${s.briefMorning}'),
-                              onPressed: () => pickTime(true),
-                            ),
-                          ),
-                          const SizedBox(width: Space.s),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.nightlight_outlined, size: 18),
-                              label: Text('Night ${s.briefNight}'),
-                              onPressed: () => pickTime(false),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                 ],
               ),
               const _Header('Chats'),
@@ -151,7 +114,7 @@ class BriefSettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.send_rounded, color: AppColors.text2),
+                      leading: Icon(Icons.send_rounded, color: AppColors.text2),
                       title: const Text('Telegram isn\'t connected'),
                       subtitle: Text(
                         'Briefs cover your connected apps for now. Connect Telegram under Settings → Apps & web to choose chats.',
@@ -283,7 +246,7 @@ class BriefSettingsScreen extends ConsumerWidget {
               _Card(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.widgets_outlined, color: AppColors.text2),
+                    leading: Icon(Icons.widgets_outlined, color: AppColors.text2),
                     title: const Text('Brief widget'),
                     subtitle: Text(
                       'Long-press your home screen → Widgets → Triangle → Brief. It shows the latest brief and opens it when tapped.',
@@ -291,10 +254,10 @@ class BriefSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.tune_rounded, color: AppColors.text2),
+                    leading: Icon(Icons.tune_rounded, color: AppColors.text2),
                     title: const Text('Customize the widget'),
                     subtitle: Text('Text size, colours, opacity, what it shows', style: context.text.bodySmall),
-                    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
                     onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WidgetCustomizerScreen())),
                   ),
                   Padding(

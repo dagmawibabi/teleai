@@ -155,7 +155,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
             ),
             if (i['warning'] != null) ...[
               const SizedBox(height: Space.s),
-              Text('${i['warning']}', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.danger)),
+              Text('${i['warning']}', textAlign: TextAlign.center, style: TextStyle(color: AppColors.danger)),
             ],
             if ('${i['description'] ?? ''}'.isNotEmpty) ...[
               const SizedBox(height: Space.m),

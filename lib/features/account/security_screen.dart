@@ -126,13 +126,13 @@ class _HealthState extends ConsumerState<_Health> with AutomaticKeepAliveClientM
                   children: [
                     for (final f in fix)
                       Tile(
-                        leading: const IconBadge(Icons.priority_high_rounded, color: AppColors.warning),
+                        leading: IconBadge(Icons.priority_high_rounded, color: AppColors.warning),
                         title: f,
                         onTap: f.contains('device') || f.contains('login')
                             ? () => DefaultTabController.of(context).animateTo(1)
                             : (f.contains('see your') || f.contains('groups') ? () => DefaultTabController.of(context).animateTo(2) : null),
                         trailing: f.contains('device') || f.contains('login') || f.contains('see your') || f.contains('groups')
-                            ? const Icon(Icons.chevron_right_rounded, color: AppColors.text3)
+                            ? Icon(Icons.chevron_right_rounded, color: AppColors.text3)
                             : null,
                       ),
                   ],
@@ -171,7 +171,7 @@ class _HealthState extends ConsumerState<_Health> with AutomaticKeepAliveClientM
                 Group(
                   label: 'Looks good',
                   children: [
-                    for (final f in fine) Tile(leading: const IconBadge(Icons.check_rounded, color: AppColors.success), title: f),
+                    for (final f in fine) Tile(leading: IconBadge(Icons.check_rounded, color: AppColors.success), title: f),
                   ],
                 ),
               const SizedBox(height: Space.m),
@@ -326,8 +326,8 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
 
   Widget _tile(td.Session s) {
     final flags = [
-      if (s.isUnconfirmed || s.isPasswordPending) const Pill('New login', color: AppColors.danger),
-      if (!s.isOfficialApplication) const Pill('Unofficial', color: AppColors.warning),
+      if (s.isUnconfirmed || s.isPasswordPending) Pill('New login', color: AppColors.danger),
+      if (!s.isOfficialApplication) Pill('Unofficial', color: AppColors.warning),
     ];
     return Tile(
       leading: IconBadge(_icon(s), color: s.isCurrent ? AppColors.success : (flags.isNotEmpty ? AppColors.warning : null)),
@@ -336,12 +336,12 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
       below: flags.isEmpty ? null : Wrap(spacing: 6, children: flags),
       onTap: () => _details(s),
       trailing: s.isCurrent
-          ? const Pill('This phone', color: AppColors.success)
+          ? Pill('This phone', color: AppColors.success)
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(_ago(s.lastActiveDate), style: context.text.labelSmall),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                Icon(Icons.chevron_right_rounded, color: AppColors.text3),
               ],
             ),
     );
@@ -369,7 +369,7 @@ class _DevicesState extends ConsumerState<_Devices> with AutomaticKeepAliveClien
                 Group(
                   children: [
                     Tile(
-                      leading: const IconBadge(Icons.phonelink_erase_rounded, color: AppColors.danger),
+                      leading: IconBadge(Icons.phonelink_erase_rounded, color: AppColors.danger),
                       title: 'Log out all other devices',
                       titleColor: AppColors.danger,
                       subtitle: 'Keeps only this phone',
@@ -556,7 +556,7 @@ class _PrivacyState extends ConsumerState<_Privacy> with AutomaticKeepAliveClien
               mainAxisSize: MainAxisSize.min,
               children: [
                 Pill(_audienceLabel(r.audience), color: color),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+                Icon(Icons.chevron_right_rounded, color: AppColors.text3),
               ],
             ),
       onTap: r == null ? null : () => _choose(key),

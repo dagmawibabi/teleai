@@ -398,7 +398,7 @@ class _Output extends StatelessWidget {
             SelectableText.rich(
               TextSpan(
                 style: codeTextStyle,
-                children: [for (final (line, err) in live) TextSpan(text: line, style: err ? const TextStyle(color: AppColors.warning) : null)],
+                children: [for (final (line, err) in live) TextSpan(text: line, style: err ? TextStyle(color: AppColors.warning) : null)],
               ),
             ),
           if (r != null) ...[

@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:markdown/markdown.dart' as md;
 
 import '../../../../app/theme.dart';
+import '../../../../core/widgets/app_sheet.dart';
+import '../../../../core/widgets/code_highlight.dart';
 import '../../../voice/player_sheet.dart';
 import '../../../voice/speaker.dart';
 import '../../domain/chat_models.dart';
 import '../../../assistant/presentation/watch_event_sheet.dart';
 import '../../../settings/data/settings.dart';
+import '../../../settings/presentation/model_picker_screen.dart' show showModelDetails;
+import '../../../ai/data/ai.dart';
+import '../../../integrations/code_editor_screen.dart';
 import 'post_viewer.dart';
 import 'thinking_block.dart';
 import 'tool_card.dart';
@@ -18,13 +24,15 @@ import '../../../telegram/presentation/link_opener.dart';
 
 final _postRef = RegExp(r'post:(-?\d+):(\d+)');
 
-class UserBubble extends StatelessWidget {
+class UserBubble extends ConsumerWidget {
   const UserBubble({super.key, required this.entry, this.posts = const {}});
   final UserEntry entry;
   final Map<String, PostSnapshot> posts;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showDateTime = ref.watch(settingsProvider.select((s) => s.showChatDateTime));
+    final showCompact = ref.watch(settingsProvider.select((s) => s.compactChat));
     final event = entry.event;
     if (event != null) {
       return Padding(
@@ -65,12 +73,12 @@ class UserBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Text(
+                      if (showDateTime) Text(
                         TimeOfDay.fromDateTime(entry.at.toLocal()).format(context),
                         style: context.text.labelSmall,
                       ),
                       const SizedBox(width: 2),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right_rounded,
                         size: 16,
                         color: AppColors.text3,
@@ -105,7 +113,7 @@ class UserBubble extends StatelessWidget {
             showSnack(context, 'Copied');
           },
           child: Padding(
-            padding: const EdgeInsets.only(bottom: Space.xl),
+            padding: EdgeInsets.only(bottom: showCompact ? Space.s : Space.xl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -134,6 +142,7 @@ class UserBubble extends StatelessWidget {
                     ),
                     child: Text(entry.text, style: context.text.bodyLarge),
                   ),
+                if (showDateTime) ...[
                 const SizedBox(height: Space.xs),
                 Padding(
                   padding: const EdgeInsets.only(right: Space.xs),
@@ -142,6 +151,7 @@ class UserBubble extends StatelessWidget {
                     style: context.text.labelSmall?.copyWith(color: AppColors.text3),
                   ),
                 ),
+                ],
               ],
             ),
           ),
@@ -217,7 +227,13 @@ class AssistantMessage extends ConsumerWidget {
       }
       if (s.text.trim().isNotEmpty) {
         children.add(
-          Padding(
+          GestureDetector(
+            // Long-press: the answer in a sheet where any of it can be selected.
+            onLongPress: () {
+              HapticFeedback.selectionClick();
+              showSelectableAnswer(context, entry);
+            },
+            child: Padding(
             padding: const EdgeInsets.only(bottom: Space.s),
             child: MarkdownBody(
               data: s.text,
@@ -226,8 +242,10 @@ class AssistantMessage extends ConsumerWidget {
               syntaxHighlighter: _CodeHighlighter(
                 ref.watch(settingsProvider).codeTheme,
               ),
+              builders: {'pre': _CodeBlockBuilder(_CodeHighlighter(ref.watch(settingsProvider).codeTheme))},
               onTapLink: (text, href, title) => _openLink(context, href),
             ),
+          ),
           ),
         );
       }
@@ -265,7 +283,7 @@ class AssistantMessage extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline_rounded,
                 size: 16,
                 color: AppColors.danger,
@@ -316,7 +334,7 @@ class AssistantMessage extends ConsumerWidget {
           padding: const EdgeInsets.only(top: Space.xs),
           child: Row(
             children: [
-              _ActionIcon(
+              if (prefs.showChatCopyButton) _ActionIcon(
                 icon: Icons.copy_rounded,
                 tooltip: 'Copy',
                 onTap: () {
@@ -331,15 +349,30 @@ class AssistantMessage extends ConsumerWidget {
                   showSnack(context, 'Copied');
                 },
               ),
-              _ReadAloudButton(entry: entry, text: finalText),
-              if (entry.model.isNotEmpty) ...[
+              if (prefs.showChatSpeakButton && prefs.voiceEnabled) _ReadAloudButton(entry: entry, text: finalText),
+              if (entry.model.isNotEmpty && prefs.showModelName) ...[
                 const SizedBox(width: Space.xs),
                 Flexible(
-                  child: Text(
-                    entry.model.replaceFirst('or:', ''),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.text.labelSmall,
+                  // The model that wrote this answer: tap for what it is and costs.
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Radii.s),
+                    onTap: () {
+                      final info = ref.read(modelCatalogProvider).byId(entry.model);
+                      if (info != null) {
+                        showModelDetails(context, info);
+                      } else {
+                        showSnack(context, 'No details for ${modelLabel(entry.model)}', icon: Icons.info_outline_rounded);
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Text(
+                        entry.model.replaceFirst('or:', ''),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.text.labelSmall?.copyWith(decoration: TextDecoration.underline, decorationColor: AppColors.line),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -351,7 +384,7 @@ class AssistantMessage extends ConsumerWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: Space.xxl),
+      padding: EdgeInsets.only(bottom: prefs.compactChat ? Space.m : Space.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
@@ -373,7 +406,7 @@ class AssistantMessage extends ConsumerWidget {
       h1: context.text.titleLarge,
       h2: context.text.titleMedium?.copyWith(fontSize: 17),
       h3: context.text.titleSmall?.copyWith(fontSize: 15.5),
-      code: const TextStyle(
+      code: TextStyle(
         fontFamily: 'monospace',
         fontSize: 13.5,
         backgroundColor: AppColors.surface2,
@@ -383,11 +416,11 @@ class AssistantMessage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(Radii.m),
         border: Border.all(color: AppColors.line),
       ),
-      blockquoteDecoration: const BoxDecoration(
+      blockquoteDecoration: BoxDecoration(
         border: Border(left: BorderSide(color: AppColors.line, width: 3)),
       ),
       blockquotePadding: const EdgeInsets.only(left: Space.m),
-      horizontalRuleDecoration: const BoxDecoration(
+      horizontalRuleDecoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
       tableBorder: TableBorder.all(color: AppColors.line),
@@ -453,7 +486,7 @@ class _CodeHighlighter extends SyntaxHighlighter {
     }
     if (at < source.length) spans.add(TextSpan(text: source.substring(at)));
     return TextSpan(
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: 'monospace',
         fontSize: 13.5,
         color: AppColors.text,
@@ -461,6 +494,143 @@ class _CodeHighlighter extends SyntaxHighlighter {
       children: spans,
     );
   }
+}
+
+/// An answer in a sheet whose text can be selected word by word and copied.
+Future<void> showSelectableAnswer(BuildContext context, AssistantEntry entry) {
+  final text = entry.steps.map((s) => s.text.trim()).where((t) => t.isNotEmpty).join('\n\n');
+  return showAppSheet<void>(
+    context,
+    initialSize: 0.7,
+    builder: (context, scroll) => ListView(
+      controller: scroll,
+      padding: const EdgeInsets.fromLTRB(Space.xl, 0, Space.xl, Space.x4),
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('Select text', style: context.text.titleMedium)),
+            TextButton.icon(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: text));
+                showSnack(context, 'Copied');
+              },
+              icon: const Icon(Icons.copy_rounded, size: 18),
+              label: const Text('Copy all'),
+            ),
+          ],
+        ),
+        Text('Press and hold a word, then drag the handles.', style: context.text.bodySmall),
+        const SizedBox(height: Space.l),
+        MarkdownBody(
+          data: text,
+          selectable: true,
+          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+            p: context.text.bodyLarge,
+            code: TextStyle(fontFamily: 'monospace', fontSize: 13.5, backgroundColor: AppColors.surface2),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Fenced code in an answer: a card with its language, Copy and Expand,
+/// that opens full screen in the code editor when tapped.
+class _CodeBlockBuilder extends MarkdownElementBuilder {
+  _CodeBlockBuilder(this.highlighter);
+  final _CodeHighlighter highlighter;
+
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final code = element.textContent.replaceFirst(RegExp(r'\n$'), '');
+    final inner = element.children?.whereType<md.Element>().firstOrNull;
+    final language = '${inner?.attributes['class'] ?? ''}'.replaceFirst('language-', '');
+    return _CodeBlock(code: code, language: language, theme: highlighter.theme);
+  }
+}
+
+class _CodeBlock extends StatelessWidget {
+  const _CodeBlock({required this.code, required this.language, required this.theme});
+  final String code;
+  final String language;
+  final CodeThemeChoice theme;
+
+  void _open(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => CodeEditorScreen(code: code, language: _editorLanguage(language)),
+    ),
+  );
+
+  /// The editor's name for [language], e.g. `py` → python.
+  static String _editorLanguage(String language) => switch (language.toLowerCase()) {
+    'py' || 'python' || 'python3' => 'python',
+    'js' || 'javascript' || 'ts' || 'typescript' || 'node' => 'javascript',
+    'sh' || 'bash' || 'shell' || 'zsh' => 'bash',
+    'r' => 'r',
+    'java' => 'java',
+    _ => 'python',
+  };
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: Space.xs),
+    child: Material(
+      color: AppColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Radii.m),
+        side: BorderSide(color: AppColors.line),
+      ),
+      child: InkWell(
+        onTap: () => _open(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              color: AppColors.surface2,
+              padding: const EdgeInsets.fromLTRB(Space.m, 2, 2, 2),
+              child: Row(
+                children: [
+                  Text(language.isEmpty ? 'code' : language, style: context.text.labelSmall),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Copy',
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.copy_rounded, size: 16, color: AppColors.text2),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: code));
+                      showSnack(context, 'Code copied');
+                    },
+                  ),
+                  IconButton(
+                    tooltip: 'Open full screen',
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.open_in_full_rounded, size: 16, color: AppColors.text2),
+                    onPressed: () => _open(context),
+                  ),
+                ],
+              ),
+            ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(Space.m),
+              // Plain text, so a tap anywhere opens the editor.
+              child: Text.rich(TextSpan(style: codeTextStyle, children: highlightCode(code, language, CodePalette.of(theme)))),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _ActionIcon extends StatelessWidget {
@@ -698,7 +868,7 @@ class _UsageLine extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.toll_outlined, size: 12, color: AppColors.text3),
+              Icon(Icons.toll_outlined, size: 12, color: AppColors.text3),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(

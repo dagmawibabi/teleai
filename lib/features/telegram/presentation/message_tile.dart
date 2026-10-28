@@ -10,6 +10,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_sheet.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../chat/data/chat_controller.dart';
 import '../../chat/domain/chat_models.dart';
@@ -21,7 +22,7 @@ import '../data/message_content.dart';
 import '../data/telegram_store.dart';
 import '../data/telegram_tools.dart';
 import 'chat_list_screen.dart' show clockTime;
-import 'chat_view_screen.dart' show openComments;
+import 'chat_view_screen.dart' show ChatViewScreen, openComments;
 import 'media_viewer.dart';
 import 'expression_panel.dart' show StickerImage;
 import 'formatted_text.dart';
@@ -117,7 +118,8 @@ class MessageTile extends ConsumerWidget {
 
   /// A message already loaded in this chat, for reply previews.
   final td.Message? Function(int messageId)? findMessage;
-  final void Function(td.Message)? onReply;
+  /// Reply to a message, quoting [quote] of its text when given.
+  final ReplyCallback? onReply;
 
   /// Voice notes and songs of this chat, oldest first, for the player queue.
   final List<Track> Function()? playlist;
@@ -237,7 +239,7 @@ class MessageTile extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (views > 0) ...[
-          const Icon(
+          Icon(
             Icons.visibility_outlined,
             size: 12,
             color: AppColors.text3,
@@ -245,18 +247,18 @@ class MessageTile extends ConsumerWidget {
           const SizedBox(width: 3),
           Text(
             NumberFormat.compact().format(views),
-            style: const TextStyle(fontSize: 11, color: AppColors.text3),
+            style: TextStyle(fontSize: 11, color: AppColors.text3),
           ),
           const SizedBox(width: Space.s),
         ],
         if (m.editDate > 0)
-          const Text(
+          Text(
             'edited  ',
             style: TextStyle(fontSize: 11, color: AppColors.text3),
           ),
         Text(
           time,
-          style: const TextStyle(fontSize: 11, color: AppColors.text3),
+          style: TextStyle(fontSize: 11, color: AppColors.text3),
         ),
         if (out) ...[
           const SizedBox(width: 3),
@@ -316,7 +318,7 @@ class MessageTile extends ConsumerWidget {
                   .read(telegramClientProvider)
                   .send<td.Ok>(td.DeleteMessageEphemeralContent(chatId: m.chatId, messageId: m.id))
                   .catchError((Object _) => const td.Ok()),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.visibility_outlined, size: 13, color: AppColors.text3),
@@ -364,7 +366,7 @@ class MessageTile extends ConsumerWidget {
             padding: EdgeInsets.only(top: g.isMedia ? Space.s : 0),
             child: Text.rich(
               textSpan,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 height: 1.4,
                 color: AppColors.text,
@@ -425,8 +427,11 @@ class MessageTile extends ConsumerWidget {
       ],
     );
 
+    final reply = onReply == null || selecting ? null : () => onReply!(m);
     if (kind == ChatKind.channel) {
-      return Padding(
+      return SwipeToReply(
+        onReply: reply,
+        child: Padding(
         padding: const EdgeInsets.only(bottom: Space.m),
         child: Material(
           color: AppColors.surface,
@@ -446,6 +451,7 @@ class MessageTile extends ConsumerWidget {
             ),
           ),
         ),
+      ),
       );
     }
 
@@ -473,7 +479,9 @@ class MessageTile extends ConsumerWidget {
       ),
     );
     final showAvatar = kind == ChatKind.group && !out && ref.watch(settingsProvider.select((s) => s.groupAvatars));
-    return Padding(
+    return SwipeToReply(
+      onReply: reply,
+      child: Padding(
       padding: EdgeInsets.only(bottom: grouped ? 3 : Space.s),
       child: Row(
         mainAxisAlignment: out
@@ -501,6 +509,7 @@ class MessageTile extends ConsumerWidget {
           Flexible(child: bubble),
         ],
       ),
+    ),
     );
   }
 
@@ -514,6 +523,122 @@ class MessageTile extends ConsumerWidget {
   ];
   static Color nameColor(String name) =>
       _names[name.hashCode.abs() % _names.length];
+}
+
+/// Replying to [m], quoting [quote] of its text when given.
+typedef ReplyCallback = void Function(td.Message m, {String? quote});
+
+/// The message text to select from; returns the selected words to quote.
+Future<String?> pickQuote(BuildContext context, String text) {
+  var selected = '';
+  return showFormSheet<String>(
+    context,
+    builder: (sheet) => StatefulBuilder(
+      builder: (sheet, setSheet) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Quote & reply', style: sheet.text.titleMedium),
+          const SizedBox(height: Space.xs),
+          Text('Select the words to quote.', style: sheet.text.bodySmall),
+          const SizedBox(height: Space.m),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 320),
+            padding: const EdgeInsets.all(Space.m),
+            decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.m)),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                text,
+                style: sheet.text.bodyLarge,
+                onSelectionChanged: (s, _) => setSheet(() => selected = s.textInside(text).trim()),
+              ),
+            ),
+          ),
+          const SizedBox(height: Space.l),
+          FilledButton.icon(
+            onPressed: selected.isEmpty ? null : () => Navigator.pop(sheet, selected),
+            icon: const Icon(Icons.format_quote_rounded),
+            label: Text(selected.isEmpty ? 'Select some text' : 'Quote and reply'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Swipe a message left to reply to it, as in Telegram: the bubble follows
+/// the finger, a reply arrow fills in, and letting go past it replies.
+class SwipeToReply extends StatefulWidget {
+  const SwipeToReply({super.key, required this.onReply, required this.child});
+  final VoidCallback? onReply;
+  final Widget child;
+
+  @override
+  State<SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<SwipeToReply> with SingleTickerProviderStateMixin {
+  static const _trigger = 64.0;
+  double _dx = 0;
+  bool _armed = false;
+  late final AnimationController _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 180))
+    ..addListener(() => setState(() => _dx = _from * (1 - _back.value)));
+  double _from = 0;
+
+  @override
+  void dispose() {
+    _back.dispose();
+    super.dispose();
+  }
+
+  void _end() {
+    if (_armed) widget.onReply?.call();
+    _armed = false;
+    _from = _dx;
+    _back.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.onReply == null) return widget.child;
+    final progress = (-_dx / _trigger).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (d) {
+        final next = (_dx + d.delta.dx).clamp(-_trigger * 1.4, 0.0);
+        final armed = -next >= _trigger;
+        if (armed && !_armed) HapticFeedback.selectionClick();
+        setState(() {
+          _dx = next;
+          _armed = armed;
+        });
+      },
+      onHorizontalDragEnd: (_) => _end(),
+      onHorizontalDragCancel: _end,
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          Positioned(
+            right: Space.s,
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: 0.6 + 0.4 * progress,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: _armed ? AppColors.accent : AppColors.surface3,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.reply_rounded, size: 18, color: _armed ? AppColors.bg : AppColors.text2),
+                ),
+              ),
+            ),
+          ),
+          Transform.translate(offset: Offset(_dx, 0), child: widget.child),
+        ],
+      ),
+    );
+  }
 }
 
 class ForwardHeader extends ConsumerWidget {
@@ -623,6 +748,14 @@ class _ReplyPreviewState extends ConsumerState<_ReplyPreview> {
         widget.onJumpTo!(r.messageId);
         return;
       }
+      // The original lives in another chat this account can open: go there,
+      // at that message.
+      if (r.chatId != 0 && store.chat(r.chatId) != null) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => ChatViewScreen(chatId: r.chatId, openAt: r.messageId)),
+        );
+        return;
+      }
       final original = m;
       if (original != null) {
         final chatTitle = store.chat(original.chatId)?.title ?? 'Chat';
@@ -642,40 +775,57 @@ class _ReplyPreviewState extends ConsumerState<_ReplyPreview> {
       }
     }
 
+    // Like Telegram: a tinted block with a rounded bar in the sender's
+    // colour, their name, then the replied-to words (a quote gets a mark).
+    final quoted = quote != null && quote.isNotEmpty;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: open,
       child: Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(Radii.s),
-        border: Border(left: BorderSide(color: color, width: 3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            who,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+        margin: const EdgeInsets.only(bottom: 6),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 3, color: color),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 5, 8, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        who,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        quoted ? preview : preview.replaceAll('\n', ' '),
+                        maxLines: quoted ? 3 : 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, height: 1.3, color: AppColors.text),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (quoted)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 4, 6, 0),
+                  child: Icon(Icons.format_quote_rounded, size: 16, color: color),
+                ),
+            ],
           ),
-          Text(
-            preview.replaceAll('\n', ' '),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12.5, color: AppColors.text2),
-          ),
-        ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -793,7 +943,7 @@ Future<void> showMessageActions(
   WidgetRef ref,
   td.Message m, {
   required String chatTitle,
-  void Function(td.Message)? onReply,
+  ReplyCallback? onReply,
   void Function(td.Message)? onSelect,
 }) async {
   final g = gistOf(m.content);
@@ -918,6 +1068,17 @@ Future<void> showMessageActions(
                 onTap: () {
                   Navigator.pop(ctx);
                   onReply(m);
+                },
+              ),
+            if (onReply != null && g.text.trim().isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.format_quote_rounded),
+                title: const Text('Quote & reply'),
+                subtitle: Text('Pick the words to quote', style: ctx.text.bodySmall),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final quote = await pickQuote(context, g.text);
+                  if (quote != null) onReply(m, quote: quote);
                 },
               ),
             if (g.text.isNotEmpty)
@@ -1248,7 +1409,7 @@ class _VoiceBubble extends ConsumerWidget {
               current
                   ? '${formatDuration(audio.position.inSeconds)} / ${formatDuration(total)}'
                   : formatDuration(total),
-              style: const TextStyle(fontSize: 11.5, color: AppColors.text2),
+              style: TextStyle(fontSize: 11.5, color: AppColors.text2),
             ),
           ],
         ),
@@ -1306,7 +1467,7 @@ class _AudioRow extends ConsumerWidget {
                 ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12.5, color: AppColors.text2),
+                style: TextStyle(fontSize: 12.5, color: AppColors.text2),
               ),
             ],
           ),
@@ -1350,7 +1511,7 @@ class _PlayButton extends StatelessWidget {
                 ),
         ),
         child: loading
-            ? const Padding(
+            ? Padding(
                 padding: EdgeInsets.all(13),
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
@@ -1456,7 +1617,7 @@ class DocumentRow extends ConsumerWidget {
                     downloading
                         ? '${formatBytes((file.size * progress).round())} of ${formatBytes(file.size)}'
                         : formatBytes(file.size),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.text2,
                     ),
@@ -1563,7 +1724,7 @@ class _GenericMedia extends StatelessWidget {
           gist.detail?.isNotEmpty == true
               ? gist.detail!
               : gist.kind.replaceAll('_', ' '),
-          style: const TextStyle(fontSize: 14, color: AppColors.text2),
+          style: TextStyle(fontSize: 14, color: AppColors.text2),
         ),
       ),
     ],
@@ -1657,7 +1818,7 @@ class _BotButtonsState extends ConsumerState<BotButtons> {
                                   ),
                                 if (b.kind == 'url' || b.kind == 'web_app' || b.kind == 'login_url') ...[
                                   const SizedBox(width: 3),
-                                  const Icon(Icons.north_east_rounded, size: 12, color: AppColors.text3),
+                                  Icon(Icons.north_east_rounded, size: 12, color: AppColors.text3),
                                 ],
                               ],
                             ),

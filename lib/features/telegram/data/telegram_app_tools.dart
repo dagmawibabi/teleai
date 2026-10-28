@@ -197,12 +197,12 @@ extension _AppToolRuns on TelegramToolRunner {
           if (parsed is! Map) return const ToolOutput({'error': 'arguments_json must be a JSON object.'});
           final toolkit = slug.split('_').first.toLowerCase();
           final data = await client.execute(slug, Map<String, dynamic>.from(parsed));
-          return ToolOutput(await _keepMailHtml(AppResults.summarize(toolkit, slug, data)));
+          return ToolOutput(await _keepMailHtml(AppResults.summarize(toolkit, slug, data)), full: AppResults.parse(data));
       }
       final (toolkit, slug) = appToolSlugs[name]!;
       final tool = toolNamed(name)!;
       final data = await client.execute(slug, _openJsonArgs(tool, args));
-      return ToolOutput(await _keepMailHtml(AppResults.summarize(toolkit, slug, data)));
+      return ToolOutput(await _keepMailHtml(AppResults.summarize(toolkit, slug, data)), full: AppResults.parse(data));
     } on AiException catch (e) {
       final toolkit = appToolkitOf(name);
       final notConnected = RegExp(r'no (active )?connected account|not connected|connection.*not found', caseSensitive: false).hasMatch(e.message);

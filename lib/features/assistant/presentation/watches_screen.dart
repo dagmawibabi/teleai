@@ -4,6 +4,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:intl/intl.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_sheet.dart';
 import '../../chat/data/chat_controller.dart';
 import '../../settings/data/settings.dart';
 import '../../telegram/data/telegram_store.dart';
@@ -123,7 +124,7 @@ class WatchesScreen extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.pause_circle_outline_rounded, color: AppColors.warning),
+                  Icon(Icons.pause_circle_outline_rounded, color: AppColors.warning),
                   const SizedBox(width: Space.m),
                   const Expanded(child: Text('Proactivity is off, so every watch is paused.')),
                   TextButton(
@@ -256,7 +257,13 @@ class _Reminders extends ConsumerWidget {
                     PopupMenuButton<String>(
                       onSelected: (v) => switch (v) {
                         'test' => store.runNow(r),
-                        'delete' => store.remove(r.id),
+                        'delete' => confirmDelete(
+                          context,
+                          title: 'Delete this reminder?',
+                          message: '"${r.text}" won\'t remind you again.',
+                        ).then((ok) async {
+                          if (ok) await store.remove(r.id);
+                        }),
                         _ => null,
                       },
                       itemBuilder: (_) => const [
@@ -411,6 +418,9 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
               tooltip: 'Delete',
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
+                if (!await confirmDelete(context, title: 'Delete this watch?', message: '"${w.name}" stops watching. Its chat stays.')) {
+                  return;
+                }
                 await ref.read(watchStoreProvider.notifier).remove(w.id);
                 if (context.mounted) Navigator.pop(context);
               },
@@ -719,7 +729,7 @@ class _OnlineAlerts extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(Space.m, Space.m, Space.s, Space.xs),
             child: Row(
               children: [
-                const Icon(Icons.circle_notifications_outlined, size: 18, color: AppColors.text2),
+                Icon(Icons.circle_notifications_outlined, size: 18, color: AppColors.text2),
                 const SizedBox(width: Space.s),
                 Expanded(child: Text('Online alerts', style: context.text.titleSmall)),
                 TextButton.icon(
@@ -789,7 +799,16 @@ class _OnlineAlerts extends ConsumerWidget {
                       IconButton(
                         tooltip: 'Remove',
                         icon: const Icon(Icons.close_rounded, size: 20),
-                        onPressed: () => ref.read(onlineAlertStoreProvider.notifier).remove(a.userId),
+                        onPressed: () async {
+                          if (await confirmDelete(
+                            context,
+                            title: 'Remove this alert?',
+                            message: 'You won\'t hear when ${a.name} comes online.',
+                            action: 'Remove',
+                          )) {
+                            await ref.read(onlineAlertStoreProvider.notifier).remove(a.userId);
+                          }
+                        },
                       ),
                     ],
                   ),

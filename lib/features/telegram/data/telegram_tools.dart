@@ -35,6 +35,7 @@ import 'message_content.dart';
 import 'rich_message.dart';
 import 'telegram_store.dart';
 import '../../../infrastructure/telegram/td_compat.dart';
+import '../../../core/files/generated_files.dart';
 
 part 'telegram_account_tools.dart';
 part 'telegram_activity_tools.dart';
@@ -62,13 +63,20 @@ part 'telegram_local_tools.dart';
 part 'telegram_manage_tools.dart';
 part 'telegram_star_tools.dart';
 part 'telegram_web_tools.dart';
+part 'telegram_tool_metadata.dart';
+part 'telegram_tool_documentation.dart';
+part 'telegram_tool_reference.dart';
 
 /// What a tool hands back: JSON for the model, and the posts it showed so
 /// the chat can turn citations into chips.
 class ToolOutput {
-  const ToolOutput(this.json, {this.posts = const []});
+  const ToolOutput(this.json, {this.posts = const [], this.full});
   final Map<String, dynamic> json;
   final List<PostSnapshot> posts;
+
+  /// The complete response, when [json] is a shorter version made for the
+  /// model: kept for the person's tool sheet and never sent to the model.
+  final Object? full;
 
   String encode() => jsonEncode(json);
 }
@@ -80,18 +88,27 @@ class ToolOutput {
 /// [requiresApproval] and wait for the approval setting; [destructive] ones
 /// are off until the person turns them on, and always ask.
 enum ToolCategory {
-  account('Account'),
+  account('Account & security'),
+  contacts('Contacts & profile'),
+  members('Members & administration'),
+  bots('Bots'),
+  calls('Calls & live streams'),
+  analytics('Analytics'),
   chats('Chats'),
   messages('Messages'),
-  media('Media'),
+  media('Media & appearance'),
   actions('Actions'),
   memory('Memory'),
+  canvas('Canvas'),
+  files('Files'),
+  vision('Images & vision'),
+  code('Code sandbox'),
   automation('Watches & routines'),
   stories('Stories'),
   folders('Folders'),
   web('Web & browsing'),
-  developer('Code & GitHub'),
-  discover('Books, YouTube & X'),
+  developer('Public GitHub'),
+  discover('Entertainment'),
   stars('Stars'),
   creative('Creative'),
   device('Device'),
@@ -114,14 +131,14 @@ enum ToolCategory {
 
   /// Reaches the Telegram account, so it is offered only once signed in.
   bool get needsTelegram => switch (this) {
-    account || chats || messages || media || actions || stories || folders || stars => true,
+    account || contacts || members || bots || calls || analytics || chats || messages || media || actions || stories || folders || stars => true,
     _ => false,
   };
 
   /// Listed under Settings → Apps & web rather than the Telegram tools:
   /// connected apps, and the tools that reach the web.
   bool get onAppsScreen => switch (this) {
-    web || developer || discover || creative => true,
+    web || developer || discover || creative || memory || canvas || files || vision || automation => true,
     gmail || outlook || calendar || googleDocs || slack || notion || githubAccount || linear || todoist || apps => true,
     cloudflare || r2 || e2b => true,
     _ => false,
@@ -166,13 +183,13 @@ class TelegramTool {
     required this.name,
     required this.label,
     required this.description,
-    required this.parameters,
-    this.requiresApproval = false,
+    required Map<String, dynamic> parameters,
+    bool requiresApproval = false,
     this.category = ToolCategory.messages,
     this.cost = ToolCost.telegram,
-    this.destructive = false,
+    bool destructive = false,
     this.alwaysAsk = false,
-  });
+  }) : _requiresApproval = requiresApproval, _destructive = destructive, _parameters = parameters;
 
   /// Spends the user's money (Stars): asks every time, whatever the
   /// approval setting.
@@ -180,21 +197,31 @@ class TelegramTool {
 
   /// Deletes, leaves, blocks or bans: off until turned on in Settings, and
   /// always asks first.
-  final bool destructive;
+  final bool _destructive;
+  bool get destructive => access == ToolAccess.destructive;
+
+  /// What this tool can do, independently of its approval policy.
+  ToolAccess get access => toolPolicies[name]?.access ??
+      (_destructive ? ToolAccess.destructive : ToolAccess.modify);
+  bool get modifiesData => access != ToolAccess.read;
+  bool get needsTelegram => toolPolicies[name]?.needsTelegram ?? true;
 
   final String name;
 
   /// Shown on the tool card, e.g. "Reading messages".
   final String label;
   final String description;
-  final Map<String, dynamic> parameters;
-  final bool requiresApproval;
+  final Map<String, dynamic> _parameters;
+  Map<String, dynamic> get parameters => documentedParameters(this);
+  final bool _requiresApproval;
+  bool get requiresApproval => _requiresApproval || destructive;
+  ToolDocumentation get documentation => documentationFor(this);
   final ToolCategory category;
   final ToolCost cost;
 
   /// Whether the assistant gets this tool under [s].
   bool isOn(AppSettings s) =>
-      s.toolOn(name, destructive: destructive, writes: requiresApproval);
+      s.toolOn(name, destructive: destructive, writes: modifiesData);
 
   Map<String, dynamic> get schema => {
     'type': 'function',
@@ -405,7 +432,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'list_contacts',
     label: 'Listing contacts',
-    category: ToolCategory.account,
+    category: ToolCategory.contacts,
     description: 'The user\'s Telegram contacts with usernames and last-seen status. Optional name filter.',
     parameters: _obj({
       'query': {'type': 'string', 'description': 'Match on name or @username.'},
@@ -415,7 +442,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'list_chat_folders',
     label: 'Listing folders',
-    category: ToolCategory.chats,
+    category: ToolCategory.folders,
     cost: ToolCost.local,
     description:
         'The user\'s chat folders (e.g. Work, Personal) with how many chats and unread chats each has. '
@@ -495,7 +522,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'get_chat_members',
     label: 'Listing members',
-    category: ToolCategory.chats,
+    category: ToolCategory.members,
     description: 'Members of a group: admins, bots or recent members. For channels only admins are visible.',
     parameters: _obj(
       {
@@ -528,7 +555,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'forward_message',
     label: 'Forwarding',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Forwards one or more messages (several at once, in order) to another chat, or to several chats at once '
@@ -583,7 +610,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'get_user_profile',
     label: 'Opening a profile',
-    category: ToolCategory.account,
+    category: ToolCategory.contacts,
     description:
         'A person\'s profile: name, @username, bio, last seen, whether they are a contact, their personal channel '
         'and the groups you have in common.',
@@ -598,7 +625,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'send_chat_action',
     label: 'Showing chat activity',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     cost: ToolCost.telegram,
     description: 'Shows a temporary Telegram activity indicator in a chat, such as typing, recording a voice note, uploading media, or choosing a sticker. Use only when the user explicitly asks to show that activity. The user must approve it first.',
@@ -656,7 +683,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'send_live_location',
     label: 'Sharing live location',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     cost: ToolCost.device,
     description: 'Gets the phone\'s current location and shares it in a chat, optionally live for 1 to 1440 minutes. The user must approve it first.',
@@ -712,7 +739,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'send_sticker',
     label: 'Sending a sticker',
-    category: ToolCategory.actions,
+    category: ToolCategory.media,
     requiresApproval: true,
     description: 'Sends a sticker returned by browse_stickers or search_stickers. The user must approve it first.',
     parameters: _obj(
@@ -729,7 +756,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'save_sticker',
     label: 'Saving a sticker',
-    category: ToolCategory.actions,
+    category: ToolCategory.media,
     requiresApproval: true,
     description: 'Saves a sticker to the user\'s Telegram recent stickers. The user must approve it first.',
     parameters: _obj(
@@ -755,7 +782,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'react_to_message',
     label: 'Reacting',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Adds an emoji reaction to a message (or removes the user\'s reaction). The user must approve it first. '
@@ -780,7 +807,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'set_chat_notifications',
     label: 'Changing notifications',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Mutes or unmutes a chat, group or channel (muted: true/false). Use list_chats(include_muted) to see what is '
@@ -796,7 +823,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'mark_as_read',
     label: 'Marking as read',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Marks everything in a chat as read (clears its unread badge). The user must approve it first. Only call '
@@ -853,7 +880,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'comment_on_post',
     label: 'Commenting',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Posts a comment under a channel post (or replies to a comment with reply_to_message_id from get_comments). '
@@ -879,7 +906,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'reply_to_message',
     label: 'Replying',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Replies to a specific message or post, optionally quoting the exact part you answer (quote must be copied '
@@ -918,7 +945,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'pin_message',
     label: 'Pinning',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Pins a message at the top of a chat, or unpins it (unpin: true). Silent by default; notify: true alerts the '
@@ -944,7 +971,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'edit_message',
     label: 'Editing a message',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Changes one of the user\'s own messages or channel posts: its text or caption, and/or its media (replace the '
@@ -975,7 +1002,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'schedule_message',
     label: 'Scheduling a message',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Schedules a message (with optional files) to be sent later by Telegram itself, even if this app is closed. '
@@ -1015,7 +1042,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'reschedule_message',
     label: 'Rescheduling',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description: 'Moves a scheduled message to another time, or sends it right away. The user must approve it first.',
     parameters: _obj(
@@ -1035,7 +1062,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'archive_chat',
     label: 'Archiving',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Moves a chat into the Archive, or back out to the main list (archived: false). Nothing is deleted. The user '
@@ -1238,7 +1265,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'online_alert',
     label: 'Setting an online alert',
-    category: ToolCategory.automation,
+    category: ToolCategory.contacts,
     cost: ToolCost.device,
     description:
         'Notifies the user when someone comes online ("tell me when Liya is online"). once: false keeps alerting each '
@@ -1259,7 +1286,7 @@ final _tools = <TelegramTool>[
   TelegramTool(
     name: 'list_online_alerts',
     label: 'Listing online alerts',
-    category: ToolCategory.automation,
+    category: ToolCategory.contacts,
     cost: ToolCost.device,
     description: 'The people the user asked to be told about when they come online, and whether each is online now.',
     parameters: _obj({}),
@@ -1416,7 +1443,7 @@ final generateAddisVoiceTool = TelegramTool(
 const sendMessageTool = TelegramTool(
   name: 'send_message',
   label: 'Sending a message',
-  category: ToolCategory.actions,
+  category: ToolCategory.messages,
   requiresApproval: true,
   description:
       'Sends a message to a chat, or posts in a channel the user can post in, optionally with photos, videos '
@@ -1461,7 +1488,7 @@ const sendMessageTool = TelegramTool(
 const listAttachmentsTool = TelegramTool(
   name: 'list_attachments',
   label: 'Checking files',
-  category: ToolCategory.media,
+  category: ToolCategory.files,
   cost: ToolCost.device,
   description:
       'Every file in this conversation that can be sent to a chat: pictures, videos, voice notes and documents the '
@@ -1476,7 +1503,7 @@ const listAttachmentsTool = TelegramTool(
 final sendVoiceMessageTool = TelegramTool(
   name: 'send_voice_message',
   label: 'Sending a voice message',
-  category: ToolCategory.actions,
+  category: ToolCategory.messages,
   requiresApproval: true,
   description: 'Sends one recorded voice note to a chat as a Telegram voice message. Use only for a voice-note attachment the user provided in this conversation, and only when they asked to send it.',
   parameters: _obj(

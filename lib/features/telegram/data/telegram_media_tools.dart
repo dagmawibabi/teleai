@@ -18,7 +18,7 @@ final _mediaTools = <TelegramTool>[
   TelegramTool(
     name: 'view_image',
     label: 'Looking at images',
-    category: ToolCategory.creative,
+    category: ToolCategory.vision,
     cost: ToolCost.ai,
     description:
         'Lets you inspect images from any available source: attachments (by name, including earlier messages), '
@@ -41,6 +41,60 @@ final _mediaTools = <TelegramTool>[
         'type': 'array',
         'items': {'type': 'string'},
         'description': 'Telegram message refs: post:<chat_id>:<message_id>. Requires Telegram to be connected.',
+      },
+    }),
+  ),
+  TelegramTool(
+    name: 'download_message_file',
+    label: 'Downloading a file',
+    category: ToolCategory.media,
+    description:
+        'Downloads the file a Telegram message carries (document, PDF, voice note, audio, video, video note, GIF, photo '
+        'or sticker) to the phone. Text files come back as text, pictures are shown to you, and the file can then be '
+        'sent on with send_message or worked on with run_code / e2b_upload_file. For what a voice or audio message '
+        'says, use transcribe_message.',
+    parameters: _obj({
+      'chat_id': {'type': 'integer', 'description': 'Chat the message is in.'},
+      'message_id': {'type': 'integer', 'description': 'The message with the file, from read_messages or a post ref.'},
+    }, ['chat_id', 'message_id']),
+  ),
+  TelegramTool(
+    name: 'transcribe_message',
+    label: 'Listening to a message',
+    category: ToolCategory.media,
+    cost: ToolCost.ai,
+    description:
+        'What a voice note, audio file, video note or video says: downloads it and writes out its speech. Uses '
+        'Addis AI for Amharic and Afaan Oromo, ElevenLabs Scribe, or the dictation model from AI & models, whichever is set up.',
+    parameters: _obj({
+      'chat_id': {'type': 'integer', 'description': 'Chat the message is in.'},
+      'message_id': {'type': 'integer', 'description': 'The voice, audio or video message.'},
+      'language': {
+        'type': 'string',
+        'description': 'Spoken language code if known, e.g. am, om or en. am and om use Addis AI first.',
+      },
+    }, ['chat_id', 'message_id']),
+  ),
+  TelegramTool(
+    name: 'view_stickers_and_gifs',
+    label: 'Looking at stickers and GIFs',
+    category: ToolCategory.media,
+    cost: ToolCost.ai,
+    description:
+        'Shows you stickers (file_id from get_sticker_set, list_favorite_stickers or search_stickers) and GIFs (gif_id '
+        'from search_gifs or list_saved_gifs) as pictures, so you can pick a fitting one before send_sticker or '
+        'send_gif. Animated ones show their first frame. For a sticker or GIF in a message, use view_image with its ref. '
+        'Up to 8 at once; the chat model must see images.',
+    parameters: _obj({
+      'sticker_file_ids': {
+        'type': 'array',
+        'items': {'type': 'integer'},
+        'description': 'Sticker file_id values.',
+      },
+      'gif_ids': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'gif_id values, including their file: or inline: prefix.',
       },
     }),
   ),
@@ -68,7 +122,7 @@ final _mediaTools = <TelegramTool>[
   TelegramTool(
     name: 'send_gif',
     label: 'Sending a GIF',
-    category: ToolCategory.actions,
+    category: ToolCategory.media,
     requiresApproval: true,
     description: 'Sends a GIF (a gif_id from search_gifs or list_saved_gifs) to a chat. Needs approval.',
     parameters: _obj({
@@ -161,6 +215,106 @@ extension TelegramMedia on TelegramToolRunner {
     return f.local.isDownloadingCompleted ? f.local.path : null;
   }
 
+  /// The file a message carries (document, voice note, audio, video, video
+  /// note, GIF, photo or sticker), downloaded and copied into the app's
+  /// files under its own name. Null when the message has none.
+  Future<({String path, String name, String mime, String kind, int size, int? duration})?> downloadMessageFile(
+    int chatId,
+    int messageId,
+  ) async {
+    final m = await _client.send<td.Message>(td.GetMessage(chatId: chatId, messageId: messageId), limited: true);
+    td.File? largest(td.Photo p) => p.sizes.isEmpty ? null : (([...p.sizes]..sort((a, b) => a.width.compareTo(b.width))).last.photo);
+    final picked = switch (m.content) {
+      td.MessageDocument(:final document) => (document.document, document.fileName, document.mimeType, 'document', null),
+      td.MessageVoiceNote(:final voiceNote) => (voiceNote.voice, 'voice-$messageId.ogg', voiceNote.mimeType, 'voice', voiceNote.duration),
+      td.MessageAudio(:final audio) => (audio.audio, audio.fileName, audio.mimeType, 'audio', audio.duration),
+      td.MessageVideo(:final video) => (video.video, video.fileName, video.mimeType, 'video', video.duration),
+      td.MessageVideoNote(:final videoNote) => (videoNote.video, 'video-note-$messageId.mp4', 'video/mp4', 'video_note', videoNote.duration),
+      td.MessageAnimation(:final animation) => (animation.animation, animation.fileName, animation.mimeType, 'gif', animation.duration),
+      td.MessagePhoto(:final photo) => (largest(photo), 'photo-$messageId.jpg', 'image/jpeg', 'photo', null),
+      td.MessageSticker(:final sticker) => (
+        sticker.sticker,
+        'sticker-$messageId.${switch (sticker.format) { td.StickerFormatTgs() => 'tgs', td.StickerFormatWebm() => 'webm', _ => 'webp' }}',
+        switch (sticker.format) { td.StickerFormatTgs() => 'application/x-tgsticker', td.StickerFormatWebm() => 'video/webm', _ => 'image/webp' },
+        'sticker',
+        null,
+      ),
+      _ => null,
+    };
+    if (picked == null || picked.$1 == null) return null;
+    final (file, name, mime, kind, duration) = picked;
+    final f = file!.local.isDownloadingCompleted && File(file.local.path).existsSync()
+        ? file
+        : await _client.send<td.File>(
+            td.DownloadFile(fileId: file.id, priority: 16, offset: 0, limit: 0, synchronous: true),
+            timeout: const Duration(minutes: 3),
+          );
+    if (!f.local.isDownloadingCompleted) throw StateError('The download did not finish.');
+    final copy = await uniqueGeneratedFile(name.isEmpty ? '$kind-$messageId' : name);
+    await File(f.local.path).copy(copy.path);
+    return (path: copy.path, name: name.isEmpty ? copy.uri.pathSegments.last : name, mime: mime, kind: kind, size: f.size, duration: duration);
+  }
+
+  /// Pictures of stickers ([stickerFileIds] from the sticker tools) and GIFs
+  /// ([gifIds] from search_gifs or list_saved_gifs), downloaded: a still
+  /// sticker as it is, an animated one's or a GIF's thumbnail.
+  Future<List<String>> expressionPictures({List<int> stickerFileIds = const [], List<String> gifIds = const []}) async {
+    Future<String?> local(td.File? file) async {
+      if (file == null) return null;
+      if (file.local.isDownloadingCompleted && File(file.local.path).existsSync()) return file.local.path;
+      final f = await _client.send<td.File>(
+        td.DownloadFile(fileId: file.id, priority: 16, offset: 0, limit: 0, synchronous: true),
+        timeout: const Duration(seconds: 60),
+      );
+      return f.local.isDownloadingCompleted ? f.local.path : null;
+    }
+
+    final out = <String>[];
+    for (final id in stickerFileIds) {
+      // Still stickers are webp pictures; animated ones (tgs, webm) can't be
+      // shown as one, so their thumbnail stands in.
+      final sticker = await _stickerByFile(id);
+      final file = sticker == null
+          ? await _client.send<td.File>(td.GetFile(fileId: id), limited: true)
+          : sticker.format is td.StickerFormatWebp
+          ? sticker.sticker
+          : sticker.thumbnail?.file;
+      if (await local(file) case final p?) out.add(p);
+    }
+    if (gifIds.isNotEmpty) {
+      final saved = await savedGifs();
+      for (final id in gifIds) {
+        final gif = saved.where((g) => g.id == id).firstOrNull ?? _gifCache[id];
+        if (gif == null) continue;
+        if (await local(gif.animation.thumbnail?.file) case final p?) out.add(p);
+      }
+    }
+    return out;
+  }
+
+  /// GIFs seen in searches, so a gif_id can be looked at afterwards.
+  static final Map<String, GifItem> _gifCache = {};
+
+  /// The sticker whose file is [fileId], from the installed packs, favourites
+  /// and recent stickers.
+  Future<td.Sticker?> _stickerByFile(int fileId) async {
+    for (final list in [
+      await _client.send<td.Stickers>(const td.GetFavoriteStickers(), limited: true),
+      await _client.send<td.Stickers>(const td.GetRecentStickers(isAttached: false), limited: true),
+    ]) {
+      for (final s in list.stickers) {
+        if (s.sticker.id == fileId) return s;
+      }
+    }
+    for (final info in await stickerSets()) {
+      final set = await _client.send<td.StickerSet>(td.GetStickerSet(setId: info.id), limited: true);
+      for (final s in set.stickers) {
+        if (s.sticker.id == fileId) return s;
+      }
+    }
+    return null;
+  }
+
   Future<List<GifItem>> savedGifs() async {
     final r = await _client.send<td.Animations>(const td.GetSavedAnimations(), limited: true);
     return [for (final a in r.animations) GifItem(animation: a, id: 'file:${a.animation.id}')];
@@ -182,10 +336,14 @@ extension TelegramMedia on TelegramToolRunner {
       limited: true,
       timeout: const Duration(seconds: 20),
     );
-    return [
+    final found = [
       for (final res in r.results)
         if (res is td.InlineQueryResultAnimation) GifItem(animation: res.animation, id: 'inline:${r.inlineQueryId}:${res.id}'),
     ];
+    for (final g in found) {
+      _gifCache[g.id] = g;
+    }
+    return found;
   }
 
   Future<td.Message> sendGif(int chatId, String id, {int threadId = 0, String caption = ''}) async {
@@ -297,6 +455,49 @@ extension _MediaToolRuns on TelegramToolRunner {
   };
 
   Future<ToolOutput>? _runMedia(String name, Map<String, dynamic> args) => switch (name) {
+    'download_message_file' => () async {
+      final c = _requireChat(args);
+      final id = TelegramToolRunner._intOrNull(args, 'message_id') ?? (throw ArgumentError('message_id is required'));
+      final f = await downloadMessageFile(c.id, id);
+      if (f == null) return const ToolOutput({'error': 'That message has no file.'});
+      // Plain text reads inline; pictures are shown; anything else is a file to pass on.
+      final textual = f.mime.startsWith('text/') ||
+          RegExp(r'\.(txt|md|csv|json|xml|ya?ml|log|py|js|ts|dart|java|kt|c|cpp|h|html|css|sql|sh|ini|toml)$', caseSensitive: false)
+              .hasMatch(f.name);
+      String? text;
+      if (textual && f.size < 2 << 20) {
+        final raw = await File(f.path).readAsString().catchError((_) => '');
+        text = raw.length > 30000 ? '${raw.substring(0, 30000)}… [${raw.length - 30000} more characters]' : raw;
+      }
+      final picture = f.mime.startsWith('image/') && f.kind != 'sticker' || f.mime == 'image/webp';
+      return ToolOutput({
+        'downloaded': true,
+        'chat': c.title,
+        'name': f.name,
+        'kind': f.kind,
+        'mime': f.mime,
+        'size_kb': (f.size / 1024).ceil(),
+        'duration_seconds': ?f.duration,
+        'text': ?text,
+        if (f.kind == 'voice' || f.kind == 'audio' || f.kind == 'video_note')
+          'note': 'Use transcribe_message to hear what it says.',
+        'created_files': [f.path],
+        if (picture) '_images': [f.path],
+        if (picture) 'image_path': f.path,
+      });
+    }(),
+    'view_stickers_and_gifs' => () async {
+      final stickers = [for (final x in (args['sticker_file_ids'] as List? ?? const [])) ?TelegramToolRunner._intOrNull({'v': x}, 'v')];
+      final gifs = [for (final x in (args['gif_ids'] as List? ?? const [])) '$x'];
+      if (stickers.isEmpty && gifs.isEmpty) throw ArgumentError('Give sticker_file_ids or gif_ids.');
+      final pictures = await expressionPictures(stickerFileIds: stickers.take(8).toList(), gifIds: gifs.take(8).toList());
+      return ToolOutput({
+        'shown': pictures.length,
+        if (pictures.length < stickers.length + gifs.length)
+          'note': 'Some could not be loaded; GIFs from a search are only known until the app restarts.',
+        '_images': pictures,
+      });
+    }(),
     'search_gifs' => () async {
       final q = '${args['query'] ?? ''}'.trim();
       if (q.isEmpty) throw ArgumentError('query is required');

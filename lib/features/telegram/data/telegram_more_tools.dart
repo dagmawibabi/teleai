@@ -57,7 +57,7 @@ final _moreTdTools = <TelegramTool>[
   TelegramTool(
     name: 'inline_bot_query',
     label: 'Asking an inline bot',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     description:
         'Asks an inline bot (@gif, @vid, @wiki, @bing, @pic, @sticker, @youtube, @music, any bot with inline mode) for '
         'results for a query, as typing "@bot query" in Telegram does. Returns numbered results; send one with '
@@ -71,7 +71,7 @@ final _moreTdTools = <TelegramTool>[
   TelegramTool(
     name: 'send_inline_result',
     label: 'Sending an inline result',
-    category: ToolCategory.actions,
+    category: ToolCategory.bots,
     requiresApproval: true,
     description: 'Sends one result from inline_bot_query to a chat, as if picked from the inline list. Needs approval.',
     parameters: _obj({
@@ -109,7 +109,7 @@ final _moreTdTools = <TelegramTool>[
   TelegramTool(
     name: 'mark_reactions_seen',
     label: 'Marking reactions seen',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description: 'Marks the new reactions to the user\'s messages as seen, in one chat or (no chat_id) in every chat. Needs approval.',
     parameters: _obj({
@@ -119,7 +119,7 @@ final _moreTdTools = <TelegramTool>[
   TelegramTool(
     name: 'video_chat',
     label: 'Checking a video chat',
-    category: ToolCategory.chats,
+    category: ToolCategory.calls,
     description:
         'Whether a group or channel has a video chat (group call or live stream) going or scheduled: its title, how many '
         'are in it, who is speaking, whether the user can manage it. One-to-one calls can\'t be placed from this app; '
@@ -131,7 +131,7 @@ final _moreTdTools = <TelegramTool>[
   TelegramTool(
     name: 'manage_video_chat',
     label: 'Managing a video chat',
-    category: ToolCategory.actions,
+    category: ToolCategory.calls,
     requiresApproval: true,
     description:
         'As admin of a group or channel: start a video chat (now, or scheduled with start_at; live_stream for an RTMP '

@@ -24,7 +24,10 @@ import 'device_result_cards.dart';
 /// it and a preview (a cover, a playable video, the live page, the README).
 /// Null for every other tool, which keeps its plain card.
 Widget? richResultFor(ToolPart part) {
-  if (part.status != ToolStatus.done || part.result == null) return null;
+  // A failed sandbox run still has output worth showing (the traceback,
+  // stderr), so its card stays; other failures show just the error.
+  final failedRun = part.status == ToolStatus.error && part.name.startsWith('e2b_run');
+  if ((part.status != ToolStatus.done && !failedRun) || part.result == null) return null;
   final Map<String, dynamic> j;
   try {
     j = jsonDecode(part.result!) as Map<String, dynamic>;
@@ -299,7 +302,7 @@ class _Section extends StatelessWidget {
                     if (subtitle.isNotEmpty)
                       TextSpan(
                         text: '  $subtitle',
-                        style: const TextStyle(color: AppColors.text3),
+                        style: TextStyle(color: AppColors.text3),
                       ),
                   ],
                 ),
@@ -521,7 +524,7 @@ class _BookTile extends StatelessWidget {
                   placeholder: Icons.menu_book_rounded,
                 ),
                 if (isFree)
-                  const Positioned(
+                  Positioned(
                     left: 6,
                     top: 6,
                     child: _Chip('FREE', color: AppColors.success),
@@ -590,7 +593,7 @@ class _BookHero extends StatelessWidget {
                 '${book['description'] ?? book['summary'] ?? ''}',
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: AppColors.text2),
+                style: TextStyle(fontSize: 13, color: AppColors.text2),
               ),
               const SizedBox(height: 6),
               Wrap(
@@ -604,7 +607,7 @@ class _BookHero extends StatelessWidget {
                       color: AppColors.warning,
                     ),
                   if ((book['formats'] as List?)?.isNotEmpty == true)
-                    const _Chip(
+                    _Chip(
                       'Free download',
                       icon: Icons.download_rounded,
                       color: AppColors.success,
@@ -853,7 +856,7 @@ class _FileCard extends StatelessWidget {
             ],
           ),
         ),
-        const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.text3),
+        Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.text3),
       ],
     ),
   );
@@ -1071,7 +1074,7 @@ class _ChannelCard extends StatelessWidget {
                       '${channel['description']}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         color: AppColors.text2,
                       ),
@@ -1362,7 +1365,7 @@ class _PostCard extends StatelessWidget {
                   '${quoted['text']}',
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: AppColors.text2),
+                  style: TextStyle(fontSize: 13, color: AppColors.text2),
                 ),
               ],
             ),
@@ -1602,7 +1605,7 @@ class _ProfileBody extends StatelessWidget {
                           text: _compact(p['following']),
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        const TextSpan(
+                        TextSpan(
                           text: ' following',
                           style: TextStyle(color: AppColors.text3),
                         ),
@@ -1616,7 +1619,7 @@ class _ProfileBody extends StatelessWidget {
                           text: _compact(p['followers']),
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        const TextSpan(
+                        TextSpan(
                           text: ' followers',
                           style: TextStyle(color: AppColors.text3),
                         ),
@@ -1631,7 +1634,7 @@ class _ProfileBody extends StatelessWidget {
                             text: _compact(p['posts']),
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
-                          const TextSpan(
+                          TextSpan(
                             text: ' posts',
                             style: TextStyle(color: AppColors.text3),
                           ),
@@ -1719,7 +1722,7 @@ class _RepoCard extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: '${name.split('/').first}/',
-                        style: const TextStyle(color: AppColors.text2),
+                        style: TextStyle(color: AppColors.text2),
                       ),
                       TextSpan(
                         text: name.split('/').last,
@@ -1732,7 +1735,7 @@ class _RepoCard extends StatelessWidget {
                 ),
               ),
               if (r['archived'] == true)
-                const _Chip('Archived', color: AppColors.warning),
+                _Chip('Archived', color: AppColors.warning),
             ],
           ),
           if (r['description'] != null) ...[
@@ -1741,7 +1744,7 @@ class _RepoCard extends StatelessWidget {
               '${r['description']}',
               maxLines: big ? 4 : 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, color: AppColors.text2),
+              style: TextStyle(fontSize: 13, color: AppColors.text2),
             ),
           ],
           const SizedBox(height: Space.s),
@@ -1820,8 +1823,8 @@ void showRepo(
 
 MarkdownStyleSheet _md(BuildContext context) =>
     MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-      p: const TextStyle(fontSize: 14, height: 1.45, color: AppColors.text),
-      code: const TextStyle(
+      p: TextStyle(fontSize: 14, height: 1.45, color: AppColors.text),
+      code: TextStyle(
         fontFamily: 'monospace',
         fontSize: 12.5,
         backgroundColor: AppColors.surface3,
@@ -1830,7 +1833,7 @@ MarkdownStyleSheet _md(BuildContext context) =>
         color: AppColors.surface2,
         borderRadius: BorderRadius.circular(Radii.m),
       ),
-      blockquoteDecoration: const BoxDecoration(
+      blockquoteDecoration: BoxDecoration(
         border: Border(left: BorderSide(color: AppColors.line, width: 3)),
       ),
     );
@@ -2097,7 +2100,7 @@ class _ReleaseCard extends StatelessWidget {
                       ),
                     ),
                     if (r['prerelease'] == true)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(left: 6),
                         child: _Chip('Pre-release', color: AppColors.warning),
                       ),
@@ -2110,7 +2113,7 @@ class _ReleaseCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+          Icon(Icons.chevron_right_rounded, color: AppColors.text3),
         ],
       ),
     );
@@ -2387,7 +2390,7 @@ class _CodeCard extends StatelessWidget {
                       for (final (n, l) in lines.indexed) ...[
                         TextSpan(
                           text: '${'${n + 1}'.padLeft(4)}  ',
-                          style: const TextStyle(color: AppColors.text3),
+                          style: TextStyle(color: AppColors.text3),
                         ),
                         TextSpan(text: '$l\n'),
                       ],
@@ -2411,7 +2414,7 @@ class _CodeCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(Space.m, Space.s, Space.m, 4),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.description_outlined,
                   size: 16,
                   color: AppColors.text2,
@@ -2440,7 +2443,7 @@ class _CodeCard extends StatelessWidget {
               maxLines: 8,
               overflow: TextOverflow.fade,
               softWrap: false,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 11.5,
                 color: AppColors.text2,
@@ -2499,7 +2502,7 @@ class _PageCard extends StatelessWidget {
                     text,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
                       color: AppColors.text2,
                     ),
@@ -2508,7 +2511,7 @@ class _PageCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+          Icon(Icons.chevron_right_rounded, color: AppColors.text3),
         ],
       ),
     );
@@ -2792,8 +2795,8 @@ class _ArtistRow extends StatelessWidget {
         Container(
           width: 46,
           height: 46,
-          decoration: const BoxDecoration(color: AppColors.surface3, shape: BoxShape.circle),
-          child: const Icon(Icons.mic_external_on_outlined, color: AppColors.text2),
+          decoration: BoxDecoration(color: AppColors.surface3, shape: BoxShape.circle),
+          child: Icon(Icons.mic_external_on_outlined, color: AppColors.text2),
         ),
         const SizedBox(width: Space.m),
         Expanded(
@@ -2805,7 +2808,7 @@ class _ArtistRow extends StatelessWidget {
             ],
           ),
         ),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+        Icon(Icons.chevron_right_rounded, color: AppColors.text3),
       ],
     ),
   );
@@ -2938,7 +2941,7 @@ class _ArtistHero extends StatelessWidget {
               ),
               if (artist['summary'] != null) ...[
                 const SizedBox(height: 6),
-                Text('${artist['summary']}', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: AppColors.text2)),
+                Text('${artist['summary']}', maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: AppColors.text2)),
               ],
             ],
           ),
@@ -3148,7 +3151,7 @@ class _ScreenHero extends StatelessWidget {
                 '${item['synopsis'] ?? item['summary'] ?? ''}',
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: AppColors.text2),
+                style: TextStyle(fontSize: 13, color: AppColors.text2),
               ),
             ],
           ),
@@ -3302,7 +3305,7 @@ class _ShowSheet extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.upcoming_outlined, color: AppColors.success),
+                Icon(Icons.upcoming_outlined, color: AppColors.success),
                 const SizedBox(width: Space.m),
                 Expanded(
                   child: Text(

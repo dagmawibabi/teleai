@@ -86,11 +86,11 @@ class _NodeState extends State<_Node> {
               children: [
                 Icon(_open ? Icons.expand_more_rounded : Icons.chevron_right_rounded, size: 16, color: AppColors.text3),
                 _label(),
-                Text(_open ? open : '$open … $close', style: const TextStyle(color: AppColors.text2)),
+                Text(_open ? open : '$open … $close', style: TextStyle(color: AppColors.text2)),
                 if (!_open)
                   Text(
                     '  ${entries.length} ${v is Map ? 'keys' : 'items'}',
-                    style: const TextStyle(color: AppColors.text3, fontSize: 11.5),
+                    style: TextStyle(color: AppColors.text3, fontSize: 11.5),
                   ),
               ],
             ),
@@ -100,7 +100,7 @@ class _NodeState extends State<_Node> {
               padding: const EdgeInsets.only(left: 14),
               child: Container(
                 padding: const EdgeInsets.only(left: 8),
-                decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.line))),
+                decoration: BoxDecoration(border: Border(left: BorderSide(color: AppColors.line))),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -110,7 +110,7 @@ class _NodeState extends State<_Node> {
                 ),
               ),
             ),
-            Padding(padding: const EdgeInsets.only(left: 16), child: Text(close, style: const TextStyle(color: AppColors.text2))),
+            Padding(padding: const EdgeInsets.only(left: 16), child: Text(close, style: TextStyle(color: AppColors.text2))),
           ],
         ],
       );

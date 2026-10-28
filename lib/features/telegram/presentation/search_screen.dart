@@ -323,7 +323,7 @@ class _SearchingPlaceholderState extends State<_SearchingPlaceholder> with Singl
         padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: 10),
         child: Row(
           children: [
-            const CircleAvatar(radius: 20, backgroundColor: AppColors.surface3),
+            CircleAvatar(radius: 20, backgroundColor: AppColors.surface3),
             const SizedBox(width: Space.m),
             Expanded(
               child: Column(

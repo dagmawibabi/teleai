@@ -324,10 +324,10 @@ class _TerminalCard extends StatelessWidget {
               TextSpan(
                 style: codeTextStyle.copyWith(fontSize: 12.5),
                 children: [
-                  TextSpan(text: r'$ ', style: const TextStyle(color: AppColors.success)),
+                  TextSpan(text: r'$ ', style: TextStyle(color: AppColors.success)),
                   TextSpan(text: '${result['command']}\n', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  if (result['stdout'] != null) TextSpan(text: '${result['stdout']}'.trimRight(), style: const TextStyle(color: AppColors.text2)),
-                  if (result['stderr'] != null) TextSpan(text: '\n${'${result['stderr']}'.trimRight()}', style: const TextStyle(color: AppColors.warning)),
+                  if (result['stdout'] != null) TextSpan(text: '${result['stdout']}'.trimRight(), style: TextStyle(color: AppColors.text2)),
+                  if (result['stderr'] != null) TextSpan(text: '\n${'${result['stderr']}'.trimRight()}', style: TextStyle(color: AppColors.warning)),
                 ],
               ),
             ),
@@ -524,7 +524,7 @@ class _SimpleList extends StatelessWidget {
           leading: Icon(icon, color: const Color(0xFFF38020), size: 20),
           title: Text(t, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
           subtitle: sub.isEmpty ? null : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
-          trailing: urls?[i] == null ? null : const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
+          trailing: urls?[i] == null ? null : Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
         ),
       if (rows.isEmpty) Padding(padding: const EdgeInsets.all(Space.m), child: Text('Nothing here.', style: context.text.bodySmall)),
     ],
@@ -558,7 +558,7 @@ class _R2Browser extends ConsumerWidget {
             leading: Icon(_fileIcon('${o['key']}'), color: AppColors.text2),
             title: Text('${o['key']}'.substring('${o['key']}'.startsWith(prefix) ? prefix.length : 0), maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text([_size(o['size']), _day(o['modified'])].where((x) => x.isNotEmpty).join(' · ')),
-            trailing: const Icon(Icons.more_horiz_rounded, size: 18, color: AppColors.text3),
+            trailing: Icon(Icons.more_horiz_rounded, size: 18, color: AppColors.text3),
             onTap: () => _actions(context, ref, bucket, '${o['key']}'),
           ),
         if (objects.length > 60 || listing['next_cursor'] != null)

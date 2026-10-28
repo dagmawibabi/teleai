@@ -8,7 +8,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'delete_messages',
     label: 'Deleting messages',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     destructive: true,
     description:
@@ -26,7 +26,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'clear_chat_history',
     label: 'Clearing a chat',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     destructive: true,
     description:
@@ -40,7 +40,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'leave_chat',
     label: 'Leaving a chat',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     destructive: true,
     description: 'Leaves a group or unsubscribes from a channel. Needs approval.',
@@ -51,7 +51,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'delete_chat',
     label: 'Deleting a chat',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     destructive: true,
     description:
@@ -64,7 +64,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'block_user',
     label: 'Blocking',
-    category: ToolCategory.actions,
+    category: ToolCategory.contacts,
     requiresApproval: true,
     destructive: true,
     description: 'Blocks a user or bot (user_id), or unblocks them with unblock: true. Needs approval.',
@@ -76,7 +76,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'remove_contact',
     label: 'Removing a contact',
-    category: ToolCategory.actions,
+    category: ToolCategory.contacts,
     requiresApproval: true,
     destructive: true,
     description: 'Removes users (user_ids) from the user\'s contacts. Needs approval.',
@@ -90,7 +90,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'ban_member',
     label: 'Banning a member',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     destructive: true,
     description:
@@ -109,7 +109,7 @@ final _destructiveTools = <TelegramTool>[
   TelegramTool(
     name: 'delete_all_from_member',
     label: 'Deleting a member\'s messages',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     destructive: true,
     description: 'As an admin of a group: deletes every message a member (user_id) sent there. Needs approval.',
@@ -244,7 +244,7 @@ extension _DestructiveToolRuns on TelegramToolRunner {
       await banMember(
         c.id,
         id,
-        days: TelegramToolRunner._int(args, 'days', fallback: 0, max: 366),
+        days: TelegramToolRunner._int(args, 'days', fallback: 0, min: 0, max: 366),
         deleteMessages: args['delete_messages'] == true,
       );
       if (args['kick_only'] == true) await unbanMember(c.id, id);

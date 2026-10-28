@@ -41,7 +41,7 @@ final _chatTools = <TelegramTool>[
   TelegramTool(
     name: 'add_chat_to_folder',
     label: 'Changing a folder',
-    category: ToolCategory.chats,
+    category: ToolCategory.folders,
     requiresApproval: true,
     description:
         'Adds a chat to one of the user\'s Telegram folders (folder_id from list_chat_folders), or takes it out with '

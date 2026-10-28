@@ -17,7 +17,7 @@ class ApprovalsScreen extends ConsumerWidget {
     final ctl = ref.read(settingsProvider.notifier);
     // Telegram's tools only matter once it is connected.
     final telegram = ref.watch(telegramConnectedProvider);
-    bool shown(TelegramTool t) => telegram || !t.category.needsTelegram;
+    bool shown(TelegramTool t) => telegram || !t.needsTelegram;
     final asking = [for (final t in telegramTools) if (shown(t) && t.requiresApproval && !t.destructive && !t.alwaysAsk) t];
     final always = [for (final t in telegramTools) if (shown(t) && (t.destructive || t.alwaysAsk)) t];
     final byCategory = <ToolCategory, List<TelegramTool>>{};

@@ -6,6 +6,92 @@ import '../data/telegram_store.dart';
 import '../data/telegram_tools.dart';
 import 'tg_avatar.dart';
 
+/// Chats the account can write in, Saved Messages first, then by latest
+/// activity; [q] filters by title.
+List<ChatInfo> postableChats(TelegramStore store, String q) {
+  final me = store.me?.id;
+  return store.chats.values
+      .where((c) => c.title.isNotEmpty && c.isListed && store.canPost(c))
+      .where((c) => q.isEmpty || c.title.toLowerCase().contains(q))
+      .toList()
+    ..sort((a, b) {
+      if (a.id == me) return -1;
+      if (b.id == me) return 1;
+      return (b.lastMessage?.date ?? 0).compareTo(a.lastMessage?.date ?? 0);
+    });
+}
+
+/// One chat to write in, picked from a searchable list; null when closed.
+Future<int?> pickChat(BuildContext context, {required String title}) => showModalBottomSheet<int>(
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  useSafeArea: true,
+  builder: (_) => DraggableScrollableSheet(
+    expand: false,
+    initialChildSize: 0.8,
+    maxChildSize: 0.95,
+    builder: (_, scroll) => _ChatPicker(title: title, scroll: scroll),
+  ),
+);
+
+class _ChatPicker extends ConsumerStatefulWidget {
+  const _ChatPicker({required this.title, required this.scroll});
+  final String title;
+  final ScrollController scroll;
+
+  @override
+  ConsumerState<_ChatPicker> createState() => _ChatPickerState();
+}
+
+class _ChatPickerState extends ConsumerState<_ChatPicker> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final store = ref.watch(telegramStoreProvider);
+    final me = store.me?.id;
+    final chats = postableChats(store, _q.toLowerCase().trim());
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
+          child: Align(alignment: Alignment.centerLeft, child: Text(widget.title, style: context.text.titleMedium)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Space.l),
+          child: TextField(
+            autofocus: false,
+            onChanged: (v) => setState(() => _q = v),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search chats',
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            controller: widget.scroll,
+            itemCount: chats.length,
+            itemBuilder: (_, i) {
+              final c = chats[i];
+              return ListTile(
+                leading: c.id == me ? const SavedAvatar(size: 40) : TgAvatar(chatId: c.id, title: c.title, size: 40),
+                title: Text(c.id == me ? 'Saved Messages' : c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(store.kindOf(c).name, style: context.text.bodySmall),
+                onTap: () => Navigator.pop(context, c.id),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Forwards [messageIds] from [fromChatId] to any number of chats, with
 /// Telegram's options to hide the sender or drop captions.
 Future<void> showForwardSheet(BuildContext context, int fromChatId, List<int> messageIds) => showModalBottomSheet<void>(
@@ -72,16 +158,7 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
     final store = ref.watch(telegramStoreProvider);
     final q = _q.toLowerCase().trim();
     final me = store.me?.id;
-    final chats =
-        store.chats.values
-            .where((c) => c.title.isNotEmpty && c.isListed && store.canPost(c))
-            .where((c) => q.isEmpty || c.title.toLowerCase().contains(q))
-            .toList()
-          ..sort((a, b) {
-            if (a.id == me) return -1;
-            if (b.id == me) return 1;
-            return (b.lastMessage?.date ?? 0).compareTo(a.lastMessage?.date ?? 0);
-          });
+    final chats = postableChats(store, q);
     final n = widget.messageIds.length;
     return Column(
       children: [
@@ -105,7 +182,7 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
             decoration: InputDecoration(
               isDense: true,
               hintText: 'Search chats',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
             ),

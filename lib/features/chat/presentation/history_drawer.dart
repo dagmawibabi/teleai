@@ -16,6 +16,7 @@ import '../../telegram/presentation/tg_avatar.dart';
 import '../data/chat_controller.dart';
 import '../domain/chat_models.dart';
 import 'generated_files_screen.dart';
+import 'widgets/chat_sheets.dart';
 import '../../brief/brief_screen.dart';
 import '../../brief/brief_store.dart';
 import '../../canvas/canvas_store.dart';
@@ -51,34 +52,15 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
     BuildContext context,
     WidgetRef ref,
     ConversationSummary c,
+  ) => showRenameSheet(context, id: c.id, title: c.title);
+
+  Future<void> _export(
+    BuildContext context,
+    WidgetRef ref,
+    ConversationSummary c,
   ) async {
-    final ctrl = TextEditingController(text: c.title);
-    final title = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename chat'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (title != null && title.trim().isNotEmpty) {
-      await ref
-          .read(chatControllerProvider.notifier)
-          .rename(c.id, title.trim());
-    }
+    final conversation = await ref.read(chatControllerProvider.notifier).conversationById(c.id);
+    if (conversation != null && context.mounted) await showExportSheet(context, conversation);
   }
 
   Future<void> _delete(
@@ -125,10 +107,17 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
       Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
     }
 
-    final groups = <String, List<ConversationSummary>>{};
+    // Pinned chats first, then the rest by when they were used; archived
+    // ones only under Archived at the end.
+    final groups = <String, List<ConversationSummary>>{
+      if (state.history.any((c) => c.pinned && !c.archived))
+        'Pinned': [for (final c in state.history) if (c.pinned && !c.archived) c],
+    };
     for (final c in state.history) {
+      if (c.pinned || c.archived) continue;
       groups.putIfAbsent(_bucket(c.updatedAt), () => []).add(c);
     }
+    final archived = [for (final c in state.history) if (c.archived) c];
 
     return Drawer(
       width: 300,
@@ -201,7 +190,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.call_outlined,
                                   size: 20,
                                   color: AppColors.text2,
@@ -318,9 +307,39 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                           Navigator.pop(context);
                         },
                         onRename: () => _rename(context, ref, c),
+                        onExport: () => _export(context, ref, c),
+                        onPin: () => controller.pin(c.id, !c.pinned),
+                        onArchive: () => controller.archive(c.id, !c.archived),
                         onDelete: () => _delete(context, ref, c),
                       ),
                   ],
+                  if (archived.isNotEmpty)
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(horizontal: Space.m),
+                        childrenPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.archive_outlined, size: 20, color: AppColors.text2),
+                        title: Text('ARCHIVED · ${archived.length}', style: context.text.labelSmall),
+                        children: [
+                          for (final c in archived)
+                            _HistoryTile(
+                              summary: c,
+                              selected: c.id == state.conversation.id,
+                              running: controller.runningIds.contains(c.id),
+                              onTap: () {
+                                controller.open(c.id);
+                                Navigator.pop(context);
+                              },
+                              onRename: () => _rename(context, ref, c),
+                              onExport: () => _export(context, ref, c),
+                              onPin: () => controller.pin(c.id, !c.pinned),
+                              onArchive: () => controller.archive(c.id, !c.archived),
+                              onDelete: () => _delete(context, ref, c),
+                            ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -329,7 +348,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
               contentPadding: const EdgeInsets.symmetric(horizontal: Space.l),
               leading: me == null
                   ? (telegram
-                        ? const CircleAvatar(
+                        ? CircleAvatar(
                             radius: 16,
                             backgroundColor: AppColors.surface3,
                           )
@@ -356,7 +375,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
               ),
               trailing: IconButton(
                 tooltip: 'Settings',
-                icon: const Icon(
+                icon: Icon(
                   Icons.settings_outlined,
                   size: 20,
                   color: AppColors.text2,
@@ -462,7 +481,7 @@ class _DrawerActionTile extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+          Icon(Icons.chevron_right_rounded, color: AppColors.text3),
         ],
       ),
     ),
@@ -475,6 +494,9 @@ class _HistoryTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.onRename,
+    required this.onExport,
+    required this.onPin,
+    required this.onArchive,
     required this.onDelete,
     this.running = false,
   });
@@ -486,6 +508,9 @@ class _HistoryTile extends StatelessWidget {
   final bool running;
   final VoidCallback onTap;
   final VoidCallback onRename;
+  final VoidCallback onExport;
+  final VoidCallback onPin;
+  final VoidCallback onArchive;
   final VoidCallback onDelete;
 
   @override
@@ -513,6 +538,11 @@ class _HistoryTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (summary.pinned && !running && summary.unread == 0)
+                Padding(
+                  padding: const EdgeInsets.only(left: Space.s),
+                  child: Transform.rotate(angle: 0.6, child: Icon(Icons.push_pin_rounded, size: 14, color: AppColors.text3)),
+                ),
               if (running)
                 const Padding(
                   padding: EdgeInsets.only(left: Space.s),
@@ -533,7 +563,7 @@ class _HistoryTile extends StatelessWidget {
                   ),
                   child: Text(
                     '${summary.unread}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppColors.bg,
@@ -542,14 +572,23 @@ class _HistoryTile extends StatelessWidget {
                 ),
               PopupMenuButton<String>(
                 tooltip: 'More',
-                icon: const Icon(
+                icon: Icon(
                   Icons.more_horiz_rounded,
                   size: 18,
                   color: AppColors.text3,
                 ),
-                onSelected: (v) => v == 'rename' ? onRename() : onDelete(),
-                itemBuilder: (_) => const [
+                onSelected: (v) => switch (v) {
+                  'rename' => onRename(),
+                  'export' => onExport(),
+                  'pin' => onPin(),
+                  'archive' => onArchive(),
+                  _ => onDelete(),
+                },
+                itemBuilder: (_) => [
                   PopupMenuItem(value: 'rename', child: Text('Rename')),
+                  PopupMenuItem(value: 'pin', child: Text(summary.pinned ? 'Unpin' : 'Pin to top')),
+                  PopupMenuItem(value: 'archive', child: Text(summary.archived ? 'Unarchive' : 'Archive')),
+                  PopupMenuItem(value: 'export', child: Text('Export')),
                   PopupMenuItem(
                     value: 'delete',
                     child: Text(
@@ -603,7 +642,7 @@ class _BrowseTile extends StatelessWidget {
                 ),
                 child: Text(
                   '$unread',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: AppColors.bg,
@@ -613,7 +652,7 @@ class _BrowseTile extends StatelessWidget {
             if (count != null)
               Text(
                 '$count',
-                style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+                style: TextStyle(fontSize: 12.5, color: AppColors.text3),
               ),
           ],
         ),
@@ -654,7 +693,7 @@ class _FolderTile extends StatelessWidget {
             if (count != null)
               Text(
                 '$count',
-                style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+                style: TextStyle(fontSize: 12.5, color: AppColors.text3),
               ),
           ],
         ),

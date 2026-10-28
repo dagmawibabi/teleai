@@ -198,7 +198,7 @@ footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center}
 
 /// Phone fonts, so text in any script shows (PDF's built-in fonts are
 /// Latin only). Missing ones are skipped.
-Future<pw.ThemeData> _theme() async {
+Future<pw.ThemeData> pdfTheme() async {
   pw.Font? load(List<String> names) {
     for (final n in names) {
       try {
@@ -229,7 +229,7 @@ Future<pw.ThemeData> _theme() async {
 }
 
 Future<Uint8List> _pdf(List<_Section> sections) async {
-  final doc = pw.Document(theme: await _theme(), title: sections.first.folder.name, creator: 'Triangle');
+  final doc = pw.Document(theme: await pdfTheme(), title: sections.first.folder.name, creator: 'Triangle');
   const muted = PdfColor.fromInt(0xFF6C6C76);
   const card = PdfColor.fromInt(0xFFF4F4F6);
   const line = PdfColor.fromInt(0xFFE3E3E8);

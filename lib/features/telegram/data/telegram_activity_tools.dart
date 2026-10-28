@@ -7,7 +7,7 @@ final _activityTools = <TelegramTool>[
   TelegramTool(
     name: 'list_calls',
     label: 'Opening call history',
-    category: ToolCategory.account,
+    category: ToolCategory.calls,
     description:
         'The user\'s call history, newest first: who, incoming or outgoing, voice or video, how long, and whether it '
         'was missed, declined or ended. only_missed: true for missed calls.',
@@ -36,7 +36,7 @@ final _activityTools = <TelegramTool>[
   TelegramTool(
     name: 'contact_joins',
     label: 'Finding contacts who joined',
-    category: ToolCategory.account,
+    category: ToolCategory.contacts,
     cost: ToolCost.local,
     description: 'Contacts who recently joined Telegram ("X joined Telegram"), from the user\'s private chats.',
     parameters: _obj({

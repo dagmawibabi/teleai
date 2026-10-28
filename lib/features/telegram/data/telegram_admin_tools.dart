@@ -136,7 +136,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'list_members',
     label: 'Listing members',
-    category: ToolCategory.chats,
+    category: ToolCategory.members,
     description:
         'Members of a group or subscribers of a channel (channels only for admins) with each one\'s role, custom '
         'title, admin rights or restrictions, join date and who added them. filter: recent, admins, bots, '
@@ -155,7 +155,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'get_member',
     label: 'Checking a member',
-    category: ToolCategory.chats,
+    category: ToolCategory.members,
     description: 'One member\'s role, rights or restrictions in a group or channel (user_id), and the chat\'s default permissions.',
     parameters: _obj({
       'chat_id': {'type': 'integer'},
@@ -165,7 +165,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'get_chat_permissions',
     label: 'Reading permissions',
-    category: ToolCategory.chats,
+    category: ToolCategory.members,
     cost: ToolCost.local,
     description: 'What ordinary members of a group may do (its default permissions), plus slow mode where known.',
     parameters: _obj({
@@ -175,7 +175,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'set_chat_permissions',
     label: 'Changing permissions',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     description: 'As an admin: changes what all members of a group may do. Needs approval.',
     parameters: _obj({
@@ -187,7 +187,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'promote_member',
     label: 'Changing an admin',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     description:
         'As an admin with that right: makes a member an admin with the given rights, or demotes them back to a '
@@ -203,7 +203,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'set_member_tag',
     label: 'Tagging a member',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     description:
         'Sets or clears (empty tag) the member tag shown next to someone\'s name in a group — what used to be an '
@@ -217,7 +217,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'restrict_member',
     label: 'Restricting a member',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     description:
         'As an admin: limits what one member may do (e.g. mute them with send_messages false) for days (0 = '
@@ -233,7 +233,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'edit_chat_info',
     label: 'Editing chat info',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'As an admin: changes a group\'s or channel\'s title, description, or photo (photo: an attached image\'s name). '
@@ -258,7 +258,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'create_invite_link',
     label: 'Making an invite link',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Creates an invite link: optional name, expiry in hours, member limit, and approval of joiners '
@@ -275,7 +275,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'list_join_requests',
     label: 'Checking join requests',
-    category: ToolCategory.chats,
+    category: ToolCategory.members,
     description: 'People asking to join a group or channel you admin, with their bio and when they asked.',
     parameters: _obj({
       'chat_id': {'type': 'integer'},
@@ -285,7 +285,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'answer_join_request',
     label: 'Answering a join request',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     description: 'Approves or declines someone\'s request to join (user_id; approve true or false). Needs approval.',
     parameters: _obj({
@@ -297,7 +297,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'get_admin_log',
     label: 'Reading the admin log',
-    category: ToolCategory.chats,
+    category: ToolCategory.members,
     description:
         'Recent admin actions in a group or channel you admin (last 48 hours): edits, deletions, bans, joins, '
         'leaves, settings changes. query filters by text.',
@@ -310,7 +310,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'add_members',
     label: 'Adding members',
-    category: ToolCategory.actions,
+    category: ToolCategory.members,
     requiresApproval: true,
     description: 'Adds users (user_ids, e.g. contacts) to a group or channel. Needs approval.',
     parameters: _obj({
@@ -324,7 +324,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'create_chat',
     label: 'Creating a chat',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Creates a new channel, group or forum group with a title and description, optionally adding user_ids. '
@@ -345,7 +345,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'join_chat',
     label: 'Joining a chat',
-    category: ToolCategory.actions,
+    category: ToolCategory.chats,
     requiresApproval: true,
     description:
         'Joins a public channel or group (chat_id or @username) or one by invite link (link). check_only: true '
@@ -360,7 +360,7 @@ final _adminTools = <TelegramTool>[
   TelegramTool(
     name: 'list_blocked',
     label: 'Listing blocked accounts',
-    category: ToolCategory.account,
+    category: ToolCategory.contacts,
     description: 'Users, bots and chats the user has blocked, with ids for block_user (unblock).',
     parameters: _obj({
       'limit': {'type': 'integer'},

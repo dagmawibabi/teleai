@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../../app/theme.dart';
+import '../../../../core/widgets/app_sheet.dart';
 import '../../../canvas/canvas_store.dart';
 import '../../../canvas/save_to_canvas.dart';
 import '../../../integrations/app_toolkits.dart';
@@ -207,40 +208,10 @@ class _Pill extends StatelessWidget {
   }
 }
 
-Future<void> _sheet(BuildContext context, Widget Function(ScrollController) body) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  showDragHandle: true,
-  backgroundColor: AppColors.surface,
-  builder: (_) => DraggableScrollableSheet(
-    expand: false,
-    initialChildSize: 0.86,
-    minChildSize: 0.4,
-    maxChildSize: 1,
-    builder: (_, scroll) => body(scroll),
-  ),
-);
+Future<void> _sheet(BuildContext context, Widget Function(ScrollController) body) =>
+    showAppSheet<void>(context, builder: (_, scroll) => body(scroll));
 
-class _Avatar extends StatelessWidget {
-  const _Avatar(this.name, {this.size = 34});
-  final String name;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final letter = name.trim().isEmpty ? '?' : name.trim().characters.first.toUpperCase();
-    final hue = (name.hashCode % 360).abs().toDouble();
-    final color = HSLColor.fromAHSL(1, hue, 0.45, 0.42).toColor();
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(letter, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: size * 0.42)),
-    );
-  }
-}
+typedef _Avatar = LetterAvatar;
 
 // ---- connect -----------------------------------------------------------------
 
@@ -317,7 +288,7 @@ class _ConnectCardState extends ConsumerState<_ConnectCard> with WidgetsBindingO
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
           child: connected
-              ? const _Pill('Connected', color: AppColors.success, icon: Icons.check_rounded)
+              ? _Pill('Connected', color: AppColors.success, icon: Icons.check_rounded)
               : FilledButton.icon(
                   onPressed: _connect,
                   icon: const Icon(Icons.link_rounded, size: 18),
@@ -405,8 +376,8 @@ class _EmailRow extends StatelessWidget {
                           style: TextStyle(fontWeight: unread ? FontWeight.w700 : FontWeight.w500),
                         ),
                       ),
-                      if (email['starred'] == true) const Icon(Icons.star_rounded, size: 14, color: AppColors.warning),
-                      if (attachments > 0) const Icon(Icons.attach_file_rounded, size: 14, color: AppColors.text3),
+                      if (email['starred'] == true) Icon(Icons.star_rounded, size: 14, color: AppColors.warning),
+                      if (attachments > 0) Icon(Icons.attach_file_rounded, size: 14, color: AppColors.text3),
                       const SizedBox(width: 4),
                       Text(_when(email['date']), style: context.text.labelSmall?.copyWith(color: unread ? AppColors.accent : AppColors.text3)),
                     ],
@@ -754,16 +725,16 @@ class _EventRow extends StatelessWidget {
                     Wrap(
                       spacing: 6,
                       children: [
-                        if (live) const _Pill('Now', color: AppColors.success),
+                        if (live) _Pill('Now', color: AppColors.success),
                         if (event['attendees'] != null) _Pill('${event['attendees']} guests', icon: Icons.group_outlined),
-                        if (event['meet'] != null) const _Pill('Video call', icon: Icons.videocam_outlined, color: AppColors.success),
+                        if (event['meet'] != null) _Pill('Video call', icon: Icons.videocam_outlined, color: AppColors.success),
                       ],
                     ),
                   ],
                 ],
               ),
             ),
-            if (event['link'] != null || event['meet'] != null) const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+            if (event['link'] != null || event['meet'] != null) Icon(Icons.chevron_right_rounded, color: AppColors.text3),
           ],
         ),
       ),
@@ -1066,7 +1037,7 @@ class _PageList extends StatelessWidget {
               subtitle: Text(
                 [p['kind'] == 'database' ? 'Database' : 'Page', if (p['edited'] != null) 'edited ${_when(p['edited'], time: false)}', if (p['archived'] == true) 'archived'].join(' · '),
               ),
-              trailing: p['url'] == null ? null : const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
+              trailing: p['url'] == null ? null : Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
             ),
         ],
       ),
@@ -1169,7 +1140,7 @@ class _FileList extends StatelessWidget {
                       if (f['shared'] == true) 'shared',
                     ].join(' · '),
                   ),
-                  trailing: f['link'] == null ? null : const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
+                  trailing: f['link'] == null ? null : Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
                 );
               },
             ),

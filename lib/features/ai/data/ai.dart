@@ -236,12 +236,15 @@ extension ModelPickerTitle on ModelType {
 /// The model lists of every router the app uses, with models.dev details.
 @immutable
 class CatalogState {
-  const CatalogState({this.models = const [], this.loading = false, this.error, this.fetchedAt});
+  const CatalogState({this.models = const [], this.loading = false, this.error, this.fetchedAt, this.providerErrors = const {}});
 
   final List<ModelInfo> models;
   final bool loading;
   final String? error;
   final DateTime? fetchedAt;
+
+  /// What went wrong listing each provider's models, by omni_ai provider id.
+  final Map<String, String> providerErrors;
 
   /// Models of a router for [type], without batch variants. ElevenLabs and
   /// Addis AI have engines of their own in Settings, so they aren't listed.
@@ -270,6 +273,7 @@ class ModelCatalogNotifier extends Notifier<CatalogState> {
     models: c.models,
     loading: c.loading,
     fetchedAt: c.fetchedAt,
+    providerErrors: c.errors,
     error: c.models.isEmpty && c.errors.isNotEmpty ? 'Could not reach the model lists. Check your connection.' : null,
   );
 

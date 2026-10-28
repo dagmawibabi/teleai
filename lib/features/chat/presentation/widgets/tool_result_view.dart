@@ -11,6 +11,7 @@ import '../../../../app/theme.dart';
 import '../../../telegram/presentation/chat_view_screen.dart';
 import '../../../telegram/presentation/tg_avatar.dart';
 import '../../domain/chat_models.dart';
+import 'message_preview.dart';
 import 'post_viewer.dart';
 import '../../../telegram/presentation/link_opener.dart';
 
@@ -24,15 +25,64 @@ class ToolResultView extends StatelessWidget {
   final String name;
   final Map<String, dynamic> json;
 
+  /// Fields only the app uses, never worth showing.
+  static const _internal = {'stopped', '_images', 'image_path', 'audio_path', 'created_files'};
+
+  /// Collections the purpose-built views below draw themselves.
+  static const _renderedCollections = {
+    'chat',
+    'message',
+    'messages',
+    'chats',
+    'contacts',
+    'members',
+    'folders',
+    'items',
+    'not_read',
+    'personal_channel',
+    'common_groups',
+  };
+
   @override
   Widget build(BuildContext context) {
-    final j = json;
-    if (j['error'] != null)
-      return _Callout(
-        icon: Icons.error_outline_rounded,
-        color: AppColors.danger,
-        text: '${j['error']}',
-      );
+    final error = json['error'];
+    final body = {
+      for (final e in json.entries)
+        if (e.key != 'error' && e.key != 'stopped') e.key: e.value,
+    };
+    // A failure can still carry output (a sandbox's traceback and stderr).
+    final shown = <String>{};
+    final main = body.isEmpty ? null : _view(context, body, shown);
+    // Whatever the main view may have left out goes last, folded away:
+    // totals, cursors, URLs, warnings. Nothing the tool returned is hidden.
+    final rest = main is _StructuredResult
+        ? const <String, dynamic>{}
+        : {
+            for (final e in body.entries)
+              if (!_internal.contains(e.key) &&
+                  !_renderedCollections.contains(e.key) &&
+                  !shown.contains(e.key) &&
+                  e.value != null)
+                e.key: e.value,
+          };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (error != null)
+          _Callout(
+            icon: json['stopped'] == true ? Icons.stop_circle_outlined : Icons.error_outline_rounded,
+            color: json['stopped'] == true ? AppColors.warning : AppColors.danger,
+            text: '$error',
+          ),
+        if (main != null) ...[if (error != null) const SizedBox(height: Space.m), main],
+        if (rest.isNotEmpty) _MoreDetails(data: rest),
+      ],
+    );
+  }
+
+  /// The view made for this result. Keys it draws beyond the usual
+  /// collections go in [shown], so they aren't repeated under details.
+  Widget _view(BuildContext context, Map<String, dynamic> j, Set<String> shown) {
 
     // Search results deserve a real reading surface, rather than the opaque
     // data dump used for an unknown tool response.
@@ -120,7 +170,7 @@ class ToolResultView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (j['proactivity_on'] == false)
-            const _Callout(
+            _Callout(
               icon: Icons.pause_circle_outline_rounded,
               color: AppColors.warning,
               text: 'Proactivity is off: watches are paused.',
@@ -146,15 +196,28 @@ class ToolResultView extends StatelessWidget {
         ],
       );
     }
-    if (j['saved'] == true || j['updated'] == true && j['memory_id'] != null) {
+    if ((j['saved'] == true || j['updated'] == true) && j['memory_id'] != null) {
+      shown.add('content');
       return _Callout(
         icon: Icons.bookmark_added_outlined,
         color: AppColors.success,
-        text: 'Remembered: ${j['content']}',
+        text: '${j['updated'] == true ? 'Updated memory' : 'Remembered'}: ${j['content'] ?? ''}',
       );
     }
+    // Other saves say what was saved, by tool rather than by a shared flag.
+    if (j['saved'] == true || j['cleared'] == true) {
+      final text = switch (name) {
+        'save_gif' => 'Saved the GIF to your Telegram GIFs',
+        'save_sticker' => 'Saved the sticker to your recent stickers',
+        'set_private_note' =>
+          '${j['cleared'] == true ? 'Cleared the private note for' : 'Saved a private note for'} ${j['user'] ?? 'this person'}',
+        _ => j['cleared'] == true ? 'Cleared' : 'Saved',
+      };
+      shown.add('user');
+      return _Callout(icon: Icons.check_circle_outline_rounded, color: AppColors.success, text: text);
+    }
     if (j['forgotten'] == true) {
-      return const _Callout(
+      return _Callout(
         icon: Icons.bookmark_remove_outlined,
         color: AppColors.success,
         text: 'Forgotten',
@@ -182,7 +245,7 @@ class ToolResultView extends StatelessWidget {
       );
     }
     if (j['notified'] == true) {
-      return const _Callout(
+      return _Callout(
         icon: Icons.notifications_active_outlined,
         color: AppColors.success,
         text: 'Notification sent',
@@ -340,6 +403,18 @@ class ToolResultView extends StatelessWidget {
         if (j[k] is num) (_humanize(k), j[k] as Object),
     ];
     if (stats.isNotEmpty) children.add(_StatRow(stats: stats));
+    for (final k in const [
+      'count',
+      'total',
+      'matching',
+      'total_matching',
+      'active_chats_in_window',
+      'chats_read',
+      'chats_with_mentions',
+      'total_mentions',
+    ]) {
+      if (j[k] is num) shown.add(k);
+    }
 
     if (j['message'] is Map)
       children.add(_MessageRow(m: Map<String, dynamic>.from(j['message'])));
@@ -401,7 +476,43 @@ class ToolResultView extends StatelessWidget {
         children.add(_PersonRow(p: Map<String, dynamic>.from(p)));
       }
     }
-    if (j['folders'] is List) {
+    // Content Canvas folders are paths with item counts, not Telegram folders.
+    if (j['folders'] is List && name.startsWith('canvas_')) {
+      final list = (j['folders'] as List).whereType<Map>().toList();
+      children.add(_Section(title: 'Canvas folders', count: list.length));
+      for (final f in list) {
+        children.add(
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.dashboard_outlined, color: AppColors.text2),
+            title: Text('${f['path'] ?? f['name'] ?? f['folder_id']}'),
+            subtitle: f['description'] == null ? null : Text('${f['description']}', maxLines: 2),
+            trailing: Text('${f['items'] ?? 0} items', style: context.text.bodySmall),
+          ),
+        );
+      }
+      if (j['items'] is List) {
+        final items = (j['items'] as List).whereType<Map>().toList();
+        children.add(_Section(title: j['folder'] is String ? 'In ${j['folder']}' : 'Items', count: items.length));
+        shown.add('folder');
+        for (final i in items) {
+          children.add(
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.sticky_note_2_outlined, color: AppColors.text2),
+              title: Text('${i['title'] ?? i['text'] ?? i['kind'] ?? i['item_id']}', maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                [i['kind'], i['chat'], i['date'], i['note']].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          );
+        }
+      }
+    } else if (j['folders'] is List) {
       final list = (j['folders'] as List).whereType<Map>().toList();
       children.add(_Section(title: 'Folders', count: list.length));
       for (final f in list) {
@@ -409,7 +520,7 @@ class ToolResultView extends StatelessWidget {
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.folder_outlined, color: AppColors.text2),
+            leading: Icon(Icons.folder_outlined, color: AppColors.text2),
             title: Text('${f['title']}'),
             trailing: Text(
               '${f['chats']} chats · ${f['unread_chats']} unread',
@@ -443,27 +554,19 @@ class ToolResultView extends StatelessWidget {
     // Tools evolve independently of this widget. Preserve every nested piece
     // of a successful response in a legible form, even before it gets a
     // purpose-built renderer above.
-    const renderedCollections = {
-      'chat',
-      'message',
-      'messages',
-      'chats',
-      'contacts',
-      'members',
-      'folders',
-      'not_read',
-      'personal_channel',
-      'common_groups',
-    };
     final extra = <String, dynamic>{
       for (final entry in j.entries)
         if ((entry.value is Map || entry.value is List) &&
-            !renderedCollections.contains(entry.key))
+            !_renderedCollections.contains(entry.key))
           entry.key: entry.value,
     };
     if (extra.isNotEmpty) {
+      shown.addAll(extra.keys);
       children.add(const SizedBox(height: Space.s));
       children.add(_StructuredResult(data: extra));
+    }
+    for (final k in const ['note', 'more']) {
+      if (j[k] is String) shown.add(k);
     }
 
     if (children.isEmpty) {
@@ -626,7 +729,7 @@ class _WebResultCard extends StatelessWidget {
                   ),
                 ),
                 if (uri != null && uri.hasScheme)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(left: Space.s),
                     child: Icon(
                       Icons.open_in_new_rounded,
@@ -637,6 +740,37 @@ class _WebResultCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The rest of a result, below its main view and closed until asked for:
+/// short values first, then anything nested.
+class _MoreDetails extends StatelessWidget {
+  const _MoreDetails({required this.data});
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final simple = {for (final e in data.entries) if (e.value is! Map && e.value is! List) e.key: e.value};
+    final nested = {for (final e in data.entries) if (e.value is Map || e.value is List) e.key: e.value};
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.m),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          dense: true,
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          title: Text('MORE DETAILS · ${data.length}', style: context.text.labelSmall),
+          children: [
+            if (simple.isNotEmpty)
+              _KeyValues(rows: [for (final e in simple.entries) (ToolResultView._humanize(e.key), '${e.value}')]),
+            if (nested.isNotEmpty) _StructuredResult(data: nested),
+          ],
         ),
       ),
     );
@@ -902,24 +1036,28 @@ class _KeyValues extends StatelessWidget {
   const _KeyValues({required this.rows});
   final List<(String, String)> rows;
 
+  // Labels take the width of the longest one (at most 140), so values start
+  // just after them, left-aligned, instead of at a fixed column.
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => Table(
+    columnWidths: const {0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
+    defaultVerticalAlignment: TableCellVerticalAlignment.top,
     children: [
       for (final (k, v) in rows)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: Space.s),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 120,
+        TableRow(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, Space.s, Space.l, Space.s),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
                 child: Text(k, style: context.text.bodySmall),
               ),
-              Expanded(
-                child: SelectableText(v, style: context.text.bodyMedium),
-              ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Space.s),
+              child: SelectableText(v, style: context.text.bodyMedium, textAlign: TextAlign.start),
+            ),
+          ],
         ),
     ],
   );
@@ -1013,12 +1151,16 @@ class _MessageRow extends StatelessWidget {
     final match = _ref.firstMatch('${m['ref'] ?? ''}');
     final chatId = match == null ? null : int.parse(match[1]!);
     final chat = '${m['chat'] ?? ''}';
-    final text = '${m['text'] ?? m['detail'] ?? ''}';
+    // Telegram messages carry text and sender; text messages (SMS) carry
+    // body, name and address.
+    final text = '${m['text'] ?? m['body'] ?? m['detail'] ?? ''}';
+    final sms = m['body'] != null && m['address'] != null;
+    final sender = (m['sender'] ?? (sms ? m['name'] ?? m['address'] : null)) as String?;
     final date = DateTime.tryParse('${m['date'] ?? ''}');
     final kind = '${m['media'] ?? 'text'}';
     final meta = [
       if (!compact) chat,
-      if (m['sender'] != null) m['sender'],
+      ?sender,
       if (date != null) DateFormat('d MMM HH:mm').format(date),
       if (m['views'] != null)
         '${NumberFormat.compact().format(m['views'])} views',
@@ -1026,7 +1168,19 @@ class _MessageRow extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(Radii.m),
       onTap: match == null
-          ? null
+          ? () => showMessagePreview(
+              context,
+              MessagePreview(
+                from: sender ?? '${m['from'] ?? chat}',
+                to: chat.isEmpty || sender == null ? null : chat,
+                text: text,
+                date: date,
+                source: sms ? 'SMS' : chat,
+                icon: sms ? Icons.sms_outlined : Icons.chat_bubble_outline_rounded,
+                sent: m['sent'] == true,
+                replyUrl: sms ? 'sms:${m['address']}' : null,
+              ),
+            )
           : () => showPost(
               context,
               PostSnapshot(
@@ -1035,7 +1189,7 @@ class _MessageRow extends StatelessWidget {
                 chatTitle: chat,
                 date: date ?? DateTime.now(),
                 text: text,
-                sender: m['sender'] as String?,
+                sender: sender,
                 kind: kind,
               ),
             ),
@@ -1256,7 +1410,7 @@ class GeneratedFile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.insert_drive_file_outlined, color: AppColors.text2),
+          Icon(Icons.insert_drive_file_outlined, color: AppColors.text2),
           const SizedBox(width: Space.m),
           Expanded(
             child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1364,7 +1518,7 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
             ],
           ),
         ),
-        const Icon(Icons.graphic_eq_rounded, color: AppColors.text3),
+        Icon(Icons.graphic_eq_rounded, color: AppColors.text3),
       ],
     ),
   );

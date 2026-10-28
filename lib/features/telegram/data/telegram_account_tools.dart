@@ -304,8 +304,15 @@ extension AccountTools on TelegramToolRunner {
       if (key == 'read_dates') {
         await _client.send<td.Ok>(td.SetReadDatePrivacySettings(settings: td.ReadDatePrivacySettings(showReadDate: on)), limited: true);
       } else {
+        // Keep the Stars price strangers pay to message: only the switch changes.
+        final current = await _client.send<td.NewChatPrivacySettings>(const td.GetNewChatPrivacySettings(), limited: true);
         await _client.send<td.Ok>(
-          td.SetNewChatPrivacySettings(settings: td.NewChatPrivacySettings(allowNewChatsFromUnknownUsers: on, incomingPaidMessageStarCount: 0)),
+          td.SetNewChatPrivacySettings(
+            settings: td.NewChatPrivacySettings(
+              allowNewChatsFromUnknownUsers: on,
+              incomingPaidMessageStarCount: current.incomingPaidMessageStarCount,
+            ),
+          ),
           limited: true,
         );
       }

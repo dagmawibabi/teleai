@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/theme.dart';
 import '../../media/audio_center.dart';
@@ -93,10 +94,17 @@ class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
   bool _loading = true;
   final Set<FileSource> _sources = {...FileSource.values};
 
+  /// Every tab as tiles, rather than pictures as tiles and the rest as a list.
+  bool _gridView = false;
+  static const _gridKey = 'files_grid_view';
+
   @override
   void initState() {
     super.initState();
     _load();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted && p.getBool(_gridKey) == true) setState(() => _gridView = true);
+    }).ignore();
   }
 
   @override
@@ -107,24 +115,15 @@ class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
 
   Future<void> _load() async {
     final root = (await getApplicationSupportDirectory()).path;
-    // Telegram's downloaded media, not its thumbnails, stickers or avatars.
-    const telegramDirs = [
-      'photos',
-      'videos',
-      'documents',
-      'music',
-      'voice',
-      'video_notes',
-      'animations',
-    ];
+    // Only what the app and the assistant made or saved. Media opened while
+    // reading Telegram stays in Telegram's own cache and isn't listed; files
+    // the assistant downloads from messages are copied into generated.
     final roots = <(String, FileSource, bool)>[
       ('$root/generated', FileSource.generated, false),
       ('$root/sandbox', FileSource.sandbox, true),
       ('$root/downloads', FileSource.downloads, true),
       ('$root/exports', FileSource.exports, false),
       ('$root/screenshots', FileSource.screenshots, false),
-      for (final d in telegramDirs)
-        ('$root/tdlib/files/$d', FileSource.telegram, false),
     ];
     final out = <_Entry>[];
     for (final (path, source, deep) in roots) {
@@ -207,11 +206,11 @@ class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
             ),
             if (e.source.deletable)
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.delete_outline_rounded,
                   color: AppColors.danger,
                 ),
-                title: const Text(
+                title: Text(
                   'Delete',
                   style: TextStyle(color: AppColors.danger),
                 ),
@@ -266,6 +265,14 @@ class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
       appBar: AppBar(
         title: const Text('Files'),
         actions: [
+          IconButton(
+            tooltip: _gridView ? 'Show as a list' : 'Show as a grid',
+            icon: Icon(_gridView ? Icons.view_list_rounded : Icons.grid_view_rounded),
+            onPressed: () {
+              setState(() => _gridView = !_gridView);
+              SharedPreferences.getInstance().then((p) => p.setBool(_gridKey, _gridView)).ignore();
+            },
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed: _loading
@@ -361,7 +368,7 @@ class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
                     controller: _tabs,
                     children: [
                       for (final k in _Kind.values)
-                        k == _Kind.images
+                        k == _Kind.images || _gridView
                             ? _Grid(
                                 entries: _of(k),
                                 onTap: _open,
@@ -460,18 +467,38 @@ class _Grid extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.file(
-                  e.file,
-                  fit: BoxFit.cover,
-                  cacheWidth: 360,
-                  errorBuilder: (_, _, _) => Container(
+                if (e.kind == _Kind.images)
+                  Image.file(
+                    e.file,
+                    fit: BoxFit.cover,
+                    cacheWidth: 360,
+                    errorBuilder: (_, _, _) => Container(
+                      color: AppColors.surface2,
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: AppColors.text3,
+                      ),
+                    ),
+                  )
+                else
+                  // Not a picture: its kind and name on a tile.
+                  Container(
                     color: AppColors.surface2,
-                    child: const Icon(
-                      Icons.broken_image_outlined,
-                      color: AppColors.text3,
+                    padding: const EdgeInsets.fromLTRB(Space.m, Space.m, Space.m, 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(e.kind.icon, color: AppColors.text2, size: 28),
+                        const Spacer(),
+                        Text(
+                          e.name,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.bodySmall?.copyWith(color: AppColors.text),
+                        ),
+                      ],
                     ),
                   ),
-                ),
                 Positioned(
                   left: 6,
                   bottom: 6,
@@ -595,7 +622,7 @@ class _List extends StatelessWidget {
                   ),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.more_vert_rounded,
                       size: 20,
                       color: AppColors.text3,

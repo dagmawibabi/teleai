@@ -286,7 +286,7 @@ final _manageTools = <TelegramTool>[
   TelegramTool(
     name: 'get_boosts',
     label: 'Checking boosts',
-    category: ToolCategory.chats,
+    category: ToolCategory.analytics,
     description: 'A channel\'s or group\'s boost level, how many boosts it has and needs for the next level, Premium members, and (for admins) who boosted it.',
     parameters: _obj({
       'chat_id': {'type': 'integer'},

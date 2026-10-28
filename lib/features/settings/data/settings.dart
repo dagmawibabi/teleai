@@ -17,6 +17,29 @@ enum Thinking {
   final String label;
 }
 
+/// Light or dark, or whatever the phone uses.
+enum AppThemeMode {
+  system('System'),
+  light('Light'),
+  dark('Dark');
+
+  const AppThemeMode(this.label);
+  final String label;
+}
+
+/// The typeface answers and messages are set in.
+enum ChatFont {
+  system('Default', null),
+  serif('Serif', 'serif'),
+  mono('Mono', 'monospace');
+
+  const ChatFont(this.label, this.family);
+  final String label;
+
+  /// The font family; null keeps the app's own.
+  final String? family;
+}
+
 /// Who reads answers aloud.
 enum VoiceEngine {
   device('Device'),
@@ -137,6 +160,19 @@ class AppSettings {
     this.haptics = true,
     this.appearOnline = true,
     this.showMessageUsage = true,
+    this.showChatDateTime = true,
+    this.briefNightOn = true,
+    this.briefMorningOn = true,
+    this.autoCompact = true,
+    this.compactChat = false,
+    this.showModelName = true,
+    this.chatFont = ChatFont.system,
+    this.themeMode = AppThemeMode.dark,
+    this.voiceEnabled = true,
+    this.mediaEnabled = true,
+    this.aiChatEnabled = true,
+    this.showChatCopyButton = true,
+    this.showChatSpeakButton = true,
     this.briefsScheduled = true,
     this.translateTo = '',
     this.showLinkPreviews = true,
@@ -235,6 +271,29 @@ class AppSettings {
 
   /// Shows tokens and cost under each answer.
   final bool showMessageUsage;
+  final bool showChatDateTime;
+  /// The night brief is written on its own (when briefs are scheduled).
+  final bool briefNightOn;
+  /// The morning brief is written on its own (when briefs are scheduled).
+  final bool briefMorningOn;
+  /// Summarise older messages when a chat nears the model's context limit.
+  final bool autoCompact;
+  /// Less space between messages in the assistant chat.
+  final bool compactChat;
+  /// The model's name under each answer.
+  final bool showModelName;
+  /// The typeface of chat text.
+  final ChatFont chatFont;
+  /// Light, dark or following the phone.
+  final AppThemeMode themeMode;
+  /// Read aloud, dictation and the audio tools.
+  final bool voiceEnabled;
+  /// Image and video tools: making pictures and looking at them.
+  final bool mediaEnabled;
+  /// The assistant chat answers; off keeps it from calling any model.
+  final bool aiChatEnabled;
+  final bool showChatCopyButton;
+  final bool showChatSpeakButton;
 
   /// Language code translations go into; empty means the phone's.
   final String translateTo;
@@ -467,6 +526,19 @@ class AppSettings {
     bool? haptics,
     bool? appearOnline,
     bool? showMessageUsage,
+    bool? showChatDateTime,
+    bool? briefNightOn,
+    bool? briefMorningOn,
+    bool? autoCompact,
+    bool? compactChat,
+    bool? showModelName,
+    ChatFont? chatFont,
+    AppThemeMode? themeMode,
+    bool? voiceEnabled,
+    bool? mediaEnabled,
+    bool? aiChatEnabled,
+    bool? showChatCopyButton,
+    bool? showChatSpeakButton,
     bool? briefsScheduled,
     String? translateTo,
     bool? showLinkPreviews,
@@ -550,6 +622,19 @@ class AppSettings {
     haptics: haptics ?? this.haptics,
     appearOnline: appearOnline ?? this.appearOnline,
     showMessageUsage: showMessageUsage ?? this.showMessageUsage,
+    showChatDateTime: showChatDateTime ?? this.showChatDateTime,
+    briefNightOn: briefNightOn ?? this.briefNightOn,
+    briefMorningOn: briefMorningOn ?? this.briefMorningOn,
+    autoCompact: autoCompact ?? this.autoCompact,
+    compactChat: compactChat ?? this.compactChat,
+    showModelName: showModelName ?? this.showModelName,
+    chatFont: chatFont ?? this.chatFont,
+    themeMode: themeMode ?? this.themeMode,
+    voiceEnabled: voiceEnabled ?? this.voiceEnabled,
+    mediaEnabled: mediaEnabled ?? this.mediaEnabled,
+    aiChatEnabled: aiChatEnabled ?? this.aiChatEnabled,
+    showChatCopyButton: showChatCopyButton ?? this.showChatCopyButton,
+    showChatSpeakButton: showChatSpeakButton ?? this.showChatSpeakButton,
     briefsScheduled: briefsScheduled ?? this.briefsScheduled,
     translateTo: translateTo ?? this.translateTo,
     showLinkPreviews: showLinkPreviews ?? this.showLinkPreviews,
@@ -694,6 +779,19 @@ class SettingsController extends Notifier<AppSettings> {
       haptics: p.getBool('haptics') ?? d.haptics,
       appearOnline: p.getBool('appear_online') ?? d.appearOnline,
       showMessageUsage: p.getBool('show_message_usage') ?? d.showMessageUsage,
+      showChatDateTime: p.getBool('show_chat_date_time') ?? d.showChatDateTime,
+      briefNightOn: p.getBool('brief_night_on') ?? d.briefNightOn,
+      briefMorningOn: p.getBool('brief_morning_on') ?? d.briefMorningOn,
+      autoCompact: p.getBool('auto_compact') ?? d.autoCompact,
+      compactChat: p.getBool('compact_chat') ?? d.compactChat,
+      showModelName: p.getBool('show_model_name') ?? d.showModelName,
+      chatFont: ChatFont.values.asNameMap()[p.getString('chat_font')] ?? d.chatFont,
+      themeMode: AppThemeMode.values.asNameMap()[p.getString('theme_mode')] ?? d.themeMode,
+      voiceEnabled: p.getBool('voice_enabled') ?? d.voiceEnabled,
+      mediaEnabled: p.getBool('media_enabled') ?? d.mediaEnabled,
+      aiChatEnabled: p.getBool('ai_chat_enabled') ?? d.aiChatEnabled,
+      showChatCopyButton: p.getBool('show_chat_copy_button') ?? d.showChatCopyButton,
+      showChatSpeakButton: p.getBool('show_chat_speak_button') ?? d.showChatSpeakButton,
       briefsScheduled: p.getBool('briefs_scheduled') ?? d.briefsScheduled,
       translateTo: p.getString('translate_to') ?? d.translateTo,
       showLinkPreviews: p.getBool('link_previews') ?? d.showLinkPreviews,
@@ -1040,6 +1138,20 @@ class SettingsController extends Notifier<AppSettings> {
       loaded: true,
     );
   }
+
+  Future<void> setShowChatDateTime(bool v) => customize(state.copyWith(showChatDateTime: v), 'show_chat_date_time', v);
+  Future<void> setBriefNightOn(bool v) => customize(state.copyWith(briefNightOn: v), 'brief_night_on', v);
+  Future<void> setBriefMorningOn(bool v) => customize(state.copyWith(briefMorningOn: v), 'brief_morning_on', v);
+  Future<void> setAutoCompact(bool v) => customize(state.copyWith(autoCompact: v), 'auto_compact', v);
+  Future<void> setCompactChat(bool v) => customize(state.copyWith(compactChat: v), 'compact_chat', v);
+  Future<void> setShowModelName(bool v) => customize(state.copyWith(showModelName: v), 'show_model_name', v);
+  Future<void> setChatFont(ChatFont v) => customize(state.copyWith(chatFont: v), 'chat_font', v.name);
+  Future<void> setThemeMode(AppThemeMode v) => customize(state.copyWith(themeMode: v), 'theme_mode', v.name);
+  Future<void> setVoiceEnabled(bool v) => customize(state.copyWith(voiceEnabled: v), 'voice_enabled', v);
+  Future<void> setMediaEnabled(bool v) => customize(state.copyWith(mediaEnabled: v), 'media_enabled', v);
+  Future<void> setAiChatEnabled(bool v) => customize(state.copyWith(aiChatEnabled: v), 'ai_chat_enabled', v);
+  Future<void> setShowChatCopyButton(bool v) => customize(state.copyWith(showChatCopyButton: v), 'show_chat_copy_button', v);
+  Future<void> setShowChatSpeakButton(bool v) => customize(state.copyWith(showChatSpeakButton: v), 'show_chat_speak_button', v);
 
   Future<void> setShowMessageUsage(bool v) async {
     state = state.copyWith(showMessageUsage: v);

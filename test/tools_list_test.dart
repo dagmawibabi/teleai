@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:teleai/features/settings/data/settings.dart';
 import 'package:teleai/features/telegram/data/telegram_tools.dart';
 
 void main() {
@@ -16,5 +17,46 @@ void main() {
     }
     expect(defined.difference(listed), isEmpty);
     expect(defined.length, greaterThan(100));
+  });
+
+  test('every tool is classified as Read, Modify or Destructive', () {
+    final missing = [for (final t in telegramTools) if (!toolPolicies.containsKey(t.name)) t.name];
+    expect(missing, isEmpty);
+  });
+
+  test('every tool documents its returned data', () {
+    final missing = [for (final t in telegramTools) if (!toolReferences.containsKey(t.name)) t.name];
+    expect(missing, isEmpty);
+  });
+
+  test('every parameter has a specific description', () {
+    final generic = <String>[];
+    void walk(String tool, String path, Map schema) {
+      for (final e in ((schema['properties'] as Map?) ?? const {}).entries) {
+        final s = e.value as Map;
+        final d = '${s['description'] ?? ''}';
+        if (d.trim().isEmpty || d.startsWith('See the operation description')) generic.add('$tool.$path${e.key}');
+        walk(tool, '$path${e.key}.', s);
+        if (s['items'] case final Map items) walk(tool, '$path${e.key}[].', items);
+      }
+    }
+    for (final t in telegramTools) {
+      walk(t.name, '', t.parameters);
+    }
+    expect(generic, isEmpty);
+  });
+
+  test('read-only mode leaves only Read tools on, whatever their approval setting', () {
+    const s = AppSettings(readOnlyMode: true);
+    final on = [for (final t in telegramTools) if (t.isOn(s)) t];
+    expect(on.where((t) => t.modifiesData), isEmpty);
+    expect(on, isNotEmpty);
+    // Modify tools that run without asking are blocked too.
+    expect(telegramTools.where((t) => t.access == ToolAccess.modify && !t.requiresApproval).every((t) => !t.isOn(s)), isTrue);
+  });
+
+  test('Telegram-only tools are not grouped under Apps & web', () {
+    final wrong = [for (final t in telegramTools) if (t.needsTelegram && t.category.onAppsScreen) t.name];
+    expect(wrong, isEmpty);
   });
 }

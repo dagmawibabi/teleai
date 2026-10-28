@@ -32,7 +32,7 @@ final _moreTools = <TelegramTool>[
   TelegramTool(
     name: 'create_poll',
     label: 'Creating a poll',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description:
         'Posts a poll or a quiz in a chat or channel: 2 to 10 options, anonymous or public, single or multiple '
@@ -70,7 +70,7 @@ final _moreTools = <TelegramTool>[
   TelegramTool(
     name: 'vote_poll',
     label: 'Voting',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description: 'Votes in a poll (option indexes from 0), or takes the vote back with an empty list. Needs approval.',
     parameters: _obj({
@@ -85,7 +85,7 @@ final _moreTools = <TelegramTool>[
   TelegramTool(
     name: 'stop_poll',
     label: 'Closing a poll',
-    category: ToolCategory.actions,
+    category: ToolCategory.messages,
     requiresApproval: true,
     description: 'Closes one of the user\'s polls so nobody can vote any more. Needs approval.',
     parameters: _obj({
@@ -96,7 +96,7 @@ final _moreTools = <TelegramTool>[
   TelegramTool(
     name: 'send_contact',
     label: 'Sharing a contact',
-    category: ToolCategory.actions,
+    category: ToolCategory.contacts,
     requiresApproval: true,
     description: 'Shares one of the user\'s Telegram contacts (or the user themself) as a contact card in a chat. Needs approval.',
     parameters: _obj({

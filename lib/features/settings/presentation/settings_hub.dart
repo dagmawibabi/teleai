@@ -31,6 +31,7 @@ import '../data/settings.dart';
 import 'settings_screen.dart';
 import 'tools_screen.dart';
 import 'approvals_screen.dart';
+import 'data_screen.dart';
 import 'permissions_screen.dart';
 import 'watch_timing_screen.dart';
 import '../../account/security_screen.dart';
@@ -426,7 +427,7 @@ class SettingsHub extends ConsumerWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+      trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
       onTap: onTap,
     );
 
@@ -536,7 +537,7 @@ class SettingsHub extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right_rounded,
                           color: AppColors.text3,
                         ),
@@ -550,7 +551,7 @@ class SettingsHub extends ConsumerWidget {
                   SettingsSection.ai.icon,
                   SettingsSection.ai.title,
                   s.hasAnyKey
-                      ? (cat.byId(s.model)?.name ?? modelLabel(s.model))
+                      ? '${cat.byId(s.model)?.name ?? modelLabel(s.model)} · ${s.voiceEngine.label} voice'
                       : 'Add an AI provider API key to start',
                   () => _open(
                     context,
@@ -633,7 +634,7 @@ class SettingsHub extends ConsumerWidget {
                   Icons.wb_twilight_rounded,
                   'Briefs',
                   s.briefsScheduled
-                      ? 'Morning ${s.briefMorning} · night ${s.briefNight}'
+                      ? [if (s.briefMorningOn) 'Morning ${s.briefMorning}', if (s.briefNightOn) 'night ${s.briefNight}'].join(' · ')
                       : 'On demand only',
                   () => _open(context, const BriefScreen()),
                 ),
@@ -677,18 +678,9 @@ class SettingsHub extends ConsumerWidget {
               ]),
               group('Experience', [
                 tile(
-                  SettingsSection.voice.icon,
-                  SettingsSection.voice.title,
-                  '${s.voiceEngine.label} voice · ${s.dictationEngine.label} dictation',
-                  () => _open(
-                    context,
-                    const SettingsScreen(section: SettingsSection.voice),
-                  ),
-                ),
-                tile(
                   SettingsSection.appearance.icon,
                   SettingsSection.appearance.title,
-                  '${s.accent.label} accent · ${s.chatFontSize.toStringAsFixed(0)} pt chat text',
+                  '${s.themeMode.label} theme · ${s.accent.label} accent · ${s.chatFontSize.toStringAsFixed(0)} pt',
                   () => _open(
                     context,
                     const SettingsScreen(section: SettingsSection.appearance),
@@ -771,6 +763,12 @@ class SettingsHub extends ConsumerWidget {
               ]),
               group('Account & app', [
                 tile(
+                  Icons.settings_backup_restore_rounded,
+                  'Data & backup',
+                  'Export or import your profile; clear all data',
+                  () => _open(context, const DataScreen()),
+                ),
+                tile(
                   Icons.auto_stories_outlined,
                   'Show the introduction again',
                   'The welcome pages',
@@ -787,7 +785,7 @@ class SettingsHub extends ConsumerWidget {
                   label: const Text('Sign out of Telegram'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.danger,
-                    side: const BorderSide(color: AppColors.danger),
+                    side: BorderSide(color: AppColors.danger),
                   ),
                 ),
               ),

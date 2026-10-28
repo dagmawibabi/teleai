@@ -227,7 +227,7 @@ class _VoiceNoteRecorderSheetState extends State<_VoiceNoteRecorderSheet> {
                   width: 8,
                   height: 8,
                   margin: const EdgeInsets.only(right: 8),
-                  decoration: const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
                 ),
               Text(clock, style: context.text.headlineMedium?.copyWith(fontFeatures: tabularFigures)),
             ],
@@ -280,7 +280,7 @@ class _VoiceNoteRecorderSheetState extends State<_VoiceNoteRecorderSheet> {
                   child: InkWell(
                     customBorder: const CircleBorder(),
                     onTap: recording || paused || review ? _send : null,
-                    child: const SizedBox.square(dimension: 50, child: Icon(Icons.send_rounded, color: AppColors.bg)),
+                    child: SizedBox.square(dimension: 50, child: Icon(Icons.send_rounded, color: AppColors.bg)),
                   ),
                 ),
               ),

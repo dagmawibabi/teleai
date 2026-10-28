@@ -54,7 +54,7 @@ const _keywords = <String, Set<String>>{
     'pass', 'raise', 'return', 'try', 'while', 'with', 'yield', 'match', 'case', 'self',
   },
   'javascript': {
-    'async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'default', 'delete', 'do', 'else', 'export', //
+    'async', 'await', 'break', 'case', 'catch', 'class', '', 'continue', 'default', 'delete', 'do', 'else', 'export', //
     'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let', 'new', 'null', 'of', //
     'return', 'super', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'undefined', 'var', 'void', 'while', 'yield', 'from',
   },
@@ -141,7 +141,7 @@ List<TextSpan> highlightCode(String source, String language, CodePalette p) {
   return spans;
 }
 
-const codeTextStyle = TextStyle(fontFamily: 'monospace', fontSize: 13.5, height: 1.45, color: AppColors.text);
+final codeTextStyle = TextStyle(fontFamily: 'monospace', fontSize: 13.5, height: 1.45, color: AppColors.text);
 
 /// Read-only highlighted code, selectable, scrolling sideways.
 class HighlightedCode extends StatelessWidget {

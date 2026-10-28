@@ -32,9 +32,28 @@ final _canvasTools = <TelegramTool>[
     }, ['brief_id']),
   ),
   TelegramTool(
+    name: 'write_brief',
+    label: 'Writing a brief',
+    category: ToolCategory.automation,
+    cost: ToolCost.ai,
+    description:
+        'Writes a new brief now, like "Brief me now" in the app: a priority-ordered rundown of what happened across '
+        'Telegram and connected apps, following the user\'s brief settings. Read-only research; the brief is saved '
+        'with the others and its full text comes back. Takes a minute or two. Use when the user asks for a brief, '
+        'a catch-up or "what did I miss".',
+    parameters: _obj({
+      'since_hours': {
+        'type': 'number',
+        'description': 'Hours back to cover, 1 to 72. Omit to cover the time since the last brief (6 to 36 hours).',
+        'minimum': 1,
+        'maximum': 72,
+      },
+    }),
+  ),
+  TelegramTool(
     name: 'canvas_overview',
     label: 'Opening the Content Canvas',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description:
         'The Content Canvas: every folder (with folder_id, path and item count) and, with folder, the items in it '
@@ -46,7 +65,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_create_folder',
     label: 'Making a canvas folder',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description:
         'Creates a folder in the Content Canvas (or returns the existing one with that name), optionally inside '
@@ -60,7 +79,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_update_folder',
     label: 'Changing a canvas folder',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description: 'Renames a canvas folder, changes its description, or moves it under parent ("" for the top).',
     parameters: _obj({
@@ -73,7 +92,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_export',
     label: 'Exporting a canvas folder',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description:
         'Exports a Content Canvas folder (and its subfolders unless subfolders: false) as json, md (Markdown), html or '
@@ -90,7 +109,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_delete_folder',
     label: 'Deleting a canvas folder',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     requiresApproval: true,
     description:
@@ -104,7 +123,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_add',
     label: 'Saving to the canvas',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description:
         'Saves posts, DMs or comments into a canvas folder (made if missing), with an optional note on why. Pass '
@@ -127,7 +146,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_save',
     label: 'Saving to the canvas',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description:
         'Saves anything that isn\'t a Telegram message into a canvas folder (made if missing): a web link, an email, a file '
@@ -151,7 +170,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_add_note',
     label: 'Writing a canvas note',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description: 'Adds a text note (markdown) to a canvas folder, e.g. a summary of what the folder holds.',
     parameters: _obj({
@@ -162,7 +181,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_move',
     label: 'Moving canvas items',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description: 'Moves canvas items (item_ids from canvas_overview) to another folder.',
     parameters: _obj({
@@ -176,7 +195,7 @@ final _canvasTools = <TelegramTool>[
   TelegramTool(
     name: 'canvas_remove',
     label: 'Removing canvas items',
-    category: ToolCategory.memory,
+    category: ToolCategory.canvas,
     cost: ToolCost.device,
     description: 'Removes items (item_ids) from the canvas. Nothing in Telegram is touched.',
     parameters: _obj({

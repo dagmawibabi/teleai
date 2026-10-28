@@ -249,7 +249,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> with Widg
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.phone_android_rounded, size: 18, color: AppColors.text2),
+                    Icon(Icons.phone_android_rounded, size: 18, color: AppColors.text2),
                     const SizedBox(width: Space.s),
                     Text('Phone makers\' battery savers', style: context.text.titleSmall),
                   ],
@@ -320,29 +320,35 @@ class _PermissionCard extends StatelessWidget {
                   children: [
                     Expanded(child: Text(title, style: context.text.titleSmall)),
                     if (ok == true)
-                      const Row(
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success),
                           SizedBox(width: 4),
                           Text('Allowed', style: TextStyle(fontSize: 12, color: AppColors.success)),
                         ],
+                      )
+                    else
+                      // A small pill beside the title, not a full-size button.
+                      Material(
+                        color: AppColors.accentDim,
+                        shape: const StadiumBorder(),
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: onFix,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            child: Text(
+                              action,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),
                 const SizedBox(height: 3),
                 Text(why, style: context.text.bodySmall?.copyWith(height: 1.35)),
-                if (ok != true) ...[
-                  const SizedBox(height: Space.s),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.tonal(
-                      style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
-                      onPressed: onFix,
-                      child: Text(action),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

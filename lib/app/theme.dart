@@ -1,28 +1,90 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
-/// The palette: near-black surfaces, one cool accent, three text tones.
+/// One set of colours for the whole app: surfaces, lines, three text tones
+/// and the status colours.
+class Palette {
+  const Palette({
+    required this.brightness,
+    required this.bg,
+    required this.surface,
+    required this.surface2,
+    required this.surface3,
+    required this.line,
+    required this.text,
+    required this.text2,
+    required this.text3,
+    required this.success,
+    required this.warning,
+    required this.danger,
+  });
+  final Brightness brightness;
+  final Color bg, surface, surface2, surface3, line, text, text2, text3, success, warning, danger;
+
+  static const dark = Palette(
+    brightness: Brightness.dark,
+    bg: Color(0xFF0B0B0D),
+    surface: Color(0xFF131316),
+    surface2: Color(0xFF1A1A1E),
+    surface3: Color(0xFF222227),
+    line: Color(0xFF26262C),
+    text: Color(0xFFEDEDF0),
+    text2: Color(0xFFA3A3AD),
+    text3: Color(0xFF6C6C76),
+    success: Color(0xFF6FCF97),
+    warning: Color(0xFFF2C46D),
+    danger: Color(0xFFFF7A7A),
+  );
+
+  /// Paper-white surfaces with the same calm, low-contrast layering.
+  static const light = Palette(
+    brightness: Brightness.light,
+    bg: Color(0xFFF7F7F8),
+    surface: Color(0xFFFFFFFF),
+    surface2: Color(0xFFF0F0F2),
+    surface3: Color(0xFFE6E6EA),
+    line: Color(0xFFE2E2E7),
+    text: Color(0xFF16161A),
+    text2: Color(0xFF55555F),
+    text3: Color(0xFF8C8C96),
+    success: Color(0xFF1F9D5B),
+    warning: Color(0xFFB7791F),
+    danger: Color(0xFFD64545),
+  );
+}
+
+/// The palette in use: near-black (or paper-white) surfaces, one accent,
+/// three text tones. Read at build time, so a change of theme takes effect
+/// when the app rebuilds.
 abstract final class AppColors {
-  static const bg = Color(0xFF0B0B0D);
-  static const surface = Color(0xFF131316);
-  static const surface2 = Color(0xFF1A1A1E);
-  static const surface3 = Color(0xFF222227);
-  static const line = Color(0xFF26262C);
-  static const text = Color(0xFFEDEDF0);
-  static const text2 = Color(0xFFA3A3AD);
-  static const text3 = Color(0xFF6C6C76);
+  static Palette palette = Palette.dark;
+  static bool get isLight => palette.brightness == Brightness.light;
+
+  static Color get bg => palette.bg;
+  static Color get surface => palette.surface;
+  static Color get surface2 => palette.surface2;
+  static Color get surface3 => palette.surface3;
+  static Color get line => palette.line;
+  static Color get text => palette.text;
+  static Color get text2 => palette.text2;
+  static Color get text3 => palette.text3;
+  static Color get success => palette.success;
+  static Color get warning => palette.warning;
+  static Color get danger => palette.danger;
+
   /// The accent chosen in Settings (monochrome by default).
   static Color activeAccent = const Color(0xFFF4F4F5);
   static Color activeAccentDim = const Color(0xFFF4F4F5).withValues(alpha: 0.16);
   static Color get accent => activeAccent;
   static Color get accentDim => activeAccentDim;
+
+  /// [color] as the accent. On a light page the monochrome (white) accent
+  /// turns near-black so it stays visible.
   static void applyAccent(Color color) {
+    if (isLight && color.computeLuminance() > 0.8) color = const Color(0xFF18181B);
     activeAccent = color;
     activeAccentDim = color.withValues(alpha: color.computeLuminance() > 0.6 ? 0.16 : 0.18);
   }
-
-  static const success = Color(0xFF6FCF97);
-  static const warning = Color(0xFFF2C46D);
-  static const danger = Color(0xFFFF7A7A);
 }
 
 abstract final class Space {
@@ -47,12 +109,14 @@ const tabularFigures = [FontFeature.tabularFigures()];
 ThemeData buildTheme({
   Color? accent,
   double chatFontSize = 15.5,
+  String? chatFontFamily,
 }) {
   accent ??= AppColors.accent;
-  final scheme = ColorScheme.dark(
+  final light = AppColors.isLight;
+  final scheme = (light ? ColorScheme.light : ColorScheme.dark)(
     surface: AppColors.bg,
     primary: accent,
-    onPrimary: Color(0xFF0B1220),
+    onPrimary: accent.computeLuminance() > 0.5 ? const Color(0xFF0B1220) : Colors.white,
     secondary: accent,
     onSurface: AppColors.text,
     onSurfaceVariant: AppColors.text2,
@@ -68,7 +132,7 @@ ThemeData buildTheme({
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    brightness: Brightness.dark,
+    brightness: AppColors.palette.brightness,
   );
   final text = base.textTheme.apply(
     bodyColor: AppColors.text,
@@ -91,9 +155,10 @@ ThemeData buildTheme({
       ),
       titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
       titleSmall: text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-      bodyLarge: text.bodyLarge?.copyWith(height: 1.5, fontSize: chatFontSize),
+      bodyLarge: text.bodyLarge?.copyWith(height: 1.5, fontSize: chatFontSize, fontFamily: chatFontFamily),
       bodyMedium: text.bodyMedium?.copyWith(
         height: 1.45,
+        fontFamily: chatFontFamily,
         color: AppColors.text,
         fontSize: chatFontSize - 1,
       ),
@@ -103,7 +168,8 @@ ThemeData buildTheme({
         letterSpacing: 0.2,
       ),
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
+      systemOverlayStyle: (light ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light).copyWith(statusBarColor: Colors.transparent),
       backgroundColor: AppColors.bg,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
@@ -115,16 +181,16 @@ ThemeData buildTheme({
         color: AppColors.text,
       ),
     ),
-    dividerTheme: const DividerThemeData(
+    dividerTheme: DividerThemeData(
       color: AppColors.line,
       thickness: 1,
       space: 1,
     ),
-    drawerTheme: const DrawerThemeData(
+    drawerTheme: DrawerThemeData(
       backgroundColor: AppColors.surface,
       surfaceTintColor: Colors.transparent,
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: AppColors.surface,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
@@ -141,7 +207,7 @@ ThemeData buildTheme({
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.surface2,
-      hintStyle: const TextStyle(color: AppColors.text3),
+      hintStyle: TextStyle(color: AppColors.text3),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(Radii.l),
@@ -157,11 +223,14 @@ ThemeData buildTheme({
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
+      // A sensible height for buttons in rows and sheets; full-width calls to
+      // action set their own (48+) where they want more.
       style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 50),
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         backgroundColor: AppColors.text,
         foregroundColor: AppColors.bg,
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(Radii.l),
         ),
@@ -173,8 +242,8 @@ ThemeData buildTheme({
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.surface2,
       selectedColor: AppColors.accentDim,
-      side: const BorderSide(color: AppColors.line),
-      labelStyle: const TextStyle(fontSize: 13, color: AppColors.text),
+      side: BorderSide(color: AppColors.line),
+      labelStyle: TextStyle(fontSize: 13, color: AppColors.text),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       showCheckmark: false,
     ),
@@ -189,7 +258,7 @@ ThemeData buildTheme({
           (s) =>
               s.contains(WidgetState.selected) ? AppColors.bg : AppColors.text2,
         ),
-        side: const WidgetStatePropertyAll(BorderSide(color: AppColors.line)),
+        side: WidgetStatePropertyAll(BorderSide(color: AppColors.line)),
         textStyle: const WidgetStatePropertyAll(
           TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
@@ -212,7 +281,7 @@ ThemeData buildTheme({
       ),
       trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
     ),
-    snackBarTheme: const SnackBarThemeData(
+    snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: AppColors.surface3,
       contentTextStyle: TextStyle(color: AppColors.text),
@@ -320,7 +389,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                 shadowColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
-                  side: const BorderSide(color: AppColors.line),
+                  side: BorderSide(color: AppColors.line),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -337,7 +406,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                           widget.message,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13.5,
                             color: AppColors.text,
                           ),

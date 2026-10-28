@@ -7,7 +7,7 @@ final _analyticsTools = <TelegramTool>[
   TelegramTool(
     name: 'export_channel_summary',
     label: 'Exporting channel statistics',
-    category: ToolCategory.creative,
+    category: ToolCategory.analytics,
     description:
         'Creates a shareable PNG summary for a channel the user can read: profile photo, name, public link, '
         'subscriber count when Telegram exposes it, and average views, shares and reactions from recent posts. '

@@ -108,17 +108,17 @@ class LinkPreviewCard extends StatelessWidget {
             p.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.text),
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.text),
           ),
         if (desc.isNotEmpty)
           Text.rich(
             formattedSpan(p.description, link: accent),
             maxLines: large ? 4 : 3,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13.5, height: 1.3, color: AppColors.text2),
+            style: TextStyle(fontSize: 13.5, height: 1.3, color: AppColors.text2),
           ),
         if (p.author.isNotEmpty)
-          Text(p.author, maxLines: 1, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+          Text(p.author, maxLines: 1, style: TextStyle(fontSize: 12, color: AppColors.text3)),
         if (p.instantViewVersion > 0)
           Padding(
             padding: const EdgeInsets.only(top: 4),

@@ -50,7 +50,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final open = _open || widget.active;
-    final label = Text(_label, style: const TextStyle(fontSize: 13, color: AppColors.text2, fontWeight: FontWeight.w500));
+    final label = Text(_label, style: TextStyle(fontSize: 13, color: AppColors.text2, fontWeight: FontWeight.w500));
     return Padding(
       padding: const EdgeInsets.only(bottom: Space.s),
       child: Column(
@@ -64,7 +64,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> with SingleTickerProvider
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.psychology_alt_outlined, size: 16, color: AppColors.text3),
+                  Icon(Icons.psychology_alt_outlined, size: 16, color: AppColors.text3),
                   const SizedBox(width: Space.s),
                   if (widget.active)
                     AnimatedBuilder(
@@ -72,7 +72,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> with SingleTickerProvider
                       builder: (context, child) => ShaderMask(
                         blendMode: BlendMode.srcIn,
                         shaderCallback: (rect) => LinearGradient(
-                          colors: const [AppColors.text3, AppColors.text, AppColors.text3],
+                          colors: [AppColors.text3, AppColors.text, AppColors.text3],
                           stops: const [0, 0.5, 1],
                           begin: Alignment(-2 + _shimmer.value * 4, 0),
                           end: Alignment(-1 + _shimmer.value * 4, 0),
@@ -87,7 +87,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> with SingleTickerProvider
                     AnimatedRotation(
                       turns: open ? 0.25 : 0,
                       duration: const Duration(milliseconds: 180),
-                      child: const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.text3),
+                      child: Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.text3),
                     ),
                 ],
               ),
@@ -103,7 +103,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> with SingleTickerProvider
                     width: double.infinity,
                     margin: const EdgeInsets.only(top: Space.xs, left: 7),
                     padding: const EdgeInsets.only(left: Space.m + 2),
-                    decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.line, width: 2))),
+                    decoration: BoxDecoration(border: Border(left: BorderSide(color: AppColors.line, width: 2))),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxHeight: widget.active ? 160 : double.infinity),
                       child: SingleChildScrollView(
@@ -111,7 +111,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> with SingleTickerProvider
                         physics: widget.active ? const NeverScrollableScrollPhysics() : null,
                         child: Text(
                           widget.text.trim(),
-                          style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.text3),
+                          style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.text3),
                         ),
                       ),
                     ),

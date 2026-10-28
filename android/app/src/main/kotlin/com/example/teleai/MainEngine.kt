@@ -24,6 +24,7 @@ object MainEngine {
         val engine = FlutterEngine(context.applicationContext)
         BriefWidget.attach(context, engine)
         DeviceChannel.attach(context, engine)
+        ShareChannel.attach(context, engine)
         engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         cache.put(ENGINE_ID, engine)
         return engine

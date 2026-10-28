@@ -48,8 +48,18 @@ class ChatViewScreen extends ConsumerStatefulWidget {
     this.threadTitle,
     this.generalTopic = false,
     this.commentsOn,
+    this.initialReply,
+    this.openAt,
   });
+
+  /// A message to scroll to and light up once the chat opens: the original
+  /// of a reply or quote tapped in another chat.
+  final int? openAt;
   final int chatId;
+
+  /// A reply to start with: a message (from this chat or another) and the
+  /// words of it to quote. From "Reply in another chat".
+  final ({td.Message message, String? quote})? initialReply;
 
   /// Shows the comments under this channel post: [chatId] is then the
   /// channel's discussion group and [threadId] the post's thread there.
@@ -82,6 +92,22 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   String? _error;
   td.Message? _replyTo;
 
+  /// The words of [_replyTo] being quoted, when replying to part of it.
+  String? _quote;
+
+  /// Takes the reply being written to another chat, chosen from a list.
+  Future<void> _replyElsewhere() async {
+    final reply = _replyTo;
+    if (reply == null) return;
+    final to = await pickChat(context, title: _quote == null ? 'Reply in another chat' : 'Quote in another chat');
+    if (to == null || !mounted) return;
+    final quote = _quote;
+    setState(() => _replyTo = _quote = null);
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ChatViewScreen(chatId: to, initialReply: (message: reply, quote: quote)),
+    ));
+  }
+
   /// Messages picked in selection mode, by id.
   final Set<int> _selected = {};
   bool get _selecting => _selected.isNotEmpty;
@@ -111,6 +137,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   @override
   void initState() {
     super.initState();
+    _replyTo = widget.initialReply?.message;
+    _quote = widget.initialReply?.quote;
+    if (widget.openAt case final id?) WidgetsBinding.instance.addPostFrameCallback((_) => _jumpTo(id));
     _scroll.addListener(() {
       if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 600) _loadMore();
     });
@@ -425,7 +454,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 findMessage: _find,
                 onJumpTo: _jumpTo,
                 onReply: chat != null && (store.canPost(chat) || widget.commentsOn != null)
-                    ? (m) => setState(() => _replyTo = m)
+                    ? (m, {quote}) => setState(() {
+                        _replyTo = m;
+                        _quote = quote;
+                      })
                     : null,
                 playlist: _playlist,
                 lastReadOutbox: chat?.lastReadOutboxMessageId ?? 0,
@@ -571,9 +603,11 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                     chatId: widget.chatId,
                     threadId: widget.threadId ?? 0,
                     replyTo: _replyTo,
-                    onCancelReply: () => setState(() => _replyTo = null),
+                    quote: _quote,
+                    onReplyElsewhere: _replyElsewhere,
+                    onCancelReply: () => setState(() => _replyTo = _quote = null),
                     onSent: () {
-                      setState(() => _replyTo = null);
+                      setState(() => _replyTo = _quote = null);
                       if (_scroll.hasClients)
                         _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
                     },
@@ -755,7 +789,7 @@ class _Header extends ConsumerWidget {
                             ),
                           ),
                           if (c != null && c.isMuted)
-                            const Icon(Icons.volume_off_rounded, size: 16, color: AppColors.text3),
+                            Icon(Icons.volume_off_rounded, size: 16, color: AppColors.text3),
                         ],
                       ),
                     ),
@@ -767,7 +801,7 @@ class _Header extends ConsumerWidget {
             Glass(
               child: PopupMenuButton<String>(
                 tooltip: 'More',
-                icon: const Icon(Icons.more_vert_rounded, color: AppColors.text),
+                icon: Icon(Icons.more_vert_rounded, color: AppColors.text),
                 onSelected: (v) {
                   switch (v) {
                     case 'profile':
@@ -849,7 +883,7 @@ class _SelectionBar extends StatelessWidget {
             IconButton(tooltip: 'Ask AI', icon: const Icon(Icons.auto_awesome_outlined), onPressed: onAskAi),
             IconButton(
               tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+              icon: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
               onPressed: onDelete,
             ),
           ],
@@ -873,7 +907,7 @@ class _DaySeparator extends StatelessWidget {
       child: Center(
         child: Glass(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.text2)),
+          child: Text(label, style: TextStyle(fontSize: 12, color: AppColors.text2)),
         ),
       ),
     );
@@ -947,6 +981,8 @@ class _ChatComposer extends ConsumerStatefulWidget {
     required this.chatId,
     required this.threadId,
     required this.replyTo,
+    this.quote,
+    this.onReplyElsewhere,
     required this.onCancelReply,
     required this.onSent,
   });
@@ -954,6 +990,12 @@ class _ChatComposer extends ConsumerStatefulWidget {
   final int chatId;
   final int threadId;
   final td.Message? replyTo;
+
+  /// Part of [replyTo]'s text to quote.
+  final String? quote;
+
+  /// Tapping the reply bar: carry the reply (or quote) to another chat.
+  final VoidCallback? onReplyElsewhere;
   final VoidCallback onCancelReply;
   final VoidCallback onSent;
 
@@ -964,6 +1006,21 @@ class _ChatComposer extends ConsumerStatefulWidget {
 class _ChatComposerState extends ConsumerState<_ChatComposer> {
   final _text = TextEditingController();
   final _focus = FocusNode();
+
+  /// The quote as Telegram wants it: its text and where it starts.
+  td.InputTextQuote? get _inputQuote {
+    final q = widget.quote, reply = widget.replyTo;
+    if (q == null || q.isEmpty || reply == null) return null;
+    final at = gistOf(reply.content).text.indexOf(q);
+    return td.InputTextQuote(text: td.FormattedText(text: q, entities: const []), richTexts: const [], position: at < 0 ? 0 : at);
+  }
+
+  @override
+  void didUpdateWidget(_ChatComposer old) {
+    super.didUpdateWidget(old);
+    // Choosing a message to reply to puts the cursor in the box.
+    if (widget.replyTo != null && widget.replyTo?.id != old.replyTo?.id) _focus.requestFocus();
+  }
 
   /// The Emoji / GIFs / Stickers panel is open in place of the keyboard.
   bool _panel = false;
@@ -1087,6 +1144,8 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
             asFiles: _asFiles,
             effectId: _effect,
             replyToMessageId: widget.replyTo?.id,
+            quote: _inputQuote,
+            replyInChatId: widget.replyTo?.chatId,
             threadId: widget.threadId,
           );
       _text.clear();
@@ -1198,18 +1257,27 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (reply != null)
-                    Padding(
+                    InkWell(
+                      borderRadius: BorderRadius.circular(Radii.l),
+                      onTap: widget.onReplyElsewhere,
+                      child: Padding(
                       padding: const EdgeInsets.fromLTRB(Space.m, 4, 0, 2),
                       child: Row(
                         children: [
-                          Icon(Icons.reply_rounded, size: 18, color: AppColors.accent),
+                          Icon(
+                            widget.quote == null ? Icons.reply_rounded : Icons.format_quote_rounded,
+                            size: 18,
+                            color: AppColors.accent,
+                          ),
+                          const SizedBox(width: Space.s),
+                          Container(width: 2.5, height: 32, color: AppColors.accent),
                           const SizedBox(width: Space.s),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Reply to ${reply.isOutgoing ? 'yourself' : store.senderName(reply.senderId)}',
+                                  '${widget.quote == null ? 'Reply to' : 'Quote from'} ${reply.isOutgoing ? 'yourself' : store.senderName(reply.senderId)}${reply.chatId == widget.chatId ? '' : ' in ${store.chat(reply.chatId)?.title ?? 'another chat'}'}',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     color: AppColors.accent,
@@ -1218,12 +1286,13 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                                 ),
                                 Text(
                                   () {
+                                    if (widget.quote case final q?) return '“${q.replaceAll('\n', ' ')}”';
                                     final g = gistOf(reply.content);
                                     return (g.text.isNotEmpty ? g.text : (g.detail ?? g.kind)).replaceAll('\n', ' ');
                                   }(),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12.5, color: AppColors.text2),
+                                  style: TextStyle(fontSize: 12.5, color: AppColors.text2),
                                 ),
                               ],
                             ),
@@ -1235,6 +1304,7 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                           ),
                         ],
                       ),
+                    ),
                     ),
                   if (_files.isNotEmpty || _adding)
                     SizedBox(
@@ -1274,8 +1344,8 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                                       onTap: () => setState(() => _files.remove(a)),
                                       child: Container(
                                         padding: const EdgeInsets.all(2),
-                                        decoration: const BoxDecoration(color: AppColors.text, shape: BoxShape.circle),
-                                        child: const Icon(Icons.close_rounded, size: 13, color: AppColors.bg),
+                                        decoration: BoxDecoration(color: AppColors.text, shape: BoxShape.circle),
+                                        child: Icon(Icons.close_rounded, size: 13, color: AppColors.bg),
                                       ),
                                     ),
                                   ),
@@ -1308,7 +1378,7 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
                     children: [
                       IconButton(
                         tooltip: 'Attach',
-                        icon: const Icon(Icons.attach_file_rounded, color: AppColors.text2),
+                        icon: Icon(Icons.attach_file_rounded, color: AppColors.text2),
                         onPressed: _attach,
                       ),
                       IconButton(

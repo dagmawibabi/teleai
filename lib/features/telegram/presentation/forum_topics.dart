@@ -126,11 +126,11 @@ class _ForumTopicsListState extends ConsumerState<ForumTopicsList> {
                                 style: context.text.titleSmall?.copyWith(fontSize: 15),
                               ),
                             ),
-                            if (t.info.isClosed) const Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.text3),
-                            if (t.isPinned) const Icon(Icons.push_pin_outlined, size: 14, color: AppColors.text3),
+                            if (t.info.isClosed) Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.text3),
+                            if (t.isPinned) Icon(Icons.push_pin_outlined, size: 14, color: AppColors.text3),
                             if (last != null) ...[
                               const SizedBox(width: Space.s),
-                              Text(shortTime(last.date), style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                              Text(shortTime(last.date), style: TextStyle(fontSize: 12, color: AppColors.text3)),
                             ],
                           ],
                         ),
@@ -142,7 +142,7 @@ class _ForumTopicsListState extends ConsumerState<ForumTopicsList> {
                                 preview,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 13.5, color: AppColors.text2),
+                                style: TextStyle(fontSize: 13.5, color: AppColors.text2),
                               ),
                             ),
                             if (t.unreadCount > 0)
@@ -151,7 +151,7 @@ class _ForumTopicsListState extends ConsumerState<ForumTopicsList> {
                                 decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(999)),
                                 child: Text(
                                   NumberFormat.compact().format(t.unreadCount),
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.bg),
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.bg),
                                 ),
                               ),
                           ],

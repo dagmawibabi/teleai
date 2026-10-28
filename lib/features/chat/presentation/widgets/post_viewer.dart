@@ -73,7 +73,7 @@ class PostChip extends StatelessWidget {
                       post.chatTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         color: AppColors.text,
@@ -95,7 +95,7 @@ class PostChip extends StatelessWidget {
                             preview.isEmpty ? _relative(post.date) : preview,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11.5,
                               color: AppColors.text3,
                             ),
@@ -401,7 +401,7 @@ class _PostViewState extends ConsumerState<PostView> {
             if (!widget.fullPage)
               IconButton(
                 tooltip: 'Full screen',
-                icon: const Icon(Icons.open_in_full_rounded, size: 20, color: AppColors.text2),
+                icon: Icon(Icons.open_in_full_rounded, size: 20, color: AppColors.text2),
                 onPressed: () {
                   Navigator.of(context).pop();
                   Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => PostPage(post: p)));
@@ -666,7 +666,7 @@ class _PostAudioPlayer extends ConsumerWidget {
               }
             },
             icon: current && center.loading
-                ? const SizedBox.square(
+                ? SizedBox.square(
                     dimension: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
@@ -749,7 +749,7 @@ class _Stat extends StatelessWidget {
       const SizedBox(width: 4),
       Text(
         label,
-        style: const TextStyle(fontSize: 12.5, color: AppColors.text3),
+        style: TextStyle(fontSize: 12.5, color: AppColors.text3),
       ),
     ],
   );
@@ -785,12 +785,12 @@ class _Detail extends StatelessWidget {
         children: [
           SizedBox(
             width: 120,
-            child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.text3)),
+            child: Text(label, style: TextStyle(fontSize: 13, color: AppColors.text3)),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 13.5, color: AppColors.text)),
+            child: Text(value, style: TextStyle(fontSize: 13.5, color: AppColors.text)),
           ),
-          if (copy) const Icon(Icons.copy_rounded, size: 13, color: AppColors.text3),
+          if (copy) Icon(Icons.copy_rounded, size: 13, color: AppColors.text3),
         ],
       ),
     ),
@@ -816,7 +816,7 @@ class _PersonRow extends ConsumerWidget {
           },
           const SizedBox(width: Space.s),
           Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-          Text(trailing, style: const TextStyle(fontSize: 12.5, color: AppColors.text3)),
+          Text(trailing, style: TextStyle(fontSize: 12.5, color: AppColors.text3)),
         ],
       ),
     );
@@ -833,7 +833,7 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) => OutlinedButton.icon(
     style: OutlinedButton.styleFrom(
       foregroundColor: AppColors.text,
-      side: const BorderSide(color: AppColors.line),
+      side: BorderSide(color: AppColors.line),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.m)),
     ),
     icon: Icon(icon, size: 17),

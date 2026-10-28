@@ -137,13 +137,13 @@ class _TopicRow extends ConsumerWidget {
                         ),
                       ),
                       if (!topic.canSendUnpaidMessages)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(left: 4),
                           child: Icon(Icons.star_rounded, size: 14, color: AppColors.warning),
                         ),
                       if (last != null) ...[
                         const SizedBox(width: Space.s),
-                        Text(shortTime(last.date), style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                        Text(shortTime(last.date), style: TextStyle(fontSize: 12, color: AppColors.text3)),
                       ],
                     ],
                   ),
@@ -155,7 +155,7 @@ class _TopicRow extends ConsumerWidget {
                           preview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 13.5, color: AppColors.text2),
+                          style: TextStyle(fontSize: 13.5, color: AppColors.text2),
                         ),
                       ),
                       if (unread)
@@ -164,7 +164,7 @@ class _TopicRow extends ConsumerWidget {
                           decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(999)),
                           child: Text(
                             topic.unreadCount > 0 ? NumberFormat.compact().format(topic.unreadCount) : ' ',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.bg),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.bg),
                           ),
                         ),
                     ],
@@ -199,8 +199,8 @@ class _TopicRow extends ConsumerWidget {
               onTap: () => Navigator.pop(context, 'paid'),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
-              title: const Text('Delete conversation', style: TextStyle(color: AppColors.danger)),
+              leading: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+              title: Text('Delete conversation', style: TextStyle(color: AppColors.danger)),
               onTap: () => Navigator.pop(context, 'delete'),
             ),
           ],

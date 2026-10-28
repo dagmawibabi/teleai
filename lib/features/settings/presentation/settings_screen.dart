@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/widgets/code_highlight.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../ai/data/ai.dart';
 import 'package:omni_ai/omni_ai.dart' show ElevenLabsProvider, showVoicePicker;
@@ -31,7 +32,7 @@ import '../../assistant/presentation/memory_screen.dart';
 enum SettingsSection {
   ai(
     'AI & models',
-    'Keys, chat and image models, thinking',
+    'Chat, images and video, voice',
     Icons.auto_awesome_outlined,
   ),
   assistant(
@@ -117,6 +118,34 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final section = this.section;
+    if (section == null) return const SettingsHub();
+    // Voice lives in AI & models now, as its third tab.
+    if (section == SettingsSection.ai || section == SettingsSection.voice) {
+      return DefaultTabController(
+        length: AiTab.values.length,
+        initialIndex: section == SettingsSection.voice ? AiTab.voice.index : 0,
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(SettingsSection.ai.title),
+            bottom: TabBar(
+              tabs: [for (final t in AiTab.values) Tab(text: t.label)],
+            ),
+          ),
+          body: TabBarView(
+            children: [for (final t in AiTab.values) _page(context, ref, SettingsSection.ai, tab: t)],
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: Text(section.title)),
+      body: _page(context, ref, section),
+    );
+  }
+
+  /// One settings page; [tab] picks the part of AI & models shown.
+  Widget _page(BuildContext context, WidgetRef ref, SettingsSection section, {AiTab? tab}) {
     final s = ref.watch(settingsProvider);
     final ctl = ref.read(settingsProvider.notifier);
     final cat = ref.watch(modelCatalogProvider);
@@ -124,12 +153,7 @@ class SettingsScreen extends ConsumerWidget {
     final me = store.me;
     final limiter = ref.watch(telegramClientProvider).limiter;
     final model = cat.byId(s.model);
-    final section = this.section;
-    if (section == null) return const SettingsHub();
-
-    return Scaffold(
-      appBar: AppBar(title: Text(section.title)),
-      body: Center(
+    return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           child: ListView(
@@ -140,8 +164,16 @@ class SettingsScreen extends ConsumerWidget {
               Space.xxl,
             ),
             children: [
-              if (section == SettingsSection.ai) ...[
-                const _Header('Keys'),
+              if (tab == AiTab.chat) ...[
+                _FeatureSwitch(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: 'AI chat',
+                  on: 'The assistant answers in chat.',
+                  off: 'Off: chat is paused and no model is called from it.',
+                  value: s.aiChatEnabled,
+                  onChanged: ctl.setAiChatEnabled,
+                ),
+                const _Header('Keys', note: 'Any one is enough'),
                 _Card(
                   children: [
                     _KeyTile(
@@ -154,7 +186,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _KeyTile(
-                      title: 'OpenRouter (optional)',
+                      title: 'OpenRouter',
                       subtitle: 'openrouter.ai → Keys',
                       value: s.openRouterKey,
                       onSave: ctl.setOpenRouterKey,
@@ -163,7 +195,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _KeyTile(
-                      title: 'Google AI Studio Gemini (optional)',
+                      title: 'Google AI Studio Gemini',
                       subtitle: 'AI Studio → API keys. Lists the models available to your key.',
                       value: s.geminiKey,
                       onSave: ctl.setGeminiKey,
@@ -172,7 +204,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     _KeyTile(
-                      title: 'LM Studio (optional)',
+                      title: 'LM Studio',
                       subtitle:
                           'Models running on your computer. In LM Studio: Developer → Start server, with "Serve on Local Network" on. Use the address it shows, e.g. 192.168.1.20:1234.',
                       value: s.lmStudioUrl,
@@ -186,8 +218,8 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                 ),
               ],
-              if (section == SettingsSection.ai) ...[
-                const _Header('Models'),
+              if (tab == AiTab.chat) ...[
+                const _Header('Model'),
                 _Card(
                   children: [
                     _ModelTile(
@@ -218,20 +250,6 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    const Divider(indent: 56),
-                    _ModelTile(
-                      icon: Icons.brush_outlined,
-                      title: 'Images',
-                      model: cat.byId(s.imageModel),
-                      id: s.imageModel,
-                      onTap: () => _pick(
-                        context,
-                        ref,
-                        ModelType.image,
-                        s.imageModel,
-                        ctl.setImageModel,
-                      ),
-                    ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -269,6 +287,41 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                 ),
               ],
+              if (tab == AiTab.media) ...[
+                _FeatureSwitch(
+                  icon: Icons.brush_outlined,
+                  title: 'Images & video',
+                  on: 'The assistant can make pictures and look at them.',
+                  off: 'Off: no picture is made or looked at.',
+                  value: s.mediaEnabled,
+                  onChanged: ctl.setMediaEnabled,
+                ),
+                const _Header('Image model'),
+                _Card(
+                  children: [
+                    _ModelTile(
+                      icon: Icons.brush_outlined,
+                      title: 'Images',
+                      model: cat.byId(s.imageModel),
+                      id: s.imageModel,
+                      onTap: () => _pick(
+                        context,
+                        ref,
+                        ModelType.image,
+                        s.imageModel,
+                        ctl.setImageModel,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
+                      child: Text(
+                        'Used by generate_image. Looking at pictures (view_image) uses your chat model, so it needs one that sees images.',
+                        style: context.text.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (section == SettingsSection.assistant) ...[
                 const _Header('Assistant'),
                 _Card(
@@ -280,7 +333,7 @@ class SettingsScreen extends ConsumerWidget {
                         '${ref.watch(memoryProvider).length} things remembered',
                         style: context.text.bodySmall,
                       ),
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: AppColors.text3,
                       ),
@@ -315,7 +368,7 @@ class SettingsScreen extends ConsumerWidget {
                         s.approvalMode.explanation,
                         style: context.text.bodySmall,
                       ),
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: AppColors.text3,
                       ),
@@ -458,28 +511,6 @@ class SettingsScreen extends ConsumerWidget {
                       divisions: 26,
                       label: '${s.maxSteps}',
                       onChanged: (v) => ctl.setMaxSteps(v.round()),
-                    ),
-                    const Divider(indent: 56),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.psychology_outlined),
-                      title: const Text('Show thinking'),
-                      subtitle: Text(
-                        'The model\'s reasoning above its answer',
-                        style: context.text.bodySmall,
-                      ),
-                      value: s.showThinking,
-                      onChanged: ctl.setShowThinking,
-                    ),
-                    const Divider(indent: 56),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.build_circle_outlined),
-                      title: const Text('Show tool calls'),
-                      subtitle: Text(
-                        'A card for each tool the assistant uses. Approvals always show.',
-                        style: context.text.bodySmall,
-                      ),
-                      value: s.showToolCalls,
-                      onChanged: ctl.setShowToolCalls,
                     ),
                   ],
                 ),
@@ -641,7 +672,15 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                 ),
               ],
-              if (section == SettingsSection.voice) ...[
+              if (tab == AiTab.voice) ...[
+                _FeatureSwitch(
+                  icon: Icons.graphic_eq_rounded,
+                  title: 'Voice',
+                  on: 'Read aloud, dictation and the audio tools.',
+                  off: 'Off: nothing is read aloud, dictated or generated as audio.',
+                  value: s.voiceEnabled,
+                  onChanged: ctl.setVoiceEnabled,
+                ),
                 const _Header('Voice keys'),
                 _Card(
                   children: [
@@ -735,7 +774,7 @@ class SettingsScreen extends ConsumerWidget {
                                 : s.deviceVoice,
                             style: context.text.bodySmall,
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right_rounded,
                             color: AppColors.text3,
                           ),
@@ -776,7 +815,7 @@ class SettingsScreen extends ConsumerWidget {
                             s.aiVoice.isEmpty ? 'Model default' : s.aiVoice,
                             style: context.text.bodySmall,
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right_rounded,
                             color: AppColors.text3,
                           ),
@@ -812,7 +851,7 @@ class SettingsScreen extends ConsumerWidget {
                                 : s.aiVoice,
                             style: context.text.bodySmall,
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right_rounded,
                             color: AppColors.text3,
                           ),
@@ -848,7 +887,7 @@ class SettingsScreen extends ConsumerWidget {
                                 : s.elevenVoiceName,
                             style: context.text.bodySmall,
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right_rounded,
                             color: AppColors.text3,
                           ),
@@ -876,7 +915,7 @@ class SettingsScreen extends ConsumerWidget {
                             style: context.text.bodySmall,
                           ),
                           trailing: PopupMenuButton<String>(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.expand_more_rounded,
                               color: AppColors.text3,
                             ),
@@ -1041,6 +1080,33 @@ class SettingsScreen extends ConsumerWidget {
                 const _Header('Appearance'),
                 _Card(
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.all(Space.l),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Theme', style: context.text.titleSmall),
+                          const SizedBox(height: Space.m),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<AppThemeMode>(
+                              showSelectedIcon: false,
+                              segments: [
+                                for (final (m, icon) in const [
+                                  (AppThemeMode.system, Icons.brightness_auto_outlined),
+                                  (AppThemeMode.light, Icons.light_mode_outlined),
+                                  (AppThemeMode.dark, Icons.dark_mode_outlined),
+                                ])
+                                  ButtonSegment(value: m, icon: Icon(icon, size: 18), label: Text(m.label)),
+                              ],
+                              selected: {s.themeMode},
+                              onSelectionChanged: (v) => ctl.setThemeMode(v.first),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(indent: Space.l, endIndent: Space.l),
                     _AppearancePreview(
                       accent: Color(s.accent.value),
                       fontSize: s.chatFontSize,
@@ -1094,28 +1160,89 @@ class SettingsScreen extends ConsumerWidget {
                             label: '${s.chatFontSize.toStringAsFixed(0)} pt',
                             onChanged: ctl.setChatFontSize,
                           ),
+                          const SizedBox(height: Space.s),
+                          Text('Chat font', style: context.text.titleSmall),
+                          const SizedBox(height: Space.m),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<ChatFont>(
+                              showSelectedIcon: false,
+                              segments: [
+                                for (final f in ChatFont.values)
+                                  ButtonSegment(
+                                    value: f,
+                                    label: Text(f.label, style: TextStyle(fontFamily: f.family)),
+                                  ),
+                              ],
+                              selected: {s.chatFont},
+                              onSelectionChanged: (v) => ctl.setChatFont(v.first),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const Divider(indent: Space.l, endIndent: Space.l),
-                    ListTile(
-                      title: const Text('Code highlight theme'),
-                      subtitle: Text(
-                        s.codeTheme.label,
-                        style: context.text.bodySmall,
-                      ),
-                      trailing: DropdownButton<CodeThemeChoice>(
-                        value: s.codeTheme,
-                        underline: const SizedBox(),
-                        items: [
-                          for (final v in CodeThemeChoice.values)
-                            DropdownMenuItem(value: v, child: Text(v.label)),
+                  ],
+                ),
+                const _Header('Code'),
+                _Card(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(Space.l),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('Highlight theme', style: context.text.titleSmall),
+                          const SizedBox(height: 2),
+                          Text('Code in answers and in the code editor', style: context.text.bodySmall),
+                          const SizedBox(height: Space.m),
+                          Wrap(
+                            spacing: Space.s,
+                            runSpacing: Space.s,
+                            children: [
+                              for (final v in CodeThemeChoice.values)
+                                ChoiceChip(
+                                  label: Text(v.label),
+                                  selected: s.codeTheme == v,
+                                  onSelected: (_) => ctl.setCodeTheme(v),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: Space.m),
+                          Container(
+                            padding: const EdgeInsets.all(Space.m),
+                            decoration: BoxDecoration(
+                              color: AppColors.bg,
+                              borderRadius: BorderRadius.circular(Radii.m),
+                              border: Border.all(color: AppColors.line),
+                            ),
+                            child: HighlightedCode(
+                              language: 'python',
+                              theme: s.codeTheme,
+                              code: '# Unread messages per chat\n'
+                                  'def unread(chats, limit=5):\n'
+                                  '    busy = [c for c in chats if c.unread > 0]\n'
+                                  '    return sorted(busy, key=lambda c: -c.unread)[:limit]\n'
+                                  '\n'
+                                  'print(unread(my_chats), "done", 42)',
+                            ),
+                          ),
                         ],
-                        onChanged: (v) {
-                          if (v != null) ctl.setCodeTheme(v);
-                        },
                       ),
                     ),
+                  ],
+                ),
+                const _Header('In the chat'),
+                _Card(
+                  children: [
+                    ..._dividedSwitches(context, [
+                      (Icons.schedule_outlined, 'Dates and time', 'Times on messages and a divider for each day', s.showChatDateTime, ctl.setShowChatDateTime),
+                      (Icons.copy_outlined, 'Copy button', 'Under each answer', s.showChatCopyButton, ctl.setShowChatCopyButton),
+                      (Icons.volume_up_outlined, 'Speak button', 'Read an answer aloud from under it', s.showChatSpeakButton, ctl.setShowChatSpeakButton),
+                      (Icons.label_outline_rounded, 'Model name', 'Which model wrote each answer', s.showModelName, ctl.setShowModelName),
+                      (Icons.psychology_outlined, 'Show thinking', 'The model\'s reasoning above its answer', s.showThinking, ctl.setShowThinking),
+                      (Icons.build_circle_outlined, 'Show tool calls', 'A card for each tool the assistant uses. Approvals always show.', s.showToolCalls, ctl.setShowToolCalls),
+                      (Icons.density_small_rounded, 'Compact chat', 'Less space between messages', s.compactChat, ctl.setCompactChat),
+                    ]),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     SwitchListTile(
                       secondary: const Icon(Icons.toll_outlined),
@@ -1205,7 +1332,7 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                 ),
               ],
-              if (section == SettingsSection.voice) ...[
+              if (tab == AiTab.voice) ...[
                 const _Header('Dictation'),
                 _Card(
                   children: [
@@ -1265,7 +1392,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(
+                      secondary: Icon(
                         Icons.circle,
                         size: 14,
                         color: AppColors.success,
@@ -1320,7 +1447,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.delete_sweep_outlined,
                         color: AppColors.danger,
                       ),
@@ -1347,7 +1474,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.wb_twilight_rounded,
                         color: AppColors.danger,
                       ),
@@ -1368,7 +1495,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.dashboard_customize_outlined,
                         color: AppColors.danger,
                       ),
@@ -1459,11 +1586,11 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.logout_rounded,
                         color: AppColors.danger,
                       ),
-                      title: const Text(
+                      title: Text(
                         'Sign out',
                         style: TextStyle(color: AppColors.danger),
                       ),
@@ -1475,8 +1602,7 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Future<void> _pickDeviceVoice(BuildContext context, WidgetRef ref) async {
@@ -1629,14 +1755,14 @@ class _ModelTile extends StatelessWidget {
           if (m != null)
             IconButton(
               tooltip: 'Details',
-              icon: const Icon(
+              icon: Icon(
                 Icons.info_outline_rounded,
                 size: 20,
                 color: AppColors.text3,
               ),
               onPressed: () => showModelDetails(context, m),
             ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.text3),
+          Icon(Icons.chevron_right_rounded, color: AppColors.text3),
         ],
       ),
       onTap: onTap,
@@ -1737,13 +1863,93 @@ class _AppearancePreview extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header(this.text);
+  const _Header(this.text, {this.note});
   final String text;
+
+  /// A hint beside the title, e.g. "Any one is enough".
+  final String? note;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(Space.xs, Space.l, Space.xs, Space.xs),
-    child: Text(text.toUpperCase(), style: context.text.labelSmall),
+    child: Row(
+      children: [
+        Text(text.toUpperCase(), style: context.text.labelSmall),
+        if (note != null) ...[
+          const SizedBox(width: Space.s),
+          Flexible(
+            child: Text(
+              '· $note',
+              style: context.text.labelSmall?.copyWith(color: AppColors.text2),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+/// Switch rows with a divider between each: (icon, title, subtitle, value, onChanged).
+List<Widget> _dividedSwitches(
+  BuildContext context,
+  List<(IconData, String, String, bool, ValueChanged<bool>)> rows,
+) => [
+  for (final (i, (icon, title, subtitle, value, onChanged)) in rows.indexed) ...[
+    if (i > 0) const Divider(indent: 56),
+    SwitchListTile(
+      secondary: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle, style: context.text.bodySmall),
+      value: value,
+      onChanged: onChanged,
+    ),
+  ],
+];
+
+/// The parts of AI & models, one tab each.
+enum AiTab {
+  chat('Chat'),
+  media('Images & video'),
+  voice('Voice');
+
+  const AiTab(this.label);
+  final String label;
+}
+
+/// A whole feature on or off, at the top of its tab.
+class _FeatureSwitch extends StatelessWidget {
+  const _FeatureSwitch({
+    required this.icon,
+    required this.title,
+    required this.on,
+    required this.off,
+    required this.value,
+    required this.onChanged,
+  });
+  final IconData icon;
+  final String title;
+  final String on;
+  final String off;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  // A row like every other setting: the page's own card, no colour of its
+  // own; what's off just reads as off.
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: Space.m),
+    child: _Card(
+      children: [
+        SwitchListTile(
+          secondary: Icon(icon, color: value ? AppColors.text : AppColors.text3),
+          title: Text(title),
+          subtitle: Text(value ? on : off, style: context.text.bodySmall),
+          value: value,
+          onChanged: onChanged,
+        ),
+      ],
+    ),
   );
 }
 

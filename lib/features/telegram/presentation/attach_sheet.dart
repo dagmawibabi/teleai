@@ -571,7 +571,7 @@ class _GalleryState extends State<_Gallery> {
                   foregroundColor: AppColors.bg,
                   onPressed: _sending ? null : _send,
                   icon: _sending
-                      ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.bg))
+                      ? SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.bg))
                       : Icon(_asFiles ? Icons.insert_drive_file_rounded : Icons.send_rounded),
                   label: Text('Send ${_picked.length}${_asFiles ? ' as file${_picked.length == 1 ? '' : 's'}' : ''}'),
                 ),
@@ -713,7 +713,7 @@ class _LocationTab extends StatelessWidget {
       ),
       for (final (minutes, label) in const [(15, '15 minutes'), (60, '1 hour'), (480, '8 hours')])
         ListTile(
-          leading: const CircleAvatar(backgroundColor: AppColors.surface3, child: Icon(Icons.share_location_rounded)),
+          leading: CircleAvatar(backgroundColor: AppColors.surface3, child: Icon(Icons.share_location_rounded)),
           title: Text('Share live location for $label'),
           subtitle: const Text('Updates as you move while Triangle runs'),
           onTap: () => Navigator.pop(context, AttachLocation(minutes)),
@@ -810,7 +810,7 @@ class _PollTabState extends State<_PollTab> {
                 ),
                 if (_options.length > 2)
                   IconButton(
-                    icon: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.text3),
+                    icon: Icon(Icons.remove_circle_outline_rounded, color: AppColors.text3),
                     onPressed: () => setState(() => _options.removeAt(i).dispose()),
                   ),
               ],

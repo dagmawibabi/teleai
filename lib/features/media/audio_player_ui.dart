@@ -53,19 +53,19 @@ class AudioMiniBar extends ConsumerWidget {
                                     children: [
                                       TextSpan(text: t.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                                       if (t.subtitle.isNotEmpty)
-                                        TextSpan(text: ' – ${t.subtitle}', style: const TextStyle(color: AppColors.text2)),
+                                        TextSpan(text: ' – ${t.subtitle}', style: TextStyle(color: AppColors.text2)),
                                     ],
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13.5, color: AppColors.text),
+                                  style: TextStyle(fontSize: 13.5, color: AppColors.text),
                                 ),
                               ),
                               if (a.speed != 1)
                                 Text('${a.speed}×', style: TextStyle(fontSize: 12, color: AppColors.accent)),
                               IconButton(
                                 visualDensity: VisualDensity.compact,
-                                icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.text2),
+                                icon: Icon(Icons.close_rounded, size: 20, color: AppColors.text2),
                                 onPressed: a.stop,
                               ),
                             ],
@@ -167,7 +167,7 @@ class _AudioSheet extends ConsumerWidget {
                     child: SizedBox.square(
                       dimension: 66,
                       child: a.loading
-                          ? const Padding(
+                          ? Padding(
                               padding: EdgeInsets.all(22),
                               child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.bg),
                             )
