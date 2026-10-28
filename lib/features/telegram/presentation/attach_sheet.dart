@@ -340,12 +340,12 @@ class _GalleryState extends State<_Gallery> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
+              leading: lead(const Icon(Icons.photo_camera_outlined)),
               title: const Text('Take a photo'),
               onTap: () => Navigator.pop(ctx, false),
             ),
             ListTile(
-              leading: const Icon(Icons.videocam_outlined),
+              leading: lead(const Icon(Icons.videocam_outlined)),
               title: const Text('Record a video'),
               onTap: () => Navigator.pop(ctx, true),
             ),

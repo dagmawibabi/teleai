@@ -874,10 +874,11 @@ packages:
   omni_ai:
     dependency: "direct main"
     description:
-      path: "../../../FlutterAISDK"
-      relative: true
-    source: path
-    version: "0.4.1"
+      name: omni_ai
+      sha256: c75569619ae4af7a6f9a8a14aba0cd29bb5da41608fd51ff8149d1ef600e638b
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   open_filex:
     dependency: "direct main"
     description:

@@ -7,12 +7,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../ai/data/ai.dart';
+import '../../ai/data/decision_settings.dart';
 import '../../assistant/memory.dart';
 import '../../assistant/online_alerts.dart';
 import '../../assistant/reminders.dart';
 import '../../assistant/watches.dart';
 import '../../brief/brief_prefs.dart';
 import '../../brief/brief_store.dart';
+import '../../brief/brief_widget.dart';
+import '../../brief/home_widgets.dart';
 import '../../canvas/canvas_store.dart';
 import '../../chat/data/chat_controller.dart';
 import '../../integrations/integrations_store.dart';
@@ -23,7 +26,12 @@ import 'settings.dart';
 /// place to back it up, bring it back and wipe it.
 abstract final class AppData {
   static const format = 'triangle-profile';
-  static const version = 1;
+  /// 2 added MCP servers without their headers, for exports without keys.
+  static const version = 2;
+
+  /// Where omni_ai keeps installed MCP servers (secure storage, with their
+  /// headers), and the plain copy a keyless profile restores into.
+  static const _mcpKey = 'omni_ai.mcp.servers';
 
   /// Telegram's database key never leaves the phone: with it, a copy of the
   /// session could be opened elsewhere.
@@ -45,14 +53,17 @@ abstract final class AppData {
     'mail',
     'sandbox',
     'briefs',
+    'widgets',
   ];
 
   static Future<String> _root() async => (await getApplicationSupportDirectory()).path;
 
-  /// Everything needed to carry on after reinstalling: settings, memories,
-  /// instructions, watches, reminders, brief settings, the Content Canvas,
-  /// usage, and (when [keys]) API keys and bot tokens. [chats] adds the AI
-  /// conversations.
+  /// Everything needed to carry on after reinstalling: settings (appearance,
+  /// decisions, home-screen widgets and their look), memories, instructions,
+  /// watches and the check-in, reminders, brief settings, installed skills,
+  /// the Content Canvas, usage, MCP servers, and (when [keys]) API keys, bot
+  /// tokens and MCP headers. [chats] adds the AI conversations. Widget
+  /// pictures aren't copied: they're fetched again from their links.
   static Future<Map<String, dynamic>> export({bool keys = true, bool chats = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final root = await _root();
@@ -71,30 +82,61 @@ abstract final class AppData {
         }
       }
     }
+    final secrets = await const FlutterSecureStorage().readAll();
     return {
       'format': format,
       'version': version,
       'exported_at': DateTime.now().toIso8601String(),
+      // Without keys, MCP servers still come along, minus their headers.
+      if (!keys) 'mcp_servers': _withoutHeaders(secrets),
       'prefs': {
         for (final k in prefs.getKeys())
           if (prefs.get(k) case final v?) k: v,
       },
       if (keys)
         'secrets': {
-          for (final e in (await const FlutterSecureStorage().readAll()).entries)
+          for (final e in secrets.entries)
             if (!_neverExported.contains(e.key)) e.key: e.value,
         },
       'files': files,
     };
   }
 
+  static List<Object?> _withoutHeaders(Map<String, String> secrets) {
+    final raw = secrets.entries.where((e) => e.key.endsWith(_mcpKey)).firstOrNull?.value;
+    if (raw == null) return const [];
+    try {
+      return [
+        for (final s in jsonDecode(raw) as List)
+          if (s is Map) {...s, 'headers': const {}, 'env': const {}},
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static int _count(Map prefs, String key) {
+    try {
+      return (jsonDecode('${prefs[key] ?? '[]'}') as List).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   /// Short counts of what [profile] holds, to show before restoring it.
   static Map<String, int> describe(Map<String, dynamic> profile) {
     final files = (profile['files'] as Map?) ?? const {};
+    final prefs = (profile['prefs'] as Map?) ?? const {};
+    final secrets = (profile['secrets'] as Map?) ?? const {};
+    final mcp = secrets.entries.where((e) => '${e.key}'.endsWith(_mcpKey)).firstOrNull?.value;
     return {
-      'settings': ((profile['prefs'] as Map?) ?? const {}).length,
-      'keys': ((profile['secrets'] as Map?) ?? const {}).length,
+      'settings': prefs.length,
+      'keys': secrets.length,
       'chats': files.keys.where((k) => '$k'.startsWith('conversations/')).length,
+      'watches': _count(prefs, 'watches.v1'),
+      'widgets': _count(prefs, 'home_widgets.v1'),
+      'skills': _count(prefs, 'omni_ai.skills'),
+      'mcp': mcp != null ? _count({'m': mcp}, 'm') : ((profile['mcp_servers'] as List?) ?? const []).length,
     };
   }
 
@@ -119,8 +161,16 @@ abstract final class AppData {
       }
     }
     const secure = FlutterSecureStorage();
-    for (final e in ((profile['secrets'] as Map?) ?? const {}).entries) {
+    final secrets = (profile['secrets'] as Map?) ?? const {};
+    for (final e in secrets.entries) {
       if (!_neverExported.contains(e.key)) await secure.write(key: '${e.key}', value: '${e.value}');
+    }
+    // A keyless profile's MCP servers: added without headers, unless this
+    // phone already has servers (which keep theirs).
+    final servers = profile['mcp_servers'];
+    if (servers is List && servers.isNotEmpty && !secrets.keys.any((k) => '$k'.endsWith(_mcpKey))) {
+      final here = (await secure.readAll()).entries.where((e) => e.key.endsWith(_mcpKey)).firstOrNull?.value;
+      if (here == null || here == '[]') await prefs.setString(_mcpKey, jsonEncode(servers));
     }
     final root = await _root();
     for (final e in ((profile['files'] as Map?) ?? const {}).entries) {
@@ -132,6 +182,9 @@ abstract final class AppData {
       await f.writeAsString('${e.value}');
     }
     _reload(ref);
+    // The restored widgets' rows (and pictures) go back to the home screen.
+    await ref.read(homeWidgetsProvider.notifier).publishAll();
+    await BriefHomeWidget.publish(ref.read(briefStoreProvider).briefs);
   }
 
   /// Deletes the assistant's data on this phone: AI chats, memories, files
@@ -153,7 +206,19 @@ abstract final class AppData {
       if (await f.exists()) await f.delete();
     }
     final prefs = await SharedPreferences.getInstance();
-    for (final k in const ['watches.v1', 'reminders.v1', 'online_alerts.v1', 'e2b_history.v1', 'e2b_editor_draft']) {
+    for (final k in const [
+      'watches.v1',
+      'reminders.v1',
+      'online_alerts.v1',
+      'e2b_history.v1',
+      'e2b_editor_draft',
+      'home_widgets.v1',
+      HomeWidgetStore.bindingsKey,
+      HomeWidgetStore.defaultKey,
+    ]) {
+      await prefs.remove(k);
+    }
+    for (final k in prefs.getKeys().where((k) => k.startsWith('widget_payload.') && k != 'widget_payload.brief').toList()) {
       await prefs.remove(k);
     }
     if (settings) {
@@ -172,6 +237,8 @@ abstract final class AppData {
   static void _reload(Ref ref) {
     ref
       ..invalidate(settingsProvider)
+      ..invalidate(decisionSettingsProvider)
+      ..invalidate(aiProvider)
       ..invalidate(memoryProvider)
       ..invalidate(watchStoreProvider)
       ..invalidate(reminderStoreProvider)
@@ -179,6 +246,8 @@ abstract final class AppData {
       ..invalidate(briefPrefsProvider)
       ..invalidate(canvasProvider)
       ..invalidate(usageProvider)
+      ..invalidate(homeWidgetsProvider)
+      ..invalidate(widgetLookProvider)
       ..invalidate(integrationsProvider);
   }
 

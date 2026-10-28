@@ -122,7 +122,7 @@ Future<void> showChatMenu(BuildContext context, WidgetRef ref, ChatInfo chat) {
 
   Widget tile(IconData icon, String label, VoidCallback onTap, {bool danger = false, String? subtitle}) => ListTile(
     dense: true,
-    leading: Icon(icon, color: danger ? AppColors.danger : AppColors.text2, size: 22),
+    leading: lead(Icon(icon, color: danger ? AppColors.danger : AppColors.text2, size: 22)),
     title: Text(label, style: TextStyle(color: danger ? AppColors.danger : AppColors.text, fontSize: 15)),
     subtitle: subtitle == null ? null : Text(subtitle, style: context.text.bodySmall),
     onTap: onTap,
@@ -217,11 +217,11 @@ Future<void> showChatMenu(BuildContext context, WidgetRef ref, ChatInfo chat) {
                     children: [
                       for (final f in store.folders)
                         ListTile(
-                          leading: Icon(
+                          leading: lead(Icon(
                             (store.folderChats[f.id]?.contains(chat.id) ?? false)
                                 ? Icons.check_circle_rounded
                                 : Icons.folder_outlined,
-                          ),
+                          )),
                           title: Text(f.title),
                           onTap: () => Navigator.pop(c, f),
                         ),

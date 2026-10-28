@@ -363,7 +363,7 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
                     for (final z in _zones ?? const <Map>[])
                       ListTile(
                         dense: true,
-                        leading: const Icon(Icons.language_rounded, color: Color(0xFFF38020)),
+                        leading: lead(const Icon(Icons.language_rounded, color: Color(0xFFF38020))),
                         title: Text('${z['name']}'),
                         subtitle: Text('${(z['plan'] as Map?)?['name'] ?? ''} · ${z['status']}'),
                         trailing: Icon(Icons.circle, size: 10, color: z['status'] == 'active' ? AppColors.success : AppColors.warning),
@@ -371,7 +371,7 @@ class _CloudflareTabState extends ConsumerState<CloudflareTab> {
                     for (final b in _buckets ?? const <Map>[])
                       ListTile(
                         dense: true,
-                        leading: const Icon(Icons.inventory_2_outlined, color: Color(0xFFF38020)),
+                        leading: lead(const Icon(Icons.inventory_2_outlined, color: Color(0xFFF38020))),
                         title: Text('${b['name']}'),
                         subtitle: Text('R2 bucket${b['name'] == s.r2Bucket ? ' · default' : ''}'),
                       ),
@@ -491,7 +491,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                     'This app\'s sandbox',
                     children: [
                       ListTile(
-                        leading: Icon(Icons.circle, size: 12, color: box == null ? AppColors.text3 : AppColors.success),
+                        leading: lead(Icon(Icons.circle, size: 12, color: box == null ? AppColors.text3 : AppColors.success)),
                         title: Text(box == null ? 'Not running' : 'Running', style: context.text.titleSmall),
                         subtitle: Text(
                           box == null
@@ -600,7 +600,7 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                         for (final b in _account ?? const <E2BSandboxInfo>[])
                           ListTile(
                             dense: true,
-                            leading: Icon(Icons.circle, size: 10, color: b.state == 'running' ? AppColors.success : AppColors.warning),
+                            leading: lead(Icon(Icons.circle, size: 10, color: b.state == 'running' ? AppColors.success : AppColors.warning)),
                             title: Text('${b.id}${b.id == box?.id ? '  · this app' : ''}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5)),
                             subtitle: Text(
                               [b.template, b.state, if (b.startedAt != null) 'since ${_when(b.startedAt)}', if (b.cpus != null) '${b.cpus} CPU · ${b.memoryMb} MB'].join(' · '),
@@ -647,10 +647,10 @@ class _E2bTabState extends ConsumerState<E2bTab> {
                       for (final e in session.history.take(50))
                         ListTile(
                           dense: true,
-                          leading: Icon(
+                          leading: lead(Icon(
                             e.live ? Icons.play_circle_outline_rounded : Icons.stop_circle_outlined,
                             color: e.live ? AppColors.success : AppColors.text3,
-                          ),
+                          )),
                           title: Text(e.id, style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5)),
                           subtitle: Text(
                             [
@@ -742,7 +742,7 @@ class _ExaTabState extends ConsumerState<ExaTab> {
                 'Tool',
                 children: [
                   SwitchListTile(
-                    secondary: const Icon(Icons.travel_explore_rounded),
+                    secondary: lead(const Icon(Icons.travel_explore_rounded)),
                     title: const Text('web_search'),
                     subtitle: Text(s.hasExaKey ? 'Searches the web with Exa' : 'Needs the key above', style: context.text.bodySmall),
                     value: s.toolChosen(tool.name),

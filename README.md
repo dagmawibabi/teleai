@@ -25,6 +25,9 @@ The app is designed around reviewable actions: whenever the assistant wants to s
 - Inspect images from attachments, generated files, screenshots, local paths, direct image URLs, image data URLs or Telegram messages with **View image**. Image input requires a vision-capable chat model; only Telegram message refs need Telegram connected.
 - Sent chat messages show local timestamps, with date dividers between days.
 - Search the web with Exa when a search key is configured.
+- Configure TypeSafe Jev under **Settings → AI & models → Decisions**, the final tab: save/verify/remove the API key, choose a model, and control thresholds, confidence, long context, retries, timeout, and endpoint.
+- Open **Settings → MCP & Skills**, directly below AI & models, to search catalogs, review/install/remove capabilities, configure MCP servers, and choose every available assistant tool in the MCP and Skills tabs.
+- The assistant can search, preview, install, check installed capabilities, load skill instructions/files, inspect MCP tool schemas, and use MCP tools/resources/prompts on demand. Per-tool switches are checked again when a call runs; installs, removals, and MCP connections use approval cards and are excluded from read-only runs.
 - Use approval-gated Telegram actions, including messages, voice notes, live activity states, and other enabled tools.
 
 ### Apps, cloud and code

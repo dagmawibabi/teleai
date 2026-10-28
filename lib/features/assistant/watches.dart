@@ -58,7 +58,19 @@ class Watch {
     required this.createdAt,
     this.app,
     this.query = '',
+    this.builtIn = false,
+    this.quietAtNight = false,
   });
+
+  /// One of the app's own watches (the check-in): it can be changed and
+  /// turned off, never deleted.
+  final bool builtIn;
+
+  /// Scheduled runs skip 22:00 to 08:00 and catch up in the morning.
+  final bool quietAtNight;
+
+  /// Whether [at] falls in the quiet night hours.
+  static bool isNight(DateTime at) => at.hour >= 22 || at.hour < 8;
 
   /// For [WatchScope.app]: the app to check (a Composio toolkit such as
   /// gmail, slack, github, or "any" for every connected app) and what to
@@ -109,6 +121,7 @@ class Watch {
     int? runs,
     String? app,
     String? query,
+    bool? quietAtNight,
   }) => Watch(
     id: id,
     name: name ?? this.name,
@@ -128,6 +141,8 @@ class Watch {
     createdAt: createdAt,
     app: app ?? this.app,
     query: query ?? this.query,
+    builtIn: builtIn,
+    quietAtNight: quietAtNight ?? this.quietAtNight,
   );
 
   Map<String, dynamic> toJson() => {
@@ -149,6 +164,8 @@ class Watch {
     'created': createdAt.toIso8601String(),
     'app': ?app,
     if (query.isNotEmpty) 'query': query,
+    if (builtIn) 'built_in': true,
+    if (quietAtNight) 'quiet_at_night': true,
   };
 
   factory Watch.fromJson(Map<String, dynamic> j) => Watch(
@@ -170,6 +187,8 @@ class Watch {
     createdAt: DateTime.tryParse(j['created'] ?? '') ?? DateTime.now(),
     app: j['app'],
     query: j['query'] ?? '',
+    builtIn: j['built_in'] ?? false,
+    quietAtNight: j['quiet_at_night'] ?? false,
   );
 
   /// For the assistant and the Watches screen.
@@ -190,27 +209,64 @@ class Watch {
     if (!notify) 'notify': false,
     'runs': runs,
     if (lastRunAt != null) 'last_run': lastRunAt!.toIso8601String().substring(0, 16),
+    if (builtIn) 'built_in': 'can be changed or turned off, not deleted',
+    if (quietAtNight) 'quiet_at_night': true,
   };
 }
+
+/// The id of the built-in check-in watch.
+const checkInWatchId = 'check-in';
+
+/// What the check-in asks for, until the person changes it.
+const checkInInstructions =
+    'Find the single most useful thing to bring to the user right now. With read-only tools, look at what is new '
+    'since the last check-in: unread Telegram DMs and mentions, connected apps (email, calendar, Slack and others), '
+    'reminders, and events in the next day. Pick ONE topic worth their attention. If a little preparation helps, do '
+    'it: summarise a long thread, draft notes for a meeting, draft a reply. Never send, post or change anything on '
+    'their behalf. Then answer with one short, friendly note that greets them by first name and says what it is and '
+    'what you prepared or can do, e.g. "Hey Joe, Hannah sent meeting notes on Slack; I summarised them for you." '
+    'Keep it under 300 characters. If nothing new is worth their attention, answer with exactly NOTHING_NEW.';
+
+/// The check-in as the app first sets it up: every six hours, quiet at night.
+Watch defaultCheckIn() => Watch(
+  id: checkInWatchId,
+  name: 'Check-in',
+  scope: WatchScope.schedule,
+  mode: WatchMode.act,
+  everyMinutes: 6 * 60,
+  instructions: checkInInstructions,
+  builtIn: true,
+  quietAtNight: true,
+  createdAt: DateTime.now(),
+);
 
 class WatchStore extends Notifier<List<Watch>> {
   static const _key = 'watches.v1';
   static const _uuid = Uuid();
 
+  /// Completes once saved watches are loaded; changes wait for it, so one
+  /// made at start-up isn't overwritten by the load (or a deleted one
+  /// brought back).
+  late Future<void> ready;
+
   @override
   List<Watch> build() {
-    _load();
+    ready = _load();
     return const [];
   }
 
   Future<void> _load() async {
+    var loaded = <Watch>[];
     try {
       final raw = (await SharedPreferences.getInstance()).getString(_key);
-      if (raw == null) return;
-      state = [for (final w in jsonDecode(raw) as List) Watch.fromJson(Map<String, dynamic>.from(w))];
+      if (raw != null) loaded = [for (final w in jsonDecode(raw) as List) Watch.fromJson(Map<String, dynamic>.from(w))];
     } catch (e) {
       debugPrint('[Watches] $e');
     }
+    // The check-in is always there; turning it off is how it stops.
+    final missing = !loaded.any((w) => w.id == checkInWatchId);
+    state = [if (missing) defaultCheckIn(), ...loaded];
+    if (missing) await _save();
   }
 
   Future<void> _save() async =>
@@ -219,6 +275,7 @@ class WatchStore extends Notifier<List<Watch>> {
   Watch? byId(String id) => state.where((w) => w.id == id).firstOrNull;
 
   Future<Watch> add(Watch Function(String id) make) async {
+    await ready;
     final w = make(_uuid.v4().substring(0, 8));
     state = [...state, w];
     await _save();
@@ -226,6 +283,7 @@ class WatchStore extends Notifier<List<Watch>> {
   }
 
   Future<Watch?> update(String id, Watch Function(Watch) change) async {
+    await ready;
     Watch? updated;
     state = [
       for (final w in state)
@@ -235,7 +293,10 @@ class WatchStore extends Notifier<List<Watch>> {
     return updated;
   }
 
+  /// Deletes a watch. Built-in ones can only be turned off: false.
   Future<bool> remove(String id) async {
+    await ready;
+    if (byId(id)?.builtIn ?? false) return false;
     final before = state.length;
     state = state.where((w) => w.id != id).toList();
     await _save();

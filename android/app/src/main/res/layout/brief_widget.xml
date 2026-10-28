@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The latest brief on the home screen (BriefWidget.kt). The background is
-     an image so its colour and opacity can be set from Settings. -->
+<!-- A home-screen widget (BriefWidget.kt): the brief or a custom widget, as
+     a list that scrolls. The background is an image so its colour and
+     opacity can be set from Settings. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/brief_root"
     android:layout_width="match_parent"
@@ -48,18 +49,30 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/brief_text"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="8dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:lineSpacingMultiplier="1.15"
-            android:maxLines="14"
-            android:text="No brief yet. Tap to open Triangle and write one."
-            android:textColor="#C9C9D1"
-            android:textSize="12.5sp" />
+            android:layout_weight="1">
+
+            <ListView
+                android:id="@+id/widget_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/widget_empty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="top|start"
+                android:lineSpacingMultiplier="1.15"
+                android:text="No brief yet. Tap to open Triangle and write one."
+                android:textColor="#C9C9D1"
+                android:textSize="12.5sp" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/brief_footer"

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -134,8 +136,9 @@ class WatchesScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          if (watches.where((w) => w.builtIn).firstOrNull case final checkIn?) _CheckInCard(watch: checkIn),
           const _OnlineAlerts(),
-          if (watches.isEmpty)
+          if (watches.where((w) => !w.builtIn).isEmpty)
             Padding(
               padding: const EdgeInsets.all(Space.x4),
               child: Text(
@@ -145,7 +148,7 @@ class WatchesScreen extends ConsumerWidget {
                 style: context.text.bodySmall,
               ),
             ),
-          for (final w in watches)
+          for (final w in watches.where((w) => !w.builtIn))
             Padding(
               padding: const EdgeInsets.only(bottom: Space.s),
               child: Material(
@@ -158,8 +161,7 @@ class WatchesScreen extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.s, Space.m),
                     child: Row(
                       children: [
-                        Icon(watchModeIcon(w.mode), color: w.enabled ? AppColors.accent : AppColors.text3),
-                        const SizedBox(width: Space.m),
+                        ...leadRow(Icon(watchModeIcon(w.mode), color: w.enabled ? AppColors.accent : AppColors.text3), Space.m),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,8 +236,7 @@ class _Reminders extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.xs, Space.m),
                 child: Row(
                   children: [
-                    Icon(r.isJob ? Icons.smart_toy_outlined : Icons.alarm_rounded, color: r.enabled ? AppColors.accent : AppColors.text3),
-                    const SizedBox(width: Space.m),
+                    ...leadRow(Icon(r.isJob ? Icons.smart_toy_outlined : Icons.alarm_rounded, color: r.enabled ? AppColors.accent : AppColors.text3), Space.m),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +414,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
                 );
               },
             ),
-          if (w != null)
+          if (w != null && !w.builtIn)
             IconButton(
               tooltip: 'Delete',
               icon: const Icon(Icons.delete_outline_rounded),
@@ -450,7 +451,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
               borderRadius: BorderRadius.circular(Radii.l),
               child: ListTile(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.l)),
-                leading: const Icon(Icons.forum_outlined),
+                leading: lead(const Icon(Icons.forum_outlined)),
                 title: Text(_chatIds.isEmpty ? 'Choose chats' : '${_chatIds.length} chat${_chatIds.length == 1 ? '' : 's'}'),
                 subtitle: _chatIds.isEmpty
                     ? null
@@ -613,7 +614,7 @@ class _WatchEditorState extends ConsumerState<WatchEditor> {
           const SizedBox(height: Space.m),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            secondary: Icon(_notify ? Icons.notifications_active_outlined : Icons.notifications_off_outlined),
+            secondary: lead(Icon(_notify ? Icons.notifications_active_outlined : Icons.notifications_off_outlined)),
             title: const Text('Notify me'),
             subtitle: Text(
               _notify
@@ -817,6 +818,183 @@ class _OnlineAlerts extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The built-in check-in: every few hours the assistant looks for one new
+/// thing worth the person's attention and sends it as a notification. It
+/// can be changed and turned off, not deleted.
+class _CheckInCard extends ConsumerWidget {
+  const _CheckInCard({required this.watch});
+  final Watch watch;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = watch;
+    final hours = (w.everyMinutes ?? 360) / 60;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.m),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(Radii.l),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Radii.l),
+          onTap: () => showFormSheet<void>(context, builder: (_) => _CheckInSheet(id: w.id)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.s, Space.m),
+            child: Row(
+              children: [
+                ...leadRow(Icon(Icons.tips_and_updates_outlined, color: w.enabled ? AppColors.accent : AppColors.text3), Space.m),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Check-in', style: context.text.titleSmall),
+                      Text(
+                        w.enabled
+                            ? 'Every ${_hours(hours)}${w.quietAtNight ? ', not at night' : ''}: one new thing worth your attention, with anything it prepared.'
+                            : 'Off. Turn on for a nudge every few hours about what needs you.',
+                        style: context.text.bodySmall,
+                      ),
+                      if (w.lastRunAt != null)
+                        Text('Last checked ${DateFormat('d MMM HH:mm').format(w.lastRunAt!)}', style: context.text.labelSmall),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: w.enabled,
+                  onChanged: (v) => ref.read(watchStoreProvider.notifier).update(w.id, (x) => x.copyWith(enabled: v)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _hours(num h) => h == 1 ? 'hour' : '${h % 1 == 0 ? h.toInt() : h} hours';
+
+class _CheckInSheet extends ConsumerStatefulWidget {
+  const _CheckInSheet({required this.id});
+  final String id;
+
+  @override
+  ConsumerState<_CheckInSheet> createState() => _CheckInSheetState();
+}
+
+class _CheckInSheetState extends ConsumerState<_CheckInSheet> {
+  late final _instructions = TextEditingController(text: ref.read(watchStoreProvider.notifier).byId(widget.id)?.instructions ?? '');
+
+  @override
+  void dispose() {
+    _instructions.dispose();
+    super.dispose();
+  }
+
+  Future<void> _set(Watch Function(Watch) change) => ref.read(watchStoreProvider.notifier).update(widget.id, change);
+
+  Future<void> _saveText() {
+    final text = _instructions.text.trim();
+    return _set((x) => x.copyWith(instructions: text.isEmpty ? checkInInstructions : text));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = ref.watch(watchStoreProvider).where((x) => x.id == widget.id).firstOrNull;
+    if (w == null) return const SizedBox.shrink();
+    final every = w.everyMinutes ?? 360;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('Check-in', style: context.text.titleMedium)),
+            Switch(value: w.enabled, onChanged: (v) => _set((x) => x.copyWith(enabled: v))),
+          ],
+        ),
+        Text(
+          'The assistant looks across your chats, apps, reminders and calendar, picks one new thing worth your '
+          'attention, prepares what helps (a summary, draft notes) and sends it as a notification. It never sends '
+          'or changes anything for you. Built in: turn it off to stop it.',
+          style: context.text.bodySmall,
+        ),
+        const SizedBox(height: Space.l),
+        Text('HOW OFTEN', style: context.text.labelSmall),
+        const SizedBox(height: Space.s),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final h in const [1, 2, 3, 6, 12, 24])
+              ChoiceChip(
+                label: Text('Every ${_hours(h)}'),
+                selected: every == h * 60,
+                onSelected: (_) => _set((x) => x.copyWith(everyMinutes: h * 60)),
+              ),
+          ],
+        ),
+        const SizedBox(height: Space.s),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Quiet at night'),
+          subtitle: Text('Nothing between 22:00 and 08:00; it catches up in the morning.', style: context.text.bodySmall),
+          value: w.quietAtNight,
+          onChanged: (v) => _set((x) => x.copyWith(quietAtNight: v)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Notify me'),
+          subtitle: Text('Off, its notes only land in its chat.', style: context.text.bodySmall),
+          value: w.notify,
+          onChanged: (v) => _set((x) => x.copyWith(notify: v)),
+        ),
+        const SizedBox(height: Space.s),
+        Row(
+          children: [
+            Expanded(child: Text('WHAT TO LOOK FOR', style: context.text.labelSmall)),
+            TextButton(
+              onPressed: () => setState(() => _instructions.text = checkInInstructions),
+              child: const Text('Reset'),
+            ),
+          ],
+        ),
+        TextField(
+          controller: _instructions,
+          minLines: 3,
+          maxLines: 8,
+          decoration: const InputDecoration(hintText: 'What the check-in should look at and how it should tell you'),
+        ),
+        const SizedBox(height: Space.l),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await _saveText();
+                  final latest = ref.read(watchStoreProvider.notifier).byId(widget.id);
+                  if (latest != null) unawaited(ref.read(watchEngineProvider).runNow(latest));
+                  if (context.mounted) showSnack(context, 'Checking in now. A notification follows if there is something.');
+                },
+                icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                label: const Text('Check now'),
+              ),
+            ),
+            const SizedBox(width: Space.s),
+            Expanded(
+              child: FilledButton(
+                onPressed: () async {
+                  await _saveText();
+                  if (context.mounted) Navigator.pop(context);
+                },
+                child: const Text('Save'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

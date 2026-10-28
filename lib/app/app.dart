@@ -14,6 +14,9 @@ import '../features/auth/presentation/welcome_screen.dart';
 import '../features/brief/brief_screen.dart';
 import '../features/brief/brief_store.dart';
 import '../features/brief/brief_widget.dart';
+import '../features/brief/home_widgets.dart';
+import '../features/brief/widget_customizer_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/settings/data/settings.dart';
 import '../infrastructure/telegram/telegram_client.dart';
@@ -63,7 +66,9 @@ class _TeleAiAppState extends ConsumerState<TeleAiApp> with WidgetsBindingObserv
     AppColors.applyAccent(Color(settings.accent.value));
     // Colours are read while building, so a new palette rebuilds every
     // screen in place (keeping where you are), not just the themed parts.
-    if (_shown != null && _shown != AppColors.palette) {
+    final icons = AppLook.leadingIcons != settings.leadingIcons;
+    AppLook.leadingIcons = settings.leadingIcons;
+    if ((_shown != null && _shown != AppColors.palette) || icons) {
       WidgetsBinding.instance.addPostFrameCallback((_) => rebuildAllScreens(context));
     }
     _shown = AppColors.palette;
@@ -134,7 +139,20 @@ class _AppGateState extends ConsumerState<AppGate> with WidgetsBindingObserver {
       () => appNavigatorKey.currentState?.push(
         MaterialPageRoute<void>(builder: (_) => const BriefScreen()),
       ),
+      // A custom widget: its row's link, or the widget in Settings.
+      openWidget: (id, link) {
+        final uri = link == null ? null : Uri.tryParse(link);
+        if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+          launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+        appNavigatorKey.currentState?.push(
+          MaterialPageRoute<void>(builder: (_) => WidgetCustomizerScreen(openWidget: id)),
+        );
+      },
     );
+    // Writes every custom widget's rows where the launcher reads them.
+    ref.read(homeWidgetsProvider.notifier).publishAll();
     // TDLib itself was started with the process (see startRuntime).
   }
 

@@ -90,7 +90,7 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
               for (final f in folders)
                 ListTile(
                   key: ValueKey(f.id),
-                  leading: const Icon(Icons.folder_outlined),
+                  leading: lead(const Icon(Icons.folder_outlined)),
                   title: Text(f.title),
                   subtitle: Text('${store.folderChats[f.id]?.length ?? '…'} chats', style: context.text.bodySmall),
                   trailing: Icon(Icons.drag_handle_rounded, color: AppColors.text3),
@@ -105,7 +105,7 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
             ),
             for (final s in _suggested)
               ListTile(
-                leading: const Icon(Icons.auto_awesome_outlined),
+                leading: lead(const Icon(Icons.auto_awesome_outlined)),
                 title: Text('${s['title']}'),
                 subtitle: Text('${s['description']}', style: context.text.bodySmall),
                 trailing: TextButton(onPressed: () => _edit(preset: s), child: const Text('Add')),

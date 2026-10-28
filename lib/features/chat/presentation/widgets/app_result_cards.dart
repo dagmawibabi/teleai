@@ -879,7 +879,7 @@ class _ChannelList extends StatelessWidget {
           for (final c in channels)
             ListTile(
               dense: true,
-              leading: Icon(c['private'] == true ? Icons.lock_outline_rounded : Icons.tag_rounded, size: 20, color: AppColors.text2),
+              leading: lead(Icon(c['private'] == true ? Icons.lock_outline_rounded : Icons.tag_rounded, size: 20, color: AppColors.text2)),
               title: Text('${c['name']}', style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: c['topic'] == null ? null : Text('${c['topic']}', maxLines: 1, overflow: TextOverflow.ellipsis),
               trailing: c['members'] == null ? null : Text('${c['members']}', style: context.text.labelSmall),
@@ -907,11 +907,11 @@ class _NotificationList extends StatelessWidget {
             ListTile(
               dense: true,
               onTap: () => _open(n['url'] as String?),
-              leading: Icon(
+              leading: lead(Icon(
                 n['type'] == 'PullRequest' ? Icons.merge_type_rounded : (n['type'] == 'Release' ? Icons.sell_outlined : Icons.adjust_rounded),
                 size: 20,
                 color: n['unread'] == true ? AppColors.accent : AppColors.text3,
-              ),
+              )),
               title: Text('${n['title']}', maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(['${n['repo']}', '${n['reason']}'.replaceAll('_', ' '), _when(n['updated'])].where((x) => x.isNotEmpty).join(' · ')),
             ),
@@ -1025,14 +1025,14 @@ class _PageList extends StatelessWidget {
             ListTile(
               dense: true,
               onTap: () => _open(p['url'] as String?),
-              leading: SizedBox(
+              leading: lead(SizedBox(
                 width: 24,
                 child: Center(
                   child: p['icon'] != null
                       ? Text('${p['icon']}', style: const TextStyle(fontSize: 18))
                       : Icon(p['kind'] == 'database' ? Icons.table_rows_outlined : Icons.description_outlined, size: 20, color: AppColors.text2),
                 ),
-              ),
+              )),
               title: Text('${p['title']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(
                 [p['kind'] == 'database' ? 'Database' : 'Page', if (p['edited'] != null) 'edited ${_when(p['edited'], time: false)}', if (p['archived'] == true) 'archived'].join(' · '),
@@ -1070,11 +1070,11 @@ class _TaskList extends StatelessWidget {
             ListTile(
               dense: true,
               onTap: () => _open(t['url'] as String?),
-              leading: Icon(
+              leading: lead(Icon(
                 t['done'] == true ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
                 color: t['done'] == true ? AppColors.success : _priority(t['priority']),
                 size: 22,
-              ),
+              )),
               title: Text(
                 '${t['content']}',
                 style: TextStyle(decoration: t['done'] == true ? TextDecoration.lineThrough : null, fontWeight: FontWeight.w500),
@@ -1131,7 +1131,7 @@ class _FileList extends StatelessWidget {
                 return ListTile(
                   dense: true,
                   onTap: () => _open(f['link'] as String?),
-                  leading: Icon(icon, color: color),
+                  leading: lead(Icon(icon, color: color)),
                   title: Text('${f['name']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
                   subtitle: Text(
                     [

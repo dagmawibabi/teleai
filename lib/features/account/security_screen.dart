@@ -508,7 +508,7 @@ class _PrivacyState extends ConsumerState<_Privacy> with AutomaticKeepAliveClien
                 ListTile(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.m)),
                   tileColor: r.audience == value ? AppColors.accent.withValues(alpha: 0.10) : null,
-                  leading: Icon(icon),
+                  leading: lead(Icon(icon)),
                   title: Text(label),
                   trailing: r.audience == value ? Icon(Icons.check_rounded, color: AppColors.accent) : null,
                   onTap: () => Navigator.pop(ctx, value),

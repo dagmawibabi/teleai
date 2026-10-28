@@ -298,7 +298,7 @@ class _EverywhereSearchScreenState extends ConsumerState<EverywhereSearchScreen>
           if (telegram && (_source == _Source.all || _source == _Source.telegram))
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.send_rounded, color: Color(0xFF2AABEE)),
+              leading: lead(const Icon(Icons.send_rounded, color: Color(0xFF2AABEE))),
               title: Text(q.isEmpty ? 'Search Telegram' : 'Search Telegram for “$q”'),
               subtitle: Text('Every chat: messages, photos, files, links, voice', style: context.text.bodySmall),
               trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
@@ -334,7 +334,7 @@ class _EverywhereSearchScreenState extends ConsumerState<EverywhereSearchScreen>
             for (final h in local.take(80))
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: Space.xs),
-                leading: Icon(h.source.icon, color: AppColors.text2),
+                leading: lead(Icon(h.source.icon, color: AppColors.text2)),
                 title: Text(h.title, maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(h.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.text.bodySmall),
                 trailing: h.when == null ? null : Text(DateFormat('d MMM').format(h.when!), style: context.text.labelSmall),
@@ -370,7 +370,7 @@ class _WebResults extends StatelessWidget {
         for (final r in (j['results'] as List? ?? const []).whereType<Map>())
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: Space.xs),
-            leading: Icon(Icons.public_rounded, color: AppColors.text2),
+            leading: lead(Icon(Icons.public_rounded, color: AppColors.text2)),
             title: Text('${r['title'] ?? r['url']}', maxLines: 2, overflow: TextOverflow.ellipsis),
             subtitle: Text(
               '${Uri.tryParse('${r['url']}')?.host ?? ''}${r['highlights'] is List && (r['highlights'] as List).isNotEmpty ? ' · ${(r['highlights'] as List).first}' : ''}',

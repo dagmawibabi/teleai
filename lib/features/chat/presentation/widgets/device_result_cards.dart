@@ -468,7 +468,7 @@ class _CallsCard extends StatelessWidget {
       for (final c in calls.take(30))
         ListTile(
           dense: true,
-          leading: Icon(
+          leading: lead(Icon(
             switch (c['type']) {
               'missed' => Icons.call_missed_rounded,
               'outgoing' => Icons.call_made_rounded,
@@ -476,7 +476,7 @@ class _CallsCard extends StatelessWidget {
               _ => Icons.call_received_rounded,
             },
             color: c['type'] == 'missed' || c['type'] == 'rejected' ? AppColors.danger : AppColors.text2,
-          ),
+          )),
           title: Text('${c['name'] ?? c['number']}', style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
             [

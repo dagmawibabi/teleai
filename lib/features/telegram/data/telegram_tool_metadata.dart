@@ -28,8 +28,14 @@ List<String> toolPrerequisiteProblems(
   required bool telegram,
   required Set<String> connected,
   bool modelSeesImages = true,
+  bool decisionsReady = true,
 }) {
   final problems = <String>[];
+  if (tool.category == ToolCategory.decisions && !decisionsReady) {
+    problems.add(
+      'Add a TypeSafe Jev key and turn Decisions on in AI & models.',
+    );
+  }
   if (tool.needsTelegram && !telegram)
     problems.add('Connect Telegram in Apps & web.');
   if (isAppTool(tool.name)) {
@@ -60,17 +66,30 @@ List<String> toolPrerequisiteProblems(
     problems.add('Add an Exa key in Apps & web.');
   if (tool.name == 'generate_addis_voice' && !settings.hasAddisKey)
     problems.add('Add an Addis AI key in AI & models.');
-  if (!settings.mediaEnabled && const {'generate_image', 'view_image'}.contains(tool.name)) {
-    problems.add('Images & video are off in AI & models.');
+  if (!settings.mediaEnabled &&
+      const {'generate_image', 'view_image'}.contains(tool.name)) {
+    problems.add('Images are off in AI & models → Images & video.');
+  }
+  if (tool.name == 'generate_video') {
+    if (!settings.videoEnabled)
+      problems.add('Video is off in AI & models → Images & video.');
+    if (settings.videoModel.isEmpty)
+      problems.add('Pick a video model in AI & models → Images & video.');
   }
   if (!settings.voiceEnabled &&
-      const {'generate_audio', 'generate_addis_voice', 'generate_music', 'generate_sound_effect'}.contains(tool.name)) {
+      const {
+        'generate_audio',
+        'generate_addis_voice',
+        'generate_music',
+        'generate_sound_effect',
+      }.contains(tool.name)) {
     problems.add('Voice is off in AI & models.');
   }
   if (tool.name == 'view_image' && !modelSeesImages)
     problems.add('Choose a chat model with image input in AI & models.');
   final model = switch (tool.name) {
     'generate_image' => settings.imageModel,
+    'generate_video' when settings.videoModel.isNotEmpty => settings.videoModel,
     'generate_audio' when settings.voiceEngine == VoiceEngine.elevenLabs =>
       'elevenlabs:${settings.elevenModel}',
     'generate_audio' when settings.voiceEngine != VoiceEngine.addis =>
@@ -95,7 +114,11 @@ List<String> toolPrerequisiteProblems(
     };
     if (!configured)
       problems.add(
-        'Configure the selected ${tool.name == 'generate_image' ? 'image' : 'speech'} model in AI & models.',
+        'Configure the selected ${switch (tool.name) {
+          'generate_image' => 'image',
+          'generate_video' => 'video',
+          _ => 'speech',
+        }} model in AI & models.',
       );
   }
   return problems;
@@ -169,10 +192,16 @@ const toolPolicies = <String, ToolPolicy>{
   'list_watches': ToolPolicy(ToolAccess.read),
   'update_watch': ToolPolicy(ToolAccess.modify),
   'delete_watch': ToolPolicy(ToolAccess.destructive),
+  'create_widget': ToolPolicy(ToolAccess.modify),
+  'update_widget': ToolPolicy(ToolAccess.modify),
+  'list_widgets': ToolPolicy(ToolAccess.read),
+  'delete_widget': ToolPolicy(ToolAccess.destructive),
   'online_alert': ToolPolicy(ToolAccess.modify, needsTelegram: true),
   'list_online_alerts': ToolPolicy(ToolAccess.read, needsTelegram: true),
   'notify_me': ToolPolicy(ToolAccess.modify),
   'generate_image': ToolPolicy(ToolAccess.modify),
+  'get_model_settings': ToolPolicy(ToolAccess.read),
+  'generate_video': ToolPolicy(ToolAccess.modify),
   'generate_audio': ToolPolicy(ToolAccess.modify),
   'generate_addis_voice': ToolPolicy(ToolAccess.modify),
   'generate_sound_effect': ToolPolicy(ToolAccess.modify),
@@ -250,6 +279,34 @@ const toolPolicies = <String, ToolPolicy>{
     needsTelegram: true,
   ),
   'list_briefs': ToolPolicy(ToolAccess.read),
+  // Decisions, MCP servers and skills (omni_ai).
+  'jev_decide': ToolPolicy(ToolAccess.read),
+  'jev_batch': ToolPolicy(ToolAccess.read),
+  'jev_noul': ToolPolicy(ToolAccess.read),
+  'jev_choice': ToolPolicy(ToolAccess.read),
+  'jev_score': ToolPolicy(ToolAccess.read),
+  'jev_box': ToolPolicy(ToolAccess.read),
+  'jev_models': ToolPolicy(ToolAccess.read),
+  'mcp_search': ToolPolicy(ToolAccess.read),
+  'mcp_list_servers': ToolPolicy(ToolAccess.read),
+  'mcp_is_installed': ToolPolicy(ToolAccess.read),
+  'mcp_list_tools': ToolPolicy(ToolAccess.read),
+  'mcp_list_resources': ToolPolicy(ToolAccess.read),
+  'mcp_read_resource': ToolPolicy(ToolAccess.read),
+  'mcp_list_prompts': ToolPolicy(ToolAccess.read),
+  'mcp_get_prompt': ToolPolicy(ToolAccess.read),
+  'search_skills': ToolPolicy(ToolAccess.read),
+  'list_skills': ToolPolicy(ToolAccess.read),
+  'is_skill_installed': ToolPolicy(ToolAccess.read),
+  'preview_skill': ToolPolicy(ToolAccess.read),
+  'load_skill': ToolPolicy(ToolAccess.read),
+  'read_skill_file': ToolPolicy(ToolAccess.read),
+  'mcp_install_catalog': ToolPolicy(ToolAccess.modify),
+  'mcp_install': ToolPolicy(ToolAccess.modify),
+  'mcp_call_tool': ToolPolicy(ToolAccess.modify),
+  'install_skill': ToolPolicy(ToolAccess.modify),
+  'mcp_uninstall': ToolPolicy(ToolAccess.destructive),
+  'uninstall_skill': ToolPolicy(ToolAccess.destructive),
   'write_brief': ToolPolicy(ToolAccess.modify),
   'read_brief': ToolPolicy(ToolAccess.read),
   'canvas_overview': ToolPolicy(ToolAccess.read),

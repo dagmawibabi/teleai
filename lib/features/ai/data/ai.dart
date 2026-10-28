@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:omni_ai/omni_ai.dart';
 
 import '../../settings/data/settings.dart';
+import 'decision_settings.dart';
 
 export 'package:omni_ai/omni_ai.dart' show ModelInfo, ModelType, Voice;
 
@@ -11,7 +12,7 @@ export 'package:omni_ai/omni_ai.dart' show ModelInfo, ModelType, Voice;
 /// (the app's own secure storage) and are handed to it as they change.
 final aiProvider = Provider<OmniAI>((ref) {
   final ai = OmniAI(
-    keyStore: MemoryKeyStore(),
+    keyStore: SecureKeyStore(prefix: 'triangle.ai.'),
     loadSavedKeys: false,
     appName: 'Triangle',
     appUrl: 'https://github.com/dagmawibabi/triangle',
@@ -56,6 +57,18 @@ final aiProvider = Provider<OmniAI>((ref) {
   }
 
   sync(ref.read(settingsProvider));
+  void syncDecisions(DecisionSettings s) {
+    ai.setApiKey('jev', s.apiKey, persist: false);
+    ai.jev.model = s.model;
+    ai.jev.threshold = s.threshold;
+    ai.jev.minConfidence = s.gateConfidence ? s.minConfidence : null;
+    ai.jev.longContext = s.longContext;
+    ai.jev.client.baseUrl = s.baseUrl;
+    ai.jev.client.maxRetries = s.maxRetries;
+    ai.jev.client.timeout = Duration(seconds: s.timeoutSeconds);
+  }
+  syncDecisions(ref.read(decisionSettingsProvider));
+  ref.listen(decisionSettingsProvider, (_, next) => syncDecisions(next));
   fit(null, ref.read(settingsProvider));
   // A service without default models (LM Studio) gets one once its list
   // loads.
@@ -73,6 +86,7 @@ final aiProvider = Provider<OmniAI>((ref) {
     fit(before, s);
   });
   ref.onDispose(ai.dispose);
+  ref.onDispose(() { ai.mcp.dispose(); });
   return ai;
 });
 

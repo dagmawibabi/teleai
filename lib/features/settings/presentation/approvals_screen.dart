@@ -60,7 +60,7 @@ class ApprovalsScreen extends ConsumerWidget {
           Container(
             decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(Radii.l)),
             child: SwitchListTile(
-              secondary: const Icon(Icons.lock_outline_rounded),
+              secondary: lead(const Icon(Icons.lock_outline_rounded)),
               title: const Text('Read-only mode'),
               subtitle: Text(
                 s.readOnlyMode ? 'Nothing can be sent or changed, whatever the mode above' : 'Turns off every tool that sends or changes something',

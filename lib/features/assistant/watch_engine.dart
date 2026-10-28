@@ -1,4 +1,5 @@
 import '../brief/brief_store.dart';
+import '../brief/home_widgets.dart';
 
 import 'dart:async';
 import 'dart:collection';
@@ -164,7 +165,8 @@ class WatchEngine {
           .show(r.text, 'Couldn\'t run: add an AI key in Settings.');
       return;
     }
-    if (r.conversationId == null) {
+    // First run, or its chat was deleted and the run started a new one.
+    if (r.conversationId != result.conversationId) {
       await _ref
           .read(reminderStoreProvider.notifier)
           .update(
@@ -191,8 +193,12 @@ class WatchEngine {
     for (final t in _debounce.values) {
       t.cancel();
     }
-    _ref.read(openChatsProvider).releaseAll(_openChatOwner);
+    // Read while starting: providers can't be read while this one is
+    // being disposed.
+    _openChats?.releaseAll(_openChatOwner);
   }
+
+  OpenChats? _openChats;
 
   List<Watch> get _active {
     final s = _ref.read(settingsProvider);
@@ -204,6 +210,7 @@ class WatchEngine {
     final s = _ref.read(settingsProvider);
     if (!s.loaded) return;
     final active = _active;
+    _dropInactive(active);
     final notifier = _ref.read(appNotifierProvider);
     if ((active.any((w) => w.notify) && s.notifications) || s.mentionAlerts)
       await notifier.requestPermission();
@@ -215,6 +222,18 @@ class WatchEngine {
       await store.loadFolder(w.folderId!).then((_) {}, onError: (_) {});
     }
     await _syncOpenChats();
+  }
+
+  /// Batches waiting for a watch that was turned off or deleted are
+  /// dropped, so it doesn't fire once more after the person stopped it.
+  void _dropInactive(List<Watch> active) {
+    final ids = {for (final w in active) w.id};
+    for (final key in _pending.keys.toList()) {
+      if (ids.contains(key.split('|').first)) continue;
+      _pending.remove(key);
+      _firstPending.remove(key);
+      _debounce.remove(key)?.cancel();
+    }
   }
 
   /// Keeps the background service running when anything needs the app
@@ -290,6 +309,7 @@ class WatchEngine {
       }
     }
     final openChats = _ref.read(openChatsProvider);
+    _openChats = openChats;
     for (final id in want.difference(_opened)) {
       try {
         await openChats.acquire(id, _openChatOwner);
@@ -480,6 +500,8 @@ class WatchEngine {
     unawaited(_ref.read(reminderStoreProvider.notifier).tick());
     final now = DateTime.now();
     for (final w in _active.where((w) => w.scope == WatchScope.schedule || w.scope == WatchScope.app)) {
+      // Quiet at night: the run waits for the morning.
+      if (w.quietAtNight && Watch.isNight(now)) continue;
       final last = w.lastRunAt;
       var due = false;
       // An app watch checks its app every so often (15 minutes unless set).
@@ -506,10 +528,9 @@ class WatchEngine {
     final messages = _pending.remove(key) ?? const [];
     _firstPending.remove(key);
     _debounce.remove(key);
-    final w = _ref
-        .read(watchStoreProvider)
-        .where((x) => x.id == watchId)
-        .firstOrNull;
+    // Only a watch that is still on: one turned off or deleted while the
+    // batch waited stays quiet.
+    final w = _active.where((x) => x.id == watchId).firstOrNull;
     if (w == null || messages.isEmpty) return;
     if (_running.contains(w.id)) {
       // Still busy with the last batch: these join the next one.
@@ -607,6 +628,7 @@ class WatchEngine {
     final notifier = _ref.read(appNotifierProvider);
     final store = _ref.read(telegramStoreProvider);
     final controller = _ref.read(chatControllerProvider.notifier);
+    final started = DateTime.now();
     _running.add(w.id);
     try {
       await _ref
@@ -672,6 +694,11 @@ class WatchEngine {
                 '${w.lastRunAt == null || test ? ' (look at roughly the last day)' : ' since ${w.lastRunAt!.toIso8601String().substring(0, 16)}'}. '
                 'Read only with the app\'s tools; then follow the instructions for what you found. '
                 'If there is nothing new that matches, answer with exactly $nothingNew and nothing else.'
+          : w.id == checkInWatchId
+          ? '${test ? 'Test run · ' : ''}Check-in (every ${(w.everyMinutes ?? 360) ~/ 60} hours). It is '
+                '${DateFormat('EEEE HH:mm').format(DateTime.now())}. '
+                '${w.lastRunAt == null || test ? 'This is the first check-in: look at roughly the last day.' : 'The last check-in was at ${w.lastRunAt!.toIso8601String().substring(0, 16)}; only what is new since then counts.'} '
+                'If there is nothing worth telling the user, answer with exactly $nothingNew and nothing else.'
           : scheduled
           ? '${test ? 'Test run · ' : ''}Scheduled run (${w.dailyAt != null ? 'daily at ${w.dailyAt}' : 'every ${w.everyMinutes} minutes'}).'
           : '${test ? 'Test run with the latest matching message · ' : ''}New messages arrived in $where:\n${[for (final m in messages) '- ${store.chat(m.chatId)?.title ?? 'Chat'} (chat_id ${m.chatId}, message_id ${m.id}, ref post:${m.chatId}:${m.id}'
@@ -681,14 +708,21 @@ class WatchEngine {
                     _ => '',
                   }}): ${_line(m, store)}'].join('\n')}';
       final result = await controller.runAutomatic(w, event);
+      // A widget's refresh: its history says whether it updated.
+      await _ref.read(homeWidgetsProvider.notifier).recordRun(
+        w.id,
+        started: started,
+        result: result?.text ?? 'No AI key: add one in Settings.',
+        failed: result == null,
+      );
       if (result == null) {
         status.value = status.value.copyWith(
           error: 'No AI key: add one in Settings so watches can run.',
         );
         return;
       }
-      // An app watch that found nothing stays quiet.
-      if (w.scope == WatchScope.app && result.text.trim().contains(nothingNew)) return;
+      // An app watch, the check-in or a schedule that found nothing stays quiet.
+      if ((w.scope == WatchScope.app || w.scope == WatchScope.schedule) && result.text.trim().contains(nothingNew)) return;
       if (!settings.notifications || !w.notify || result.seen) return;
       final text = Speaker.clean(result.text);
       await notifier.show(
@@ -701,6 +735,7 @@ class WatchEngine {
     } catch (e) {
       debugPrint('[Watch ${w.name}] $e');
       status.value = status.value.copyWith(error: '${w.name}: $e');
+      await _ref.read(homeWidgetsProvider.notifier).recordRun(w.id, started: started, result: '$e', failed: true);
     } finally {
       _running.remove(w.id);
     }

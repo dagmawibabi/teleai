@@ -36,6 +36,9 @@ ToolDocumentation documentationFor(TelegramTool tool) {
       ? '${appLabel(app)} through Composio'
       : switch (tool.category) {
           ToolCategory.e2b => 'E2B',
+          ToolCategory.decisions => 'TypeSafe Jev',
+          ToolCategory.mcp => 'Your MCP servers, found in the official MCP Registry',
+          ToolCategory.skills => 'Agent Skills from Skyll, skills.sh and GitHub',
           ToolCategory.cloudflare || ToolCategory.r2 => 'Cloudflare',
           ToolCategory.creative =>
             tool.name == 'generate_addis_voice'
@@ -87,6 +90,10 @@ ToolDocumentation documentationFor(TelegramTool tool) {
     }.contains(tool.name))
       'R2 access-key ID and secret, and a bucket supplied here or selected as the default.',
     if (tool.name == 'web_search') 'An Exa key in Apps & web.',
+    if (tool.category == ToolCategory.decisions) 'A TypeSafe Jev key in AI & models → Decisions, with decisions turned on.',
+    if (tool.category == ToolCategory.mcp && !const {'mcp_search', 'mcp_list_servers', 'mcp_is_installed', 'mcp_install', 'mcp_install_catalog'}.contains(tool.name))
+      'An installed MCP server (Settings → MCP & Skills) and any key it needs.',
+    if (const {'load_skill', 'read_skill_file', 'uninstall_skill'}.contains(tool.name)) 'An installed skill (Settings → MCP & Skills).',
     if (tool.category == ToolCategory.creative)
       tool.name == 'generate_addis_voice'
           ? 'An Addis AI key and a voice for the requested language.'
@@ -173,6 +180,12 @@ ToolDocumentation documentationFor(TelegramTool tool) {
         ? 'https://docs.composio.dev/toolkits/$app'
         : tool.category == ToolCategory.e2b
         ? 'https://e2b.dev/docs'
+        : tool.category == ToolCategory.decisions
+        ? 'https://docs.typesafe.ai/api'
+        : tool.category == ToolCategory.mcp
+        ? 'https://modelcontextprotocol.io'
+        : tool.category == ToolCategory.skills
+        ? 'https://skills.sh'
         : tool.category == ToolCategory.cloudflare ||
               tool.category == ToolCategory.r2
         ? 'https://developers.cloudflare.com/'

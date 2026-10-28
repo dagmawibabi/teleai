@@ -24,7 +24,18 @@ import '../../chat/domain/chat_models.dart';
 import '../../device/device.dart';
 import '../../integrations/app_results.dart';
 import '../../integrations/app_toolkits.dart';
-import 'package:omni_ai/omni_ai.dart' show AiException, BrowserSession, ExaClient, CloudflareClient, ComposioClient, DeviceSandbox, E2BClient, R2Credentials;
+
+import 'package:omni_ai/omni_ai.dart'
+    show
+        AiException,
+        BrowserSession,
+        ExaClient,
+        CloudflareClient,
+        ComposioClient,
+        DeviceSandbox,
+        E2BClient,
+        R2Credentials;
+
 import '../../integrations/e2b_session.dart';
 import '../../integrations/integrations_store.dart';
 import '../../settings/data/settings.dart';
@@ -66,6 +77,7 @@ part 'telegram_web_tools.dart';
 part 'telegram_tool_metadata.dart';
 part 'telegram_tool_documentation.dart';
 part 'telegram_tool_reference.dart';
+part 'telegram_capability_tools.dart';
 
 /// What a tool hands back: JSON for the model, and the posts it showed so
 /// the chat can turn citations into chips.
@@ -111,6 +123,7 @@ enum ToolCategory {
   discover('Entertainment'),
   stars('Stars'),
   creative('Creative'),
+  ai('AI & models'),
   device('Device'),
   gmail('Gmail'),
   outlook('Outlook'),
@@ -124,6 +137,9 @@ enum ToolCategory {
   apps('Any connected app'),
   cloudflare('Cloudflare'),
   r2('Cloudflare R2 storage'),
+  decisions('Decisions (Jev)'),
+  mcp('MCP servers'),
+  skills('Skills'),
   e2b('E2B code sandbox');
 
   const ToolCategory(this.label);
@@ -131,16 +147,47 @@ enum ToolCategory {
 
   /// Reaches the Telegram account, so it is offered only once signed in.
   bool get needsTelegram => switch (this) {
-    account || contacts || members || bots || calls || analytics || chats || messages || media || actions || stories || folders || stars => true,
+    account ||
+    contacts ||
+    members ||
+    bots ||
+    calls ||
+    analytics ||
+    chats ||
+    messages ||
+    media ||
+    actions ||
+    stories ||
+    folders ||
+    stars => true,
     _ => false,
   };
 
   /// Listed under Settings → Apps & web rather than the Telegram tools:
   /// connected apps, and the tools that reach the web.
   bool get onAppsScreen => switch (this) {
-    web || developer || discover || creative || memory || canvas || files || vision || automation => true,
-    gmail || outlook || calendar || googleDocs || slack || notion || githubAccount || linear || todoist || apps => true,
+    web ||
+    developer ||
+    discover ||
+    creative ||
+    ai ||
+    memory ||
+    canvas ||
+    files ||
+    vision ||
+    automation => true,
+    gmail ||
+    outlook ||
+    calendar ||
+    googleDocs ||
+    slack ||
+    notion ||
+    githubAccount ||
+    linear ||
+    todoist ||
+    apps => true,
     cloudflare || r2 || e2b => true,
+    decisions || mcp || skills => true,
     _ => false,
   };
 }
@@ -189,7 +236,9 @@ class TelegramTool {
     this.cost = ToolCost.telegram,
     bool destructive = false,
     this.alwaysAsk = false,
-  }) : _requiresApproval = requiresApproval, _destructive = destructive, _parameters = parameters;
+  }) : _requiresApproval = requiresApproval,
+       _destructive = destructive,
+       _parameters = parameters;
 
   /// Spends the user's money (Stars): asks every time, whatever the
   /// approval setting.
@@ -201,7 +250,8 @@ class TelegramTool {
   bool get destructive => access == ToolAccess.destructive;
 
   /// What this tool can do, independently of its approval policy.
-  ToolAccess get access => toolPolicies[name]?.access ??
+  ToolAccess get access =>
+      toolPolicies[name]?.access ??
       (_destructive ? ToolAccess.destructive : ToolAccess.modify);
   bool get modifiesData => access != ToolAccess.read;
   bool get needsTelegram => toolPolicies[name]?.needsTelegram ?? true;
@@ -1263,6 +1313,146 @@ final _tools = <TelegramTool>[
     ),
   ),
   TelegramTool(
+    name: 'create_widget',
+    label: 'Making a home-screen widget',
+    category: ToolCategory.automation,
+    cost: ToolCost.device,
+    description:
+        'Makes a home-screen widget (Android): a scrolling list of rows with optional pictures and links. Give '
+        'shows to have the assistant keep it up to date every every_hours (subscriber counts, latest news, new '
+        'movies with posters, weather, a to-do list from an app); a scheduled watch then refreshes it with '
+        'update_widget. Give items for rows now (for static text, or a first fill). The user adds it from their '
+        'home screen and picks what each widget shows in Settings → Home-screen widgets.',
+    parameters: _obj(
+      {
+        'title': {
+          'type': 'string',
+          'description': 'Short title shown at the top of the widget.',
+        },
+        'shows': {
+          'type': 'string',
+          'description': 'What the widget should show, as instructions for its refresh, e.g. "the YouTube subscriber count of @mkbhd". Leave out for static text.',
+        },
+        'every_hours': {
+          'type': 'integer',
+          'description': 'How often to refresh, 1 to 168 hours (default 6).',
+        },
+        'items': {
+          'type': 'array',
+          'description': 'The rows, up to 20, in order.',
+          'items': {
+            'type': 'object',
+            'properties': {
+              'title': {
+                'type': 'string',
+                'description':
+                    'Bold first line, e.g. a movie name or a headline.',
+              },
+              'text': {
+                'type': 'string',
+                'description': 'One or two short lines.',
+              },
+              'subtitle': {
+                'type': 'string',
+                'description':
+                    'Small grey line, e.g. a date, source or number.',
+              },
+              'image_url': {
+                'type': 'string',
+                'description': 'https link to a picture (poster, thumbnail); the app saves it for the widget.',
+              },
+              'link': {
+                'type': 'string',
+                'description': 'https link opened when the row is tapped.',
+              },
+            },
+          },
+        },
+      },
+      ['title'],
+    ),
+  ),
+  TelegramTool(
+    name: 'update_widget',
+    label: 'Updating a widget',
+    category: ToolCategory.automation,
+    cost: ToolCost.device,
+    description:
+        'Replaces a home-screen widget\'s rows (and optionally its title, what it shows or how often it refreshes). '
+        'Use it when refreshing a widget or when the user asks to change one.',
+    parameters: _obj(
+      {
+        'widget_id': {
+          'type': 'string',
+          'description':
+              'The widget to change, from list_widgets or create_widget.',
+        },
+        'items': {
+          'type': 'array',
+          'description': 'The rows, up to 20, in order.',
+          'items': {
+            'type': 'object',
+            'properties': {
+              'title': {
+                'type': 'string',
+                'description':
+                    'Bold first line, e.g. a movie name or a headline.',
+              },
+              'text': {
+                'type': 'string',
+                'description': 'One or two short lines.',
+              },
+              'subtitle': {
+                'type': 'string',
+                'description':
+                    'Small grey line, e.g. a date, source or number.',
+              },
+              'image_url': {
+                'type': 'string',
+                'description': 'https link to a picture (poster, thumbnail); the app saves it for the widget.',
+              },
+              'link': {
+                'type': 'string',
+                'description': 'https link opened when the row is tapped.',
+              },
+            },
+          },
+        },
+        'title': {'type': 'string'},
+        'shows': {'type': 'string', 'description': 'New refresh instructions.'},
+        'every_hours': {
+          'type': 'integer',
+          'description': 'New refresh interval, 1 to 168 hours.',
+        },
+      },
+      ['widget_id'],
+    ),
+  ),
+  TelegramTool(
+    name: 'list_widgets',
+    label: 'Listing widgets',
+    category: ToolCategory.automation,
+    cost: ToolCost.device,
+    description: 'Lists the home-screen widgets: the built-in brief and custom ones, what each shows and when it was updated.',
+    parameters: _obj({}),
+  ),
+  TelegramTool(
+    name: 'delete_widget',
+    label: 'Deleting a widget',
+    category: ToolCategory.automation,
+    cost: ToolCost.device,
+    description: 'Deletes a custom home-screen widget and stops its refresh. The brief widget can\'t be deleted.',
+    parameters: _obj(
+      {
+        'widget_id': {
+          'type': 'string',
+          'description': 'The widget to delete, from list_widgets.',
+        },
+      },
+      ['widget_id'],
+    ),
+  ),
+  TelegramTool(
     name: 'online_alert',
     label: 'Setting an online alert',
     category: ToolCategory.contacts,
@@ -1308,6 +1498,8 @@ final _tools = <TelegramTool>[
     ),
   ),
   generateImageTool,
+  getModelSettingsTool,
+  generateVideoTool,
   generateAudioTool,
   generateAddisVoiceTool,
   generateSoundEffectTool,
@@ -1339,6 +1531,7 @@ final _tools = <TelegramTool>[
   ..._appTools,
   ..._cloudTools,
   ..._deviceTools,
+  ..._capabilityTools,
 ];
 
 const generateImageTool = TelegramTool(
@@ -1367,6 +1560,48 @@ const generateImageTool = TelegramTool(
   },
 );
 
+const generateVideoTool = TelegramTool(
+  name: 'generate_video',
+  label: 'Creating a video',
+  category: ToolCategory.creative,
+  cost: ToolCost.ai,
+  description:
+      'Creates a short video from a detailed prompt with the video model chosen in Settings, optionally starting '
+      'from a picture in this chat. It is shown to the user in the chat. Videos cost far more than images and take '
+      'a while: make one only when asked for a video or animation.',
+  parameters: {
+    'type': 'object',
+    'properties': {
+      'prompt': {
+        'type': 'string',
+        'description':
+            'What happens: subject, action, setting, camera, style, sound.',
+      },
+      'seconds': {
+        'type': 'integer',
+        'description':
+            'Length in seconds, if the model lets you choose (often 4 to 10).',
+      },
+      'aspect': {
+        'type': 'string',
+        'enum': ['landscape', 'portrait', 'square'],
+        'description': 'Default landscape (16:9).',
+      },
+      'audio': {
+        'type': 'boolean',
+        'description': 'With sound, where the model can make it.',
+      },
+      'image': {
+        'type': 'string',
+        'description':
+            'Optional: a picture in this chat (its name) to start from.',
+      },
+    },
+    'required': ['prompt'],
+    'additionalProperties': false,
+  },
+);
+
 final generateAudioTool = TelegramTool(
   name: 'generate_audio',
   label: 'Creating audio',
@@ -1388,12 +1623,31 @@ final generateSoundEffectTool = TelegramTool(
   category: ToolCategory.creative,
   cost: ToolCost.ai,
   description: 'Creates a sound effect or ambience from a description using ElevenLabs. Requires an ElevenLabs API key in Settings → AI & models. The audio appears in chat and is saved in Files. Use generate_music for songs and scores, and generate_audio for speech.',
-  parameters: _obj({
-    'prompt': {'type': 'string', 'description': 'Describe the sound, its environment and mood.'},
-    'duration_seconds': {'type': 'number', 'exclusiveMinimum': 0, 'description': 'Optional length in seconds; omit to let ElevenLabs choose.'},
-    'prompt_influence': {'type': 'number', 'minimum': 0, 'maximum': 1, 'description': 'Optional strength of adherence to the description.'},
-    'loop': {'type': 'boolean', 'description': 'Whether to make a looping sound effect. Default false.'},
-  }, ['prompt']),
+  parameters: _obj(
+    {
+      'prompt': {
+        'type': 'string',
+        'description': 'Describe the sound, its environment and mood.',
+      },
+      'duration_seconds': {
+        'type': 'number',
+        'exclusiveMinimum': 0,
+        'description':
+            'Optional length in seconds; omit to let ElevenLabs choose.',
+      },
+      'prompt_influence': {
+        'type': 'number',
+        'minimum': 0,
+        'maximum': 1,
+        'description': 'Optional strength of adherence to the description.',
+      },
+      'loop': {
+        'type': 'boolean',
+        'description': 'Whether to make a looping sound effect. Default false.',
+      },
+    },
+    ['prompt'],
+  ),
 );
 
 final generateMusicTool = TelegramTool(
@@ -1402,17 +1656,41 @@ final generateMusicTool = TelegramTool(
   category: ToolCategory.creative,
   cost: ToolCost.ai,
   description: 'Creates music, a song or a score from a description using ElevenLabs. Describe the genre, mood, instruments and any vocals. Requires an ElevenLabs API key in Settings → AI & models and access to music generation. The audio appears in chat and is saved in Files.',
-  parameters: _obj({
-    'prompt': {'type': 'string', 'description': 'Describe the music to create.'},
-    'duration_seconds': {'type': 'number', 'exclusiveMinimum': 0, 'description': 'Requested length in seconds. Default 30.'},
-  }, ['prompt']),
+  parameters: _obj(
+    {
+      'prompt': {
+        'type': 'string',
+        'description': 'Describe the music to create.',
+      },
+      'duration_seconds': {
+        'type': 'number',
+        'exclusiveMinimum': 0,
+        'description': 'Requested length in seconds. Default 30.',
+      },
+    },
+    ['prompt'],
+  ),
+);
+
+final getModelSettingsTool = TelegramTool(
+  name: 'get_model_settings',
+  label: 'Checking the AI models',
+  category: ToolCategory.ai,
+  cost: ToolCost.device,
+  description:
+      'The AI models chosen in Settings (AI & models) for chat, decisions (Jev), images, video and audio, with each '
+      'model\'s name, provider and whether it is enabled and ready to use. Audio includes the voice and dictation '
+      'engines, their models and the selected voice. Reads settings only; no AI call is made.',
+  parameters: _obj({}),
 );
 
 /// ElevenLabs creative tools stay visible in Settings, with their key requirement.
 String? creativeToolNeeds(TelegramTool t, AppSettings s) =>
-    (t.name == generateSoundEffectTool.name || t.name == generateMusicTool.name) && !s.hasElevenKey
-        ? 'Needs an ElevenLabs key in AI & models'
-        : null;
+    (t.name == generateSoundEffectTool.name ||
+            t.name == generateMusicTool.name) &&
+        !s.hasElevenKey
+    ? 'Needs an ElevenLabs key in AI & models'
+    : null;
 
 final generateAddisVoiceTool = TelegramTool(
   name: 'generate_addis_voice',
@@ -3651,7 +3929,8 @@ class TelegramToolRunner {
     final q = '${args['query'] ?? ''}'.trim();
     if (q.isEmpty) throw ArgumentError('query is required');
     try {
-      final results = await ExaClient(apiKey: _settings.exaKey).search(q, numResults: _int(args, 'limit', fallback: 5, max: 10));
+      final results = await ExaClient(apiKey: _settings.exaKey)
+          .search(q, numResults: _int(args, 'limit', fallback: 5, max: 10));
       return ToolOutput({
         'query': q,
         'results': [

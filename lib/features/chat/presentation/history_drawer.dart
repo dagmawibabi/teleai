@@ -319,7 +319,7 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                       child: ExpansionTile(
                         tilePadding: const EdgeInsets.symmetric(horizontal: Space.m),
                         childrenPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.archive_outlined, size: 20, color: AppColors.text2),
+                        leading: lead(Icon(Icons.archive_outlined, size: 20, color: AppColors.text2)),
                         title: Text('ARCHIVED · ${archived.length}', style: context.text.labelSmall),
                         children: [
                           for (final c in archived)
@@ -470,8 +470,7 @@ class _DrawerActionTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppColors.text2),
-          const SizedBox(width: Space.m + 2),
+          ...leadRow(Icon(icon, size: 20, color: AppColors.text2), Space.m + 2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,8 +626,7 @@ class _BrowseTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
         child: Row(
           children: [
-            Icon(section.icon, size: 20, color: AppColors.text2),
-            const SizedBox(width: Space.m + 2),
+            ...leadRow(Icon(section.icon, size: 20, color: AppColors.text2), Space.m + 2),
             Expanded(
               child: Text(section.title, style: context.text.bodyMedium),
             ),
@@ -680,8 +678,7 @@ class _FolderTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: 11),
         child: Row(
           children: [
-            Icon(folderIcon(folder.icon), size: 20, color: AppColors.text2),
-            const SizedBox(width: Space.m + 2),
+            ...leadRow(Icon(folderIcon(folder.icon), size: 20, color: AppColors.text2), Space.m + 2),
             Expanded(
               child: Text(
                 folder.title,

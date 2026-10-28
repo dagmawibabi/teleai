@@ -34,13 +34,13 @@ Future<void> saveToCanvas(
               child: Text('Save “$title” to', style: c.text.titleSmall, maxLines: 2, overflow: TextOverflow.ellipsis),
             ),
             ListTile(
-              leading: const Icon(Icons.create_new_folder_outlined),
+              leading: lead(const Icon(Icons.create_new_folder_outlined)),
               title: const Text('New folder'),
               onTap: () => Navigator.pop(c, ''),
             ),
             for (final f in [...s.folders]..sort((a, b) => s.pathOf(a).compareTo(s.pathOf(b))))
               ListTile(
-                leading: Icon(Icons.folder_rounded, color: canvasColors[f.color % canvasColors.length]),
+                leading: lead(Icon(Icons.folder_rounded, color: canvasColors[f.color % canvasColors.length])),
                 title: Text(s.pathOf(f)),
                 onTap: () => Navigator.pop(c, f.id),
               ),

@@ -209,6 +209,21 @@ const toolReferences = <String, ToolReference>{
   'list_watches': ToolReference(['proactivity_on', 'watches']),
   'update_watch': ToolReference(['updated']),
   'delete_watch': ToolReference(['deleted']),
+  'create_widget': ToolReference(
+    ['widget_id', 'title', 'kind', 'shows', 'every_hours', 'items', 'note'],
+    limits: [
+      'Android home screen. Up to 20 rows; pictures must be https images under 4 MB.',
+    ],
+  ),
+  'update_widget': ToolReference([
+    'widget_id',
+    'title',
+    'items',
+    'updated',
+    'images_saved',
+  ]),
+  'list_widgets': ToolReference(['widgets']),
+  'delete_widget': ToolReference(['deleted']),
   'online_alert': ToolReference([
     'removed',
     'who',
@@ -220,6 +235,12 @@ const toolReferences = <String, ToolReference>{
   ]),
   'list_online_alerts': ToolReference(['alerts']),
   'notify_me': ToolReference(['notified']),
+  'generate_video': ToolReference(
+    ['created', 'video_path', 'model', 'prompt', 'seconds', 'note'],
+    limits: [
+      'Takes from a few seconds to several minutes; billed per second of video by the provider.',
+    ],
+  ),
   'generate_image': ToolReference([
     'created',
     'image_path',
@@ -228,6 +249,13 @@ const toolReferences = <String, ToolReference>{
     'note',
   ]),
   'generate_audio': ToolReference(['created', 'audio_path', 'text', 'note']),
+  'get_model_settings': ToolReference(
+    ['text', 'decisions', 'image', 'video', 'audio'],
+    limits: [
+      'Reads the selected settings only; it does not list every available model or change any setting.',
+      'Model ids use the provider:model form, e.g. gateway:openai/gpt-5.',
+    ],
+  ),
   'generate_addis_voice': ToolReference([
     'created',
     'audio_path',
@@ -292,14 +320,31 @@ const toolReferences = <String, ToolReference>{
   'send_gif': ToolReference(['sent', 'chat', 'ref']),
   'save_gif': ToolReference(['saved', 'gif']),
   'download_message_file': ToolReference(
-    ['downloaded', 'chat', 'name', 'kind', 'mime', 'size_kb', 'duration_seconds', 'text', 'note', 'created_files', 'image_path'],
-    limits: ['Text files are read inline up to 30,000 characters. Large videos can take minutes to download.'],
+    [
+      'downloaded',
+      'chat',
+      'name',
+      'kind',
+      'mime',
+      'size_kb',
+      'duration_seconds',
+      'text',
+      'note',
+      'created_files',
+      'image_path',
+    ],
+    limits: [
+      'Text files are read inline up to 30,000 characters. Large videos can take minutes to download.',
+    ],
   ),
   'transcribe_message': ToolReference(
     ['chat', 'kind', 'duration_seconds', 'transcript', 'created_files'],
     limits: ['Needs an ElevenLabs key or a dictation model whose key is set.'],
   ),
-  'view_stickers_and_gifs': ToolReference(['shown', 'note'], limits: ['Up to 8; animated stickers and GIFs show one frame.']),
+  'view_stickers_and_gifs': ToolReference(
+    ['shown', 'note'],
+    limits: ['Up to 8; animated stickers and GIFs show one frame.'],
+  ),
   'list_sticker_sets': ToolReference(['sets']),
   'get_sticker_set': ToolReference(['count', 'stickers']),
   'list_favorite_stickers': ToolReference(['favorites', 'recent']),
@@ -456,9 +501,106 @@ const toolReferences = <String, ToolReference>{
   ),
   'delete_all_from_member': ToolReference(['deleted_all_from', 'chat']),
   'list_briefs': ToolReference(['count', 'briefs']),
+  'jev_decide': ToolReference(
+    ['answers', 'model', 'usage', 'request_id'],
+    limits: [
+      'Each answer: type, probability and yes (noul), choice (choice), score and legend (score), confidence, probabilities, uncertain below your minimum confidence.',
+      'Billed by TypeSafe per input token; output tokens are free.',
+    ],
+  ),
+  'jev_batch': ToolReference(
+    ['model', 'count', 'failed', 'totals', 'results', 'usage'],
+    limits: [
+      '1 to 100 items per call; one TypeSafe request per item, four at a time.',
+      'Each result: id, and answers (yes and p for yes/no, choice and confidence, score and confidence), or error.',
+      'totals: counts per choice, yes/no counts, mean score.',
+    ],
+  ),
+  'jev_noul': ToolReference(
+    ['model', 'type', 'probability', 'yes', 'confidence'],
+    limits: ['yes uses the threshold set in AI & models → Decisions.'],
+  ),
+  'jev_choice': ToolReference(
+    ['model', 'type', 'choice', 'confidence', 'probabilities', 'uncertain'],
+    limits: ['1 to 255 options.'],
+  ),
+  'jev_score': ToolReference(
+    [
+      'model',
+      'type',
+      'score',
+      'confidence',
+      'probabilities',
+      'legend',
+      'uncertain',
+    ],
+    limits: ['2 to 10 levels, lowest first.'],
+  ),
+  'jev_box': ToolReference(
+    ['model', 'type', 'box', 'confidence'],
+    limits: ['Only images the app attached to Jev can be searched.'],
+  ),
+  'jev_models': ToolReference(['models']),
+  'mcp_search': ToolReference(
+    ['servers'],
+    limits: [
+      'Each server: name, description, version, transport, url, id, inputs (values it needs).',
+      'Queries need at least 3 characters.',
+    ],
+  ),
+  'mcp_list_servers': ToolReference(
+    ['servers'],
+    limits: ['Saved headers are never returned.'],
+  ),
+  'mcp_is_installed': ToolReference(['id', 'installed']),
+  'mcp_install_catalog': ToolReference(
+    ['id', 'transport', 'url'],
+    limits: [
+      "Local command servers can't be installed by the assistant.",
+      'A required input without a value stops the install.',
+    ],
+  ),
+  'mcp_install': ToolReference(
+    ['installed', 'transport'],
+    limits: ['Plain http only for localhost or the local network.'],
+  ),
+  'mcp_uninstall': ToolReference(['id', 'removed']),
+  'mcp_list_tools': ToolReference(
+    ['tools'],
+    limits: ['Each tool: name, description, inputSchema.'],
+  ),
+  'mcp_call_tool': ToolReference(
+    ['result'],
+    limits: [
+      "Whatever the server's tool returns: its structured content, or its text.",
+    ],
+  ),
+  'mcp_list_resources': ToolReference(['resources']),
+  'mcp_read_resource': ToolReference(['result']),
+  'mcp_list_prompts': ToolReference(['prompts']),
+  'mcp_get_prompt': ToolReference(['messages', 'description']),
+  'search_skills': ToolReference(
+    ['skills'],
+    limits: ['Each skill: name, description, source, installs, url, install.'],
+  ),
+  'list_skills': ToolReference(['skills']),
+  'is_skill_installed': ToolReference(['name', 'installed']),
+  'preview_skill': ToolReference(['skills'], limits: ['Nothing is installed.']),
+  'load_skill': ToolReference(['skill', 'instructions', 'files']),
+  'read_skill_file': ToolReference(['result']),
+  'install_skill': ToolReference(
+    ['installed'],
+    limits: [
+      'https sources only; a SKILL.md or file at most 512 KB, at most 40 bundled files.',
+    ],
+  ),
+  'uninstall_skill': ToolReference(['removed']),
   'write_brief': ToolReference(
     ['brief_id', 'written', 'covers_since', 'text'],
-    limits: ['One brief at a time: another call while one is being written fails.', 'Runs the chat model with read-only tools; its usage counts like a chat answer.'],
+    limits: [
+      'One brief at a time: another call while one is being written fails.',
+      'Runs the chat model with read-only tools; its usage counts like a chat answer.',
+    ],
   ),
   'read_brief': ToolReference(['brief_id', 'kind', 'written', 'text']),
   'canvas_overview': ToolReference(['folders', 'note', 'folder', 'items']),

@@ -29,7 +29,9 @@ import '../../usage/usage.dart';
 import '../../usage/usage_screen.dart';
 import '../data/settings.dart';
 import 'settings_screen.dart';
+import 'capability_settings.dart';
 import 'tools_screen.dart';
+import 'system_check_screen.dart';
 import 'approvals_screen.dart';
 import 'data_screen.dart';
 import 'permissions_screen.dart';
@@ -155,7 +157,7 @@ class SettingsHub extends ConsumerWidget {
                         ),
                         const Divider(indent: 56),
                         SwitchListTile(
-                          secondary: const Icon(Icons.vibration_rounded),
+                          secondary: lead(const Icon(Icons.vibration_rounded)),
                           title: const Text('Haptic taps'),
                           subtitle: Text('A light buzz when you send or approve', style: context.text.bodySmall),
                           value: sheetRef.watch(settingsProvider).haptics,
@@ -178,7 +180,7 @@ class SettingsHub extends ConsumerWidget {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.info_outline_rounded),
+                          leading: lead(const Icon(Icons.info_outline_rounded)),
                           title: const Text('Project details'),
                           subtitle: Text(
                             'Triangle ${AppConfig.version} · Flutter and TDLib',
@@ -199,7 +201,7 @@ class SettingsHub extends ConsumerWidget {
                         ),
                         const Divider(indent: 56),
                         ListTile(
-                          leading: const Icon(Icons.code_rounded),
+                          leading: lead(const Icon(Icons.code_rounded)),
                           title: const Text('Triangle on GitHub'),
                           subtitle: Text(
                             'github.com/dagmawibabi/triangle',
@@ -216,7 +218,7 @@ class SettingsHub extends ConsumerWidget {
                         ),
                         const Divider(indent: 56),
                         ListTile(
-                          leading: const Icon(Icons.bug_report_outlined),
+                          leading: lead(const Icon(Icons.bug_report_outlined)),
                           title: const Text('Report an issue'),
                           subtitle: Text(
                             'Open the project issue tracker',
@@ -247,7 +249,7 @@ class SettingsHub extends ConsumerWidget {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.health_and_safety_outlined),
+                          leading: lead(const Icon(Icons.health_and_safety_outlined)),
                           title: const Text('Run TDLib health check'),
                           subtitle: Text(
                             'Checks whether the Telegram client is responding',
@@ -258,7 +260,7 @@ class SettingsHub extends ConsumerWidget {
                         ),
                         const Divider(indent: 56),
                         ListTile(
-                          leading: const Icon(Icons.restart_alt_rounded),
+                          leading: lead(const Icon(Icons.restart_alt_rounded)),
                           title: const Text('Reset TDLib network counters'),
                           subtitle: Text(
                             'Starts local data-use totals from zero',
@@ -322,7 +324,7 @@ class SettingsHub extends ConsumerWidget {
                           const Divider(),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.monitor_heart_outlined),
+                            leading: lead(const Icon(Icons.monitor_heart_outlined)),
                             title: const Text('Open watcher diagnostics'),
                             subtitle: const Text(
                               'Live status, matches and background readiness',
@@ -332,7 +334,7 @@ class SettingsHub extends ConsumerWidget {
                           ),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.storage_outlined),
+                            leading: lead(const Icon(Icons.storage_outlined)),
                             title: const Text('Storage and TDLib logs'),
                             subtitle: const Text(
                               'Inspect cache, local files and Telegram log size',
@@ -411,7 +413,7 @@ class SettingsHub extends ConsumerWidget {
       VoidCallback onTap, {
       Color? tint,
     }) => ListTile(
-      leading: Container(
+      leading: lead(Container(
         width: 36,
         height: 36,
         decoration: BoxDecoration(
@@ -419,7 +421,7 @@ class SettingsHub extends ConsumerWidget {
           borderRadius: BorderRadius.circular(Radii.m),
         ),
         child: Icon(icon, size: 20, color: tint ?? AppColors.activeAccent),
-      ),
+      )),
       title: Text(title),
       subtitle: Text(
         subtitle,
@@ -466,7 +468,16 @@ class SettingsHub extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        actions: [
+          IconButton(
+            tooltip: 'System check',
+            icon: const Icon(Icons.health_and_safety_outlined),
+            onPressed: () => _open(context, const SystemCheckScreen()),
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
@@ -560,6 +571,12 @@ class SettingsHub extends ConsumerWidget {
                   tint: s.hasAnyKey ? null : AppColors.warning,
                 ),
                 tile(
+                  Icons.extension_outlined,
+                  'MCP & Skills',
+                  'Discover, install, manage, and choose assistant tools',
+                  () => _open(context, const McpSkillsSettingsScreen()),
+                ),
+                tile(
                   SettingsSection.assistant.icon,
                   SettingsSection.assistant.title,
                   SettingsSection.assistant.subtitle,
@@ -585,7 +602,7 @@ class SettingsHub extends ConsumerWidget {
                   () => _open(context, const AppsWebScreen()),
                 ),
                 SwitchListTile(
-                  secondary: Container(
+                  secondary: lead(Container(
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
@@ -597,7 +614,7 @@ class SettingsHub extends ConsumerWidget {
                       size: 20,
                       color: AppColors.activeAccent,
                     ),
-                  ),
+                  )),
                   title: const Text('Read-only mode'),
                   subtitle: Text(
                     'Only tools that read: nothing is sent, changed or deleted',

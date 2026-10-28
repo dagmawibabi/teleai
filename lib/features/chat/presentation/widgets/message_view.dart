@@ -235,15 +235,25 @@ class AssistantMessage extends ConsumerWidget {
             },
             child: Padding(
             padding: const EdgeInsets.only(bottom: Space.s),
-            child: MarkdownBody(
-              data: s.text,
-              selectable: false,
-              styleSheet: _markdownStyle(context),
-              syntaxHighlighter: _CodeHighlighter(
-                ref.watch(settingsProvider).codeTheme,
-              ),
-              builders: {'pre': _CodeBlockBuilder(_CodeHighlighter(ref.watch(settingsProvider).codeTheme))},
-              onTapLink: (text, href, title) => _openLink(context, href),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Tables are drawn apart, so they can scroll sideways.
+                for (final part in splitTables(s.text))
+                  if (part.markdown != null)
+                    MarkdownBody(
+                      data: part.markdown!,
+                      selectable: false,
+                      styleSheet: _markdownStyle(context),
+                      syntaxHighlighter: _CodeHighlighter(
+                        ref.watch(settingsProvider).codeTheme,
+                      ),
+                      builders: {'pre': _CodeBlockBuilder(_CodeHighlighter(ref.watch(settingsProvider).codeTheme))},
+                      onTapLink: (text, href, title) => _openLink(context, href),
+                    )
+                  else
+                    MarkdownTable(head: part.head!, rows: part.rows!, onLink: (href) => _openLink(context, href)),
+              ],
             ),
           ),
           ),
@@ -903,4 +913,182 @@ class _UsageLine extends ConsumerWidget {
       ],
     ),
   );
+}
+
+/// A piece of an answer: Markdown, or a table drawn by [MarkdownTable].
+typedef AnswerPart = ({String? markdown, List<String>? head, List<List<String>>? rows});
+
+final _tableRule = RegExp(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$');
+
+/// [text] split around its Markdown tables (outside code blocks), so tables
+/// can scroll sideways while the rest renders as usual.
+List<AnswerPart> splitTables(String text) {
+  final lines = text.split('\n');
+  final parts = <AnswerPart>[];
+  final buffer = <String>[];
+  var fenced = false;
+  void flush() {
+    if (buffer.join().trim().isNotEmpty) parts.add((markdown: buffer.join('\n'), head: null, rows: null));
+    buffer.clear();
+  }
+
+  List<String> cells(String line) {
+    var l = line.trim();
+    if (l.startsWith('|')) l = l.substring(1);
+    if (l.endsWith('|') && !l.endsWith(r'\|')) l = l.substring(0, l.length - 1);
+    return [for (final c in l.split(RegExp(r'(?<!\\)\|'))) c.trim().replaceAll(r'\|', '|')];
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    final line = lines[i];
+    if (line.trimLeft().startsWith('```') || line.trimLeft().startsWith('~~~')) fenced = !fenced;
+    if (!fenced && line.contains('|') && i + 1 < lines.length && _tableRule.hasMatch(lines[i + 1]) && lines[i + 1].contains('-')) {
+      flush();
+      final head = cells(line);
+      final rows = <List<String>>[];
+      i += 2;
+      while (i < lines.length && lines[i].contains('|') && lines[i].trim().isNotEmpty) {
+        rows.add(cells(lines[i]));
+        i++;
+      }
+      i--;
+      parts.add((markdown: null, head: head, rows: rows));
+      continue;
+    }
+    buffer.add(line);
+  }
+  flush();
+  return parts;
+}
+
+/// A Markdown table in an answer: each column as wide as its content up to
+/// a limit (longer text wraps), scrolling sideways on its own when wider
+/// than the chat, with a tinted header, banded rows and numbers on the right.
+class MarkdownTable extends StatefulWidget {
+  const MarkdownTable({super.key, required this.head, required this.rows, required this.onLink});
+  final List<String> head;
+  final List<List<String>> rows;
+  final void Function(String href) onLink;
+
+  @override
+  State<MarkdownTable> createState() => _MarkdownTableState();
+}
+
+class _MarkdownTableState extends State<MarkdownTable> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  static final _number = RegExp(r'^[\s$€£¥+\-−~≈]*\d[\d,.\s]*(%|[kKmMbB]|x)?\s*$');
+
+  /// Columns whose filled cells are all numbers line up on the right.
+  bool _numeric(int column) {
+    final cells = [
+      for (final r in widget.rows)
+        if (column < r.length && r[column].trim().isNotEmpty) r[column].replaceAll('*', '').trim(),
+    ];
+    return cells.isNotEmpty && cells.every(_number.hasMatch);
+  }
+
+  TextSpan _span(md.Node node, TextStyle style) {
+    if (node is md.Text) return TextSpan(text: node.text, style: style);
+    if (node is! md.Element) return TextSpan(text: node.textContent, style: style);
+    if (node.tag == 'br') return const TextSpan(text: '\n');
+    final next = switch (node.tag) {
+      'strong' => style.copyWith(fontWeight: FontWeight.w700),
+      'em' => style.copyWith(fontStyle: FontStyle.italic),
+      'del' => style.copyWith(decoration: TextDecoration.lineThrough),
+      'code' => style.copyWith(fontFamily: 'monospace', fontSize: (style.fontSize ?? 14) - 1, backgroundColor: AppColors.surface2),
+      'a' => style.copyWith(
+        color: AppColors.activeAccent,
+        decoration: TextDecoration.underline,
+        decorationColor: AppColors.accent.withValues(alpha: 0.4),
+      ),
+      _ => style,
+    };
+    return TextSpan(style: next, children: [for (final c in node.children ?? const <md.Node>[]) _span(c, next)]);
+  }
+
+  Widget _cell(String source, TextStyle style, TextAlign align) {
+    final nodes = md.Document(extensionSet: md.ExtensionSet.gitHubFlavored, encodeHtml: false).parseInline(source);
+    md.Element? firstLink(List<md.Node> list) {
+      for (final n in list) {
+        if (n is md.Element) {
+          if (n.tag == 'a') return n;
+          final inner = firstLink(n.children ?? const []);
+          if (inner != null) return inner;
+        }
+      }
+      return null;
+    }
+
+    final link = firstLink(nodes)?.attributes['href'];
+    final text = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: Space.s + 1),
+      child: Text.rich(TextSpan(children: [for (final n in nodes) _span(n, style)]), textAlign: align),
+    );
+    return link == null ? text : InkWell(onTap: () => widget.onLink(link), child: text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final columns = [widget.head.length, for (final r in widget.rows) r.length].fold<int>(0, (m, n) => n > m ? n : m);
+    if (columns == 0) return const SizedBox.shrink();
+    final base = context.text.bodyMedium!.copyWith(fontSize: 14, height: 1.35, color: AppColors.text);
+    final headStyle = base.copyWith(fontWeight: FontWeight.w600);
+    final numeric = [for (var c = 0; c < columns; c++) _numeric(c)];
+    TableRow row(List<String> cells, {required bool header, required int index}) => TableRow(
+      decoration: BoxDecoration(
+        color: header
+            ? AppColors.surface2
+            : index.isOdd
+            ? AppColors.surface2.withValues(alpha: 0.45)
+            : null,
+        border: header ? null : Border(top: BorderSide(color: AppColors.line, width: 0.6)),
+      ),
+      children: [
+        for (var c = 0; c < columns; c++)
+          c < cells.length
+              ? _cell(cells[c], header ? headStyle : base, numeric[c] ? TextAlign.right : TextAlign.left)
+              : const SizedBox.shrink(),
+      ],
+    );
+    final table = Table(
+      // Each column as wide as its content, up to 280 px; longer text wraps.
+      defaultColumnWidth: const MinColumnWidth(IntrinsicColumnWidth(), FixedColumnWidth(280)),
+      defaultVerticalAlignment: TableCellVerticalAlignment.top,
+      children: [
+        if (widget.head.any((h) => h.isNotEmpty)) row(widget.head, header: true, index: -1),
+        for (final (i, r) in widget.rows.indexed) row(r, header: false, index: i),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Space.s),
+      child: LayoutBuilder(
+        builder: (context, box) => Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Radii.m),
+            border: Border.all(color: AppColors.line),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Scrollbar(
+            controller: _scroll,
+            child: SingleChildScrollView(
+              controller: _scroll,
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                // A narrow table still spans the chat's width.
+                constraints: BoxConstraints(minWidth: box.maxWidth - 2),
+                child: IntrinsicWidth(child: table),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

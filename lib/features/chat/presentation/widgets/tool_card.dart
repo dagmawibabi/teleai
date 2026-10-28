@@ -26,6 +26,27 @@ import 'tool_controls.dart';
 import 'tool_result_view.dart';
 
 IconData toolIcon(String name) => switch (name) {
+  'jev_box' => Icons.crop_free_rounded,
+  'jev_batch' => Icons.checklist_rounded,
+  'create_widget' ||
+  'update_widget' ||
+  'list_widgets' ||
+  'delete_widget' => Icons.widgets_outlined,
+  'jev_models' => Icons.view_list_rounded,
+  final n when n.startsWith('jev_') => Icons.balance_rounded,
+  'mcp_search' => Icons.travel_explore_rounded,
+  'mcp_install' || 'mcp_install_catalog' => Icons.add_link_rounded,
+  'mcp_uninstall' => Icons.link_off_rounded,
+  'mcp_call_tool' => Icons.play_circle_outline_rounded,
+  final n when n.startsWith('mcp_') => Icons.hub_outlined,
+  'search_skills' => Icons.manage_search_rounded,
+  'install_skill' => Icons.download_rounded,
+  'uninstall_skill' => Icons.delete_outline_rounded,
+  'list_skills' ||
+  'is_skill_installed' ||
+  'preview_skill' ||
+  'load_skill' ||
+  'read_skill_file' => Icons.school_outlined,
   'get_account_overview' => Icons.person_outline_rounded,
   'list_chats' => Icons.forum_outlined,
   'get_chat_info' => Icons.info_outline_rounded,
@@ -49,6 +70,8 @@ IconData toolIcon(String name) => switch (name) {
   'generate_sound_effect' => Icons.surround_sound_rounded,
   'generate_music' => Icons.music_note_rounded,
   'generate_image' => Icons.brush_outlined,
+  'get_model_settings' => Icons.psychology_outlined,
+  'generate_video' => Icons.movie_creation_outlined,
   'get_forum_topics' => Icons.topic_outlined,
   'get_user_profile' => Icons.badge_outlined,
   'send_chat_action' => Icons.more_time_rounded,
@@ -338,11 +361,7 @@ class ToolCallCard extends ConsumerWidget {
         AppColors.text2,
       ),
       ToolStatus.error => (
-        Icon(
-          Icons.error_outline_rounded,
-          size: 15,
-          color: AppColors.danger,
-        ),
+        Icon(Icons.error_outline_rounded, size: 15, color: AppColors.danger),
         AppColors.danger,
       ),
       ToolStatus.denied => (
@@ -987,11 +1006,7 @@ class _DraftFile extends StatelessWidget {
                   color: AppColors.text,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 13,
-                  color: AppColors.bg,
-                ),
+                child: Icon(Icons.close_rounded, size: 13, color: AppColors.bg),
               ),
             ),
           ),
@@ -1043,10 +1058,7 @@ class _ImageStrip extends StatelessWidget {
             height: height ?? 160,
             color: AppColors.surface2,
             alignment: Alignment.center,
-            child: Icon(
-              Icons.broken_image_outlined,
-              color: AppColors.text3,
-            ),
+            child: Icon(Icons.broken_image_outlined, color: AppColors.text3),
           ),
         ),
       ),
@@ -1273,7 +1285,8 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
           if (part.full != null) ...[
             const SizedBox(height: Space.s),
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: EdgeInsets.zero,
@@ -1284,7 +1297,12 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
                   style: context.text.bodySmall,
                 ),
                 children: [
-                  _RawSection(title: 'Full response', raw: part.full!, controller: _fullTree, compact: true),
+                  _RawSection(
+                    title: 'Full response',
+                    raw: part.full!,
+                    controller: _fullTree,
+                    compact: true,
+                  ),
                 ],
               ),
             ),
@@ -1339,7 +1357,10 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
               '${part.result!.length} characters (≈${(part.result!.length / 4).round()} tokens sent back to the model)',
             ),
           if (part.full != null)
-            _InfoRow('Full response', '${part.full!.length} characters, kept on this phone only'),
+            _InfoRow(
+              'Full response',
+              '${part.full!.length} characters, kept on this phone only',
+            ),
           if (result case {'error': final err?}) _InfoRow('Error', '$err'),
           _InfoRow('Call ID', part.callId),
         ] else ...[
@@ -1349,7 +1370,11 @@ class _ToolDetailsState extends ConsumerState<_ToolDetails> {
             controller: _argsTree,
           ),
           if (part.full != null)
-            _RawSection(title: 'Full response', raw: part.full!, controller: _fullTree),
+            _RawSection(
+              title: 'Full response',
+              raw: part.full!,
+              controller: _fullTree,
+            ),
           _RawSection(
             title: part.full != null ? 'Sent to the model' : 'Result',
             raw: part.result ?? 'null',
@@ -1469,7 +1494,11 @@ class _RawSectionState extends State<_RawSection> {
         children: [
           Row(
             children: [
-              if (!widget.compact) Text(widget.title.toUpperCase(), style: context.text.labelSmall),
+              if (!widget.compact)
+                Text(
+                  widget.title.toUpperCase(),
+                  style: context.text.labelSmall,
+                ),
               const Spacer(),
               if (parsed is Map || parsed is List) ...[
                 _Mini(

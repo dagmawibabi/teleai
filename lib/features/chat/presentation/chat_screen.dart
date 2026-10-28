@@ -86,11 +86,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _closed = true;
       case AppLifecycleState.resumed when _closed:
         _closed = false;
-        ref.read(chatControllerProvider.notifier).freshStart();
-        _input.clear();
+        _opened();
       default:
         break;
     }
+  }
+
+  /// The app was opened: a new chat or the last one, as Appearance says.
+  void _opened() {
+    final last = ref.read(settingsProvider).openLastChat;
+    unawaited(ref.read(chatControllerProvider.notifier).appOpened());
+    if (!last) _input.clear();
   }
 
   final _input = TextEditingController();
@@ -111,6 +117,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _reportVisibility());
+    // Android says when the app is opened (not just switched back to);
+    // the first start counts too.
+    const MethodChannel('teleai/app_open').setMethodCallHandler((call) async {
+      if (call.method == 'opened' && mounted) _opened();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(settingsProvider).openLastChat) _opened();
+    });
     // Signed in from here on: watches may run, and a tapped notification
     // opens the conversation it came from.
     ref.read(watchEngineProvider).start();
@@ -201,6 +215,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    // A new chat is a clean slate: nothing typed or attached carries over
+    // from the one before (the model only ever sees the chat on screen).
+    ref.listen(chatControllerProvider.select((s) => s.conversation.id), (before, now) {
+      if (before == now || ref.read(chatControllerProvider).conversation.entries.isNotEmpty) return;
+      _input.clear();
+      _composerKey.currentState?.clearAttachments();
+    });
     final chat = ref.watch(chatControllerProvider);
     final settings = ref.watch(settingsProvider);
     final catalog = ref.watch(modelCatalogProvider);
@@ -210,7 +231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return Scaffold(
       drawer: HistoryDrawer(onOpenSettings: _openSettings),
       appBar: AppBar(
-        leading: Builder(
+        leading: lead(Builder(
           builder: (context) => IconButton(
             tooltip: 'Chats',
             icon: Badge(
@@ -223,7 +244,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
-        ),
+        )),
         titleSpacing: 0,
         title: _ModelButton(
           name: model?.name ?? modelLabel(settings.model).split('/').last,
@@ -744,6 +765,11 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   /// Files shared from another app, added as if picked here.
   void addAttachments(List<Attachment> files) => setState(() => _files.addAll(files));
+
+  /// A new chat starts with nothing attached.
+  void clearAttachments() {
+    if (_files.isNotEmpty) setState(_files.clear);
+  }
   bool _adding = false;
   String _typedBeforeDictation = '';
 

@@ -170,6 +170,8 @@ class AppSettings {
     this.themeMode = AppThemeMode.dark,
     this.voiceEnabled = true,
     this.mediaEnabled = true,
+    this.videoEnabled = false,
+    this.videoModel = '',
     this.aiChatEnabled = true,
     this.showChatCopyButton = true,
     this.showChatSpeakButton = true,
@@ -181,6 +183,8 @@ class AppSettings {
     this.maxSteps = 14,
     this.showThinking = true,
     this.showToolCalls = true,
+    this.leadingIcons = true,
+    this.openLastChat = false,
     this.use24h = true,
     this.groupAvatars = true,
     this.compactList = false,
@@ -290,6 +294,13 @@ class AppSettings {
   final bool voiceEnabled;
   /// Image and video tools: making pictures and looking at them.
   final bool mediaEnabled;
+
+  /// Making videos (generate_video), apart from pictures: videos cost far
+  /// more, so they start off.
+  final bool videoEnabled;
+
+  /// The model generate_video uses; empty until one is picked.
+  final String videoModel;
   /// The assistant chat answers; off keeps it from calling any model.
   final bool aiChatEnabled;
   final bool showChatCopyButton;
@@ -315,6 +326,12 @@ class AppSettings {
 
   /// Shows each tool call as a card (approvals always show).
   final bool showToolCalls;
+
+  /// Icons at the start of list rows across the app.
+  final bool leadingIcons;
+
+  /// Opening the app shows the last chat instead of a new one.
+  final bool openLastChat;
 
   /// Message times as 14:05 rather than 2:05 PM.
   final bool use24h;
@@ -536,6 +553,8 @@ class AppSettings {
     AppThemeMode? themeMode,
     bool? voiceEnabled,
     bool? mediaEnabled,
+    bool? videoEnabled,
+    String? videoModel,
     bool? aiChatEnabled,
     bool? showChatCopyButton,
     bool? showChatSpeakButton,
@@ -547,6 +566,8 @@ class AppSettings {
     int? maxSteps,
     bool? showThinking,
     bool? showToolCalls,
+    bool? leadingIcons,
+    bool? openLastChat,
     bool? use24h,
     bool? groupAvatars,
     bool? compactList,
@@ -632,6 +653,8 @@ class AppSettings {
     themeMode: themeMode ?? this.themeMode,
     voiceEnabled: voiceEnabled ?? this.voiceEnabled,
     mediaEnabled: mediaEnabled ?? this.mediaEnabled,
+    videoEnabled: videoEnabled ?? this.videoEnabled,
+    videoModel: videoModel ?? this.videoModel,
     aiChatEnabled: aiChatEnabled ?? this.aiChatEnabled,
     showChatCopyButton: showChatCopyButton ?? this.showChatCopyButton,
     showChatSpeakButton: showChatSpeakButton ?? this.showChatSpeakButton,
@@ -643,6 +666,8 @@ class AppSettings {
     maxSteps: maxSteps ?? this.maxSteps,
     showThinking: showThinking ?? this.showThinking,
     showToolCalls: showToolCalls ?? this.showToolCalls,
+    leadingIcons: leadingIcons ?? this.leadingIcons,
+    openLastChat: openLastChat ?? this.openLastChat,
     use24h: use24h ?? this.use24h,
     groupAvatars: groupAvatars ?? this.groupAvatars,
     compactList: compactList ?? this.compactList,
@@ -706,7 +731,7 @@ class SettingsController extends Notifier<AppSettings> {
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
     const d = AppSettings();
-    state = AppSettings(
+    final loaded = AppSettings(
       vercelKey: await _secret(_vercelKey),
       openRouterKey: await _secret(_openRouterKey),
       geminiKey: await _secret(_geminiKey),
@@ -789,6 +814,8 @@ class SettingsController extends Notifier<AppSettings> {
       themeMode: AppThemeMode.values.asNameMap()[p.getString('theme_mode')] ?? d.themeMode,
       voiceEnabled: p.getBool('voice_enabled') ?? d.voiceEnabled,
       mediaEnabled: p.getBool('media_enabled') ?? d.mediaEnabled,
+      videoEnabled: p.getBool('video_enabled') ?? d.videoEnabled,
+      videoModel: p.getString('video_model') ?? d.videoModel,
       aiChatEnabled: p.getBool('ai_chat_enabled') ?? d.aiChatEnabled,
       showChatCopyButton: p.getBool('show_chat_copy_button') ?? d.showChatCopyButton,
       showChatSpeakButton: p.getBool('show_chat_speak_button') ?? d.showChatSpeakButton,
@@ -802,6 +829,8 @@ class SettingsController extends Notifier<AppSettings> {
       maxSteps: p.getInt('max_steps') ?? d.maxSteps,
       showThinking: p.getBool('show_thinking') ?? d.showThinking,
       showToolCalls: p.getBool('show_tool_calls') ?? d.showToolCalls,
+      leadingIcons: p.getBool('leading_icons') ?? d.leadingIcons,
+      openLastChat: p.getBool('open_last_chat') ?? d.openLastChat,
       use24h: p.getBool('use_24h') ?? d.use24h,
       groupAvatars: p.getBool('group_avatars') ?? d.groupAvatars,
       compactList: p.getBool('compact_list') ?? d.compactList,
@@ -819,6 +848,8 @@ class SettingsController extends Notifier<AppSettings> {
           d.codeTheme,
       loaded: true,
     );
+    // Reading keys takes a while; the app may have moved on (a restore).
+    if (ref.mounted) state = loaded;
   }
 
   Future<void> _write(String key, Object value) async {
@@ -1095,6 +1126,10 @@ class SettingsController extends Notifier<AppSettings> {
       customize(state.copyWith(showThinking: v), 'show_thinking', v);
   Future<void> setShowToolCalls(bool v) =>
       customize(state.copyWith(showToolCalls: v), 'show_tool_calls', v);
+  Future<void> setLeadingIcons(bool v) =>
+      customize(state.copyWith(leadingIcons: v), 'leading_icons', v);
+  Future<void> setOpenLastChat(bool v) =>
+      customize(state.copyWith(openLastChat: v), 'open_last_chat', v);
   Future<void> setUse24h(bool v) =>
       customize(state.copyWith(use24h: v), 'use_24h', v);
   Future<void> setGroupAvatars(bool v) =>
@@ -1149,6 +1184,8 @@ class SettingsController extends Notifier<AppSettings> {
   Future<void> setThemeMode(AppThemeMode v) => customize(state.copyWith(themeMode: v), 'theme_mode', v.name);
   Future<void> setVoiceEnabled(bool v) => customize(state.copyWith(voiceEnabled: v), 'voice_enabled', v);
   Future<void> setMediaEnabled(bool v) => customize(state.copyWith(mediaEnabled: v), 'media_enabled', v);
+  Future<void> setVideoEnabled(bool v) => customize(state.copyWith(videoEnabled: v), 'video_enabled', v);
+  Future<void> setVideoModel(String id) => customize(state.copyWith(videoModel: id), 'video_model', id);
   Future<void> setAiChatEnabled(bool v) => customize(state.copyWith(aiChatEnabled: v), 'ai_chat_enabled', v);
   Future<void> setShowChatCopyButton(bool v) => customize(state.copyWith(showChatCopyButton: v), 'show_chat_copy_button', v);
   Future<void> setShowChatSpeakButton(bool v) => customize(state.copyWith(showChatSpeakButton: v), 'show_chat_speak_button', v);

@@ -49,6 +49,18 @@ class AppNotifier {
     }
   }
 
+  /// Whether Android lets the app post notifications; null off Android.
+  Future<bool?> permitted() async {
+    await init();
+    return _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.areNotificationsEnabled();
+  }
+
+  /// Whether reminders can ring at the exact minute; null off Android.
+  Future<bool?> exactAlarms() async {
+    await init();
+    return _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.canScheduleExactNotifications();
+  }
+
   Future<void> requestPermission() async {
     await init();
     try {

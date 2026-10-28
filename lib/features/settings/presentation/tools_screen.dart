@@ -7,6 +7,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import '../../../app/theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../ai/data/ai.dart';
+import '../../ai/data/decision_settings.dart';
 import '../../../infrastructure/telegram/telegram_client.dart';
 import '../../chat/presentation/widgets/tool_card.dart';
 import '../../integrations/integrations_store.dart';
@@ -308,7 +309,7 @@ class _ToolListState extends ConsumerState<_ToolList> {
                             tool: t,
                             enabled: s.toolChosen(t.name, destructive: t.destructive),
                             blocked: s.readOnlyMode && t.modifiesData,
-                            needs: toolPrerequisiteProblems(t, s, telegram: telegram, connected: connected).firstOrNull,
+                            needs: toolPrerequisiteProblems(t, s, telegram: telegram, connected: connected, decisionsReady: ref.watch(decisionsReadyProvider)).firstOrNull,
                           ),
                         ],
                       ],
@@ -316,6 +317,47 @@ class _ToolListState extends ConsumerState<_ToolList> {
                   ),
                 ),
               ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One feature's tools ([category]) as the Tools page lists them: a switch
+/// each, their tags, and their details a tap away. For that feature's own
+/// settings page.
+class FeatureTools extends ConsumerWidget {
+  const FeatureTools({super.key, required this.category});
+  final ToolCategory category;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final connected = ref.watch(integrationsProvider).connected;
+    final telegram = ref.watch(authStateProvider).value is td.AuthorizationStateReady;
+    final ready = ref.watch(decisionsReadyProvider);
+    final tools = [for (final t in telegramTools) if (t.category == category) t];
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(Radii.l),
+        border: Border.all(color: AppColors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            for (final (i, t) in tools.indexed) ...[
+              if (i > 0) const Divider(indent: 56),
+              _ToolRow(
+                tool: t,
+                enabled: s.toolChosen(t.name, destructive: t.destructive),
+                blocked: s.readOnlyMode && t.modifiesData,
+                needs: toolPrerequisiteProblems(t, s, telegram: telegram, connected: connected, decisionsReady: ready).firstOrNull,
+              ),
+            ],
           ],
         ),
       ),
@@ -439,6 +481,7 @@ class ToolDetailScreen extends ConsumerWidget {
       telegram: telegram,
       connected: integrations.connected,
       modelSeesImages: sees,
+      decisionsReady: ref.watch(decisionsReadyProvider),
     );
     final doc = tool.documentation;
     final props = ((tool.parameters['properties'] as Map?) ?? const {}).cast<String, dynamic>();
@@ -477,7 +520,7 @@ class ToolDetailScreen extends ConsumerWidget {
       child: Text(text, style: context.text.labelSmall),
     );
     Widget fact(IconData icon, String title, String body, {Color? color}) => ListTile(
-      leading: Icon(icon, color: color ?? AppColors.text2),
+      leading: lead(Icon(icon, color: color ?? AppColors.text2)),
       title: Text(title),
       subtitle: Text(body, style: context.text.bodySmall?.copyWith(height: 1.4)),
     );
@@ -485,7 +528,7 @@ class ToolDetailScreen extends ConsumerWidget {
       for (final (i, row) in rows.indexed) ...[if (i > 0) const Divider(indent: 56), row],
     ];
     Widget fold(IconData icon, String title, List<Widget> children) => ExpansionTile(
-      leading: Icon(icon, color: AppColors.text2),
+      leading: lead(Icon(icon, color: AppColors.text2)),
       title: Text(title),
       shape: const Border(),
       collapsedShape: const Border(),
@@ -569,7 +612,7 @@ class ToolDetailScreen extends ConsumerWidget {
                   for (final need in needs)
                     ListTile(
                       dense: true,
-                      leading: Icon(Icons.error_outline_rounded, color: AppColors.warning, size: 20),
+                      leading: lead(Icon(Icons.error_outline_rounded, color: AppColors.warning, size: 20)),
                       title: Text(need, style: context.text.bodyMedium),
                       trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
                       onTap: () => open(
@@ -659,7 +702,7 @@ class ToolDetailScreen extends ConsumerWidget {
                     for (final limit in doc.limits)
                       ListTile(
                         dense: true,
-                        leading: Icon(Icons.info_outline_rounded, size: 20, color: AppColors.text3),
+                        leading: lead(Icon(Icons.info_outline_rounded, size: 20, color: AppColors.text3)),
                         title: Text(limit, style: context.text.bodySmall?.copyWith(height: 1.4)),
                       ),
                   ]),
@@ -689,7 +732,7 @@ class ToolDetailScreen extends ConsumerWidget {
                 ]),
                 const Divider(indent: 56),
                 ListTile(
-                  leading: Icon(Icons.menu_book_outlined, color: AppColors.text2),
+                  leading: lead(Icon(Icons.menu_book_outlined, color: AppColors.text2)),
                   title: const Text('Service documentation'),
                   subtitle: Text(Uri.parse(doc.referenceUrl).host, style: context.text.bodySmall),
                   trailing: Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.text3),

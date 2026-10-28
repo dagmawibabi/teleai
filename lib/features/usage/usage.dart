@@ -13,12 +13,19 @@ import '../chat/domain/chat_models.dart';
 enum Modality {
   chat('Chat', 'Answers, thinking and tool calls'),
   image('Images', 'Pictures from generate_image'),
+  video('Video', 'Clips from generate_video'),
   speech('Read aloud', 'AI and ElevenLabs voices'),
-  dictation('Dictation', 'Speech turned into text');
+  dictation('Dictation', 'Speech turned into text'),
+  decision('Decisions', 'Typed answers from TypeSafe Jev'),
+  mcp('MCP servers', 'Calls to MCP servers and the registry'),
+  skill('Skills', 'Skills searched, read, installed or removed');
 
   const Modality(this.label, this.description);
   final String label;
   final String description;
+
+  /// Tool calls rather than model requests: counted, timed, not priced.
+  bool get isCapability => this == mcp || this == skill;
 }
 
 /// One AI request and what it cost.
@@ -36,7 +43,20 @@ class UsageEvent {
     this.units = 0,
     this.cost = 0,
     this.estimated = false,
+    this.tool,
+    this.ok = true,
+    this.ms = 0,
   });
+
+  /// For MCP and skill calls: the tool used (mcp_call_tool, load_skill…).
+  /// [model] then holds the server or skill.
+  final String? tool;
+
+  /// Whether the call worked.
+  final bool ok;
+
+  /// How long it took.
+  final int ms;
 
   final DateTime at;
   final String model;
@@ -70,6 +90,9 @@ class UsageEvent {
     if (units > 0) 'u': units,
     'usd': cost,
     if (estimated) 'e': true,
+    'tl': ?tool,
+    if (!ok) 'ok': false,
+    if (ms > 0) 'ms': ms,
   };
 
   factory UsageEvent.fromJson(Map<String, dynamic> j) => UsageEvent(
@@ -84,6 +107,9 @@ class UsageEvent {
     units: (j['u'] as num?)?.toInt() ?? 0,
     cost: (j['usd'] as num?)?.toDouble() ?? 0,
     estimated: j['e'] ?? false,
+    tool: j['tl'],
+    ok: j['ok'] ?? true,
+    ms: (j['ms'] as num?)?.toInt() ?? 0,
   );
 }
 
@@ -195,6 +221,59 @@ class UsageStore extends Notifier<List<UsageEvent>> {
       cost: cost,
       estimated: reported == null,
     );
+  }
+
+  /// A Jev, MCP or skill tool call. Jev calls count their input tokens
+  /// (TypeSafe bills those; output is free) and how many decisions they
+  /// made; MCP and skill calls count the server or skill they used.
+  void recordCapability({
+    required String tool,
+    required Map<String, dynamic> input,
+    required Map<String, dynamic> output,
+    required int ms,
+    String? conversationId,
+    String? conversationTitle,
+  }) {
+    final ok = output['error'] == null;
+    if (tool.startsWith('jev_')) {
+      if (tool == 'jev_models') return;
+      final usage = output['usage'];
+      add(UsageEvent(
+        at: DateTime.now(),
+        model: '${output['model'] ?? 'jev'}',
+        modality: Modality.decision,
+        conversationId: conversationId,
+        conversationTitle: conversationTitle,
+        input: usage is Map ? (usage['input_tokens'] as num?)?.toInt() ?? 0 : 0,
+        units: tool == 'jev_batch' ? (output['count'] as num?)?.toInt() ?? 0 : 1,
+        tool: tool,
+        ok: ok,
+        ms: ms,
+      ));
+      return;
+    }
+    final mcp = tool.startsWith('mcp_');
+    add(UsageEvent(
+      at: DateTime.now(),
+      model: capabilitySubject(tool, input),
+      modality: mcp ? Modality.mcp : Modality.skill,
+      conversationId: conversationId,
+      conversationTitle: conversationTitle,
+      units: 1,
+      tool: tool,
+      ok: ok,
+      ms: ms,
+    ));
+  }
+
+  /// The server or skill a call was about, or what it searched.
+  static String capabilitySubject(String tool, Map<String, dynamic> input) {
+    for (final k in const ['server', 'server_id', 'id', 'name', 'skill']) {
+      final v = input[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    if (tool == 'mcp_search' || tool == 'search_skills') return 'Search';
+    return tool.startsWith('mcp_') ? 'Registry' : 'Skills';
   }
 
   void clear() {

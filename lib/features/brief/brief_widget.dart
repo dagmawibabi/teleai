@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -48,7 +49,11 @@ class WidgetLook {
     this.showTime = true,
     this.showTitle = true,
     this.showFooter = true,
+    this.showImages = true,
   });
+
+  /// Pictures in custom widgets' rows.
+  final bool showImages;
   final double fontSize;
   final double titleSize;
   final WidgetTheme theme;
@@ -77,6 +82,7 @@ class WidgetLook {
     bool? showTime,
     bool? showTitle,
     bool? showFooter,
+    bool? showImages,
   }) => WidgetLook(
     fontSize: fontSize ?? this.fontSize,
     titleSize: titleSize ?? this.titleSize,
@@ -88,6 +94,7 @@ class WidgetLook {
     showTime: showTime ?? this.showTime,
     showTitle: showTitle ?? this.showTitle,
     showFooter: showFooter ?? this.showFooter,
+    showImages: showImages ?? this.showImages,
   );
 
   // Ints, strings and booleans only: the Kotlin side reads Flutter's
@@ -105,6 +112,7 @@ class WidgetLook {
     await p.setBool('widget_show_time', showTime);
     await p.setBool('widget_show_title', showTitle);
     await p.setBool('widget_show_footer', showFooter);
+    await p.setBool('widget_show_images', showImages);
     if (accent != null) await p.setInt('widget_accent', accent!);
   }
 
@@ -121,6 +129,7 @@ class WidgetLook {
       showTime: p.getBool('widget_show_time') ?? d.showTime,
       showTitle: p.getBool('widget_show_title') ?? d.showTitle,
       showFooter: p.getBool('widget_show_footer') ?? d.showFooter,
+      showImages: p.getBool('widget_show_images') ?? d.showImages,
     );
   }
 }
@@ -148,15 +157,25 @@ final widgetLookProvider = NotifierProvider<WidgetLookController, WidgetLook>(Wi
 abstract final class BriefHomeWidget {
   static const _channel = MethodChannel('teleai/brief_widget');
 
-  /// Taps on the widget's "Open" ask the app to show the brief.
-  static void listen(VoidCallback openBriefs) {
+  /// Taps on a widget: the brief opens the Brief screen, a custom widget
+  /// [openWidget] (with the tapped row's link, if it has one).
+  static void listen(VoidCallback openBriefs, {void Function(String id, String? link)? openWidget}) {
     if (kIsWeb || !Platform.isAndroid) return;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'openBrief') openBriefs();
+      if (call.method == 'openWidget' && call.arguments is Map) {
+        final a = call.arguments as Map;
+        openWidget?.call('${a['id']}', a['link'] as String?);
+      }
     });
     // A tap that launched the app arrives before anyone listened.
-    _channel.invokeMethod<bool>('takeLaunch').then((open) {
-      if (open == true) openBriefs();
+    _channel.invokeMethod<Object?>('takeLaunch').then((open) {
+      if (open is! Map) return;
+      if (open['brief'] == true) {
+        openBriefs();
+      } else if (open['id'] != null) {
+        openWidget?.call('${open['id']}', open['link'] as String?);
+      }
     }, onError: (_) {});
   }
 
@@ -175,6 +194,22 @@ abstract final class BriefHomeWidget {
         await p.setString('widget_brief_text', forWidget(b.text, l.content));
         await p.setString('widget_brief_when', DateFormat('EEE d MMM, HH:mm').format(b.at));
       }
+      // The list the widget scrolls: one row per paragraph.
+      await p.setString(
+        'widget_payload.brief',
+        jsonEncode({
+          'title': b == null ? 'Brief' : '${b.kind.emoji} ${b.kind.label}',
+          if (b != null) 'when': DateFormat('EEE d MMM, HH:mm').format(b.at),
+          'empty': 'No brief yet. Tap to open Triangle and write one.',
+          'brief': true,
+          'items': b == null
+              ? const []
+              : [
+                  for (final para in forWidget(b.text, l.content).split(RegExp(r'\n\s*\n')))
+                    if (para.trim().isNotEmpty) {'x': para.trim()},
+                ],
+        }),
+      );
       await _channel.invokeMethod<void>('update');
     } catch (e) {
       debugPrint('[BriefWidget] $e');

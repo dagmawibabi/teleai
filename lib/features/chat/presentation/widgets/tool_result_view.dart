@@ -26,7 +26,7 @@ class ToolResultView extends StatelessWidget {
   final Map<String, dynamic> json;
 
   /// Fields only the app uses, never worth showing.
-  static const _internal = {'stopped', '_images', 'image_path', 'audio_path', 'created_files'};
+  static const _internal = {'stopped', '_images', 'image_path', 'audio_path', 'video_path', 'created_files'};
 
   /// Collections the purpose-built views below draw themselves.
   static const _renderedCollections = {
@@ -116,6 +116,18 @@ class ToolResultView extends StatelessWidget {
         children: children,
       );
     }
+    if (j['video_path'] is String) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GeneratedFile(path: j['video_path'] as String),
+          if (j['prompt'] != null) ...[
+            const SizedBox(height: Space.s),
+            Text('${j['prompt']}', style: context.text.bodySmall),
+          ],
+        ],
+      );
+    }
     if (j['audio_path'] is String)
       return GeneratedAudio(
         path: j['audio_path'] as String,
@@ -151,10 +163,10 @@ class ToolResultView extends StatelessWidget {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: Icon(
+              leading: lead(Icon(
                 Icons.bookmark_outline_rounded,
                 color: AppColors.accent,
-              ),
+              )),
               title: Text('${m['content']}'),
               subtitle: Text(
                 '${m['memory_id']}',
@@ -181,12 +193,12 @@ class ToolResultView extends StatelessWidget {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: Icon(
+              leading: lead(Icon(
                 w['enabled'] == false
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined,
                 color: AppColors.accent,
-              ),
+              )),
               title: Text('${w['name']}'),
               subtitle: Text(
                 '${w['mode']} · ${w['trigger']}${w['instructions'] == null ? '' : ' · ${w['instructions']}'}',
@@ -339,10 +351,10 @@ class ToolResultView extends StatelessWidget {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: Icon(
+              leading: lead(Icon(
                 t['general'] == true ? Icons.tag_rounded : Icons.topic_outlined,
                 color: AppColors.text2,
-              ),
+              )),
               title: Text('${t['name']}'),
               subtitle: t['last_message'] == null
                   ? null
@@ -485,7 +497,7 @@ class ToolResultView extends StatelessWidget {
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.dashboard_outlined, color: AppColors.text2),
+            leading: lead(Icon(Icons.dashboard_outlined, color: AppColors.text2)),
             title: Text('${f['path'] ?? f['name'] ?? f['folder_id']}'),
             subtitle: f['description'] == null ? null : Text('${f['description']}', maxLines: 2),
             trailing: Text('${f['items'] ?? 0} items', style: context.text.bodySmall),
@@ -501,7 +513,7 @@ class ToolResultView extends StatelessWidget {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.sticky_note_2_outlined, color: AppColors.text2),
+              leading: lead(Icon(Icons.sticky_note_2_outlined, color: AppColors.text2)),
               title: Text('${i['title'] ?? i['text'] ?? i['kind'] ?? i['item_id']}', maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(
                 [i['kind'], i['chat'], i['date'], i['note']].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
@@ -520,7 +532,7 @@ class ToolResultView extends StatelessWidget {
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.folder_outlined, color: AppColors.text2),
+            leading: lead(Icon(Icons.folder_outlined, color: AppColors.text2)),
             title: Text('${f['title']}'),
             trailing: Text(
               '${f['chats']} chats · ${f['unread_chats']} unread',

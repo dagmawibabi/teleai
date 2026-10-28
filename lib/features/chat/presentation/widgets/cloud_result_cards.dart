@@ -350,7 +350,7 @@ class _SandboxFiles extends StatelessWidget {
       for (final f in files.take(40))
         ListTile(
           dense: true,
-          leading: Icon(_fileIcon('${f['name']}', dir: f['dir'] == true), color: f['dir'] == true ? const Color(0xFF8E9BAE) : AppColors.text2),
+          leading: lead(Icon(_fileIcon('${f['name']}', dir: f['dir'] == true), color: f['dir'] == true ? const Color(0xFF8E9BAE) : AppColors.text2)),
           title: Text('${f['name']}', maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text([if (f['dir'] != true) _size(f['size']), _day(f['modified'])].where((x) => x.isNotEmpty).join(' · ')),
         ),
@@ -372,7 +372,7 @@ class _SandboxList extends StatelessWidget {
       for (final b in boxes)
         ListTile(
           dense: true,
-          leading: Icon(Icons.circle, size: 10, color: b['state'] == 'running' ? AppColors.success : AppColors.warning),
+          leading: lead(Icon(Icons.circle, size: 10, color: b['state'] == 'running' ? AppColors.success : AppColors.warning)),
           title: Text('${b['id']}${b['id'] == current ? '  · this app' : ''}', style: codeTextStyle.copyWith(fontSize: 12.5)),
           subtitle: Text(
             [
@@ -401,7 +401,7 @@ class _ZoneList extends StatelessWidget {
         ListTile(
           dense: true,
           onTap: () => launchUrl(Uri.parse('https://${z['name']}'), mode: LaunchMode.externalApplication),
-          leading: const Icon(Icons.language_rounded, color: Color(0xFFF38020)),
+          leading: lead(const Icon(Icons.language_rounded, color: Color(0xFFF38020))),
           title: Text('${z['name']}', style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
             [
@@ -521,7 +521,7 @@ class _SimpleList extends StatelessWidget {
         ListTile(
           dense: true,
           onTap: urls?[i] == null ? null : () => launchUrl(Uri.parse(urls![i]!), mode: LaunchMode.externalApplication),
-          leading: Icon(icon, color: const Color(0xFFF38020), size: 20),
+          leading: lead(Icon(icon, color: const Color(0xFFF38020), size: 20)),
           title: Text(t, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
           subtitle: sub.isEmpty ? null : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
           trailing: urls?[i] == null ? null : Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.text3),
@@ -549,13 +549,13 @@ class _R2Browser extends ConsumerWidget {
         for (final f in folders.take(30))
           ListTile(
             dense: true,
-            leading: const Icon(Icons.folder_rounded, color: Color(0xFF8E9BAE)),
+            leading: lead(const Icon(Icons.folder_rounded, color: Color(0xFF8E9BAE))),
             title: Text(f.substring(prefix.length).isEmpty ? f : f.substring(prefix.length)),
           ),
         for (final o in objects.take(60))
           ListTile(
             dense: true,
-            leading: Icon(_fileIcon('${o['key']}'), color: AppColors.text2),
+            leading: lead(Icon(_fileIcon('${o['key']}'), color: AppColors.text2)),
             title: Text('${o['key']}'.substring('${o['key']}'.startsWith(prefix) ? prefix.length : 0), maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text([_size(o['size']), _day(o['modified'])].where((x) => x.isNotEmpty).join(' · ')),
             trailing: Icon(Icons.more_horiz_rounded, size: 18, color: AppColors.text3),
@@ -579,8 +579,8 @@ class _R2Browser extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(title: Text(key, style: const TextStyle(fontWeight: FontWeight.w600)), subtitle: Text(bucket)),
-            ListTile(leading: const Icon(Icons.download_rounded), title: const Text('Download and open'), onTap: () => Navigator.pop(context, 'get')),
-            ListTile(leading: const Icon(Icons.link_rounded), title: const Text('Copy a 24-hour share link'), onTap: () => Navigator.pop(context, 'link')),
+            ListTile(leading: lead(const Icon(Icons.download_rounded)), title: const Text('Download and open'), onTap: () => Navigator.pop(context, 'get')),
+            ListTile(leading: lead(const Icon(Icons.link_rounded)), title: const Text('Copy a 24-hour share link'), onTap: () => Navigator.pop(context, 'link')),
           ],
         ),
       ),

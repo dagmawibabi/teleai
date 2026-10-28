@@ -21,6 +21,11 @@ class MainActivity : FlutterActivity() {
         DeviceChannel.activity = this
         BriefWidget.handle(intent)
         ShareChannel.handle(this, intent)
+        // Opened from the launcher on a fresh screen (not restored after a
+        // rotation, and not a notification, widget or share, which say
+        // where to go themselves).
+        val launcher = intent?.action == Intent.ACTION_MAIN && intent?.hasCategory(Intent.CATEGORY_LAUNCHER) == true
+        if (savedInstanceState == null && launcher) AppOpenChannel.opened()
     }
 
     override fun onResume() {

@@ -57,7 +57,7 @@ Future<void> showCanvasExport(BuildContext context, WidgetRef ref, CanvasFolder 
                     borderRadius: BorderRadius.circular(Radii.m),
                     child: ListTile(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.m)),
-                      leading: Icon(icon, color: AppColors.accent),
+                      leading: lead(Icon(icon, color: AppColors.accent)),
                       title: Text(f.label),
                       subtitle: Text(about, style: c.text.bodySmall),
                       trailing: Text('.${f.extension}', style: c.text.labelSmall),
@@ -201,7 +201,7 @@ Future<CanvasFolder?> pickCanvasFolder(BuildContext context, WidgetRef ref, {Str
                     child: Text(title, style: context.text.titleMedium),
                   ),
                   ListTile(
-                    leading: Icon(Icons.create_new_folder_outlined, color: AppColors.accent),
+                    leading: lead(Icon(Icons.create_new_folder_outlined, color: AppColors.accent)),
                     title: const Text('New folder'),
                     onTap: () async {
                       final name = await _askName(context, 'New folder');
@@ -212,7 +212,7 @@ Future<CanvasFolder?> pickCanvasFolder(BuildContext context, WidgetRef ref, {Str
                   ),
                   for (final f in all)
                     ListTile(
-                      leading: Icon(Icons.folder_rounded, color: canvasColors[f.color % canvasColors.length]),
+                      leading: lead(Icon(Icons.folder_rounded, color: canvasColors[f.color % canvasColors.length])),
                       title: Text(s.pathOf(f)),
                       trailing: Text('${s.itemsIn(f.id).length}', style: context.text.labelSmall),
                       onTap: () => Navigator.pop(sheet, f),
@@ -370,23 +370,23 @@ class _ContentCanvasScreenState extends ConsumerState<ContentCanvasScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.create_new_folder_outlined),
+                    leading: lead(const Icon(Icons.create_new_folder_outlined)),
                     title: const Text('Subfolder'),
                     onTap: () => Navigator.pop(c, 'folder'),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.sticky_note_2_outlined),
+                    leading: lead(const Icon(Icons.sticky_note_2_outlined)),
                     title: const Text('Note'),
                     onTap: () => Navigator.pop(c, 'note'),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.link_rounded),
+                    leading: lead(const Icon(Icons.link_rounded)),
                     title: const Text('Link'),
                     subtitle: const Text('A web page to keep'),
                     onTap: () => Navigator.pop(c, 'link'),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.auto_awesome_outlined),
+                    leading: lead(const Icon(Icons.auto_awesome_outlined)),
                     title: const Text('Ask AI to fill it'),
                     subtitle: const Text('e.g. "the last 10 posts from a channel about this"'),
                     onTap: () => Navigator.pop(c, 'ai'),

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows: a still version of the widget (launchers
+     can't draw the live list there). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.95"
+        android:scaleType="fitXY"
+        android:src="@drawable/brief_widget_bg" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="☀️ Morning brief"
+            android:textColor="#EDEDF0"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:lineSpacingMultiplier="1.15"
+            android:maxLines="3"
+            android:text="TL;DR: three people are waiting on you, and the team moved Friday's meeting to 10:00."
+            android:textColor="#C9C9D1"
+            android:textSize="12.5sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:maxLines="2"
+            android:text="Or anything you make: news, subscribers, movies with posters."
+            android:textColor="#8A8A94"
+            android:textSize="11sp" />
+    </LinearLayout>
+</FrameLayout>

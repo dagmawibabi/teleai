@@ -81,6 +81,10 @@ class _DataScreenState extends ConsumerState<DataScreen> {
               '${counts['settings']} settings and memories',
               '${counts['keys']} keys',
               if (counts['chats']! > 0) '${counts['chats']} AI chats',
+              if (counts['watches']! > 0) '${counts['watches']} watches',
+              if (counts['widgets']! > 0) '${counts['widgets']} widgets',
+              if (counts['skills']! > 0) '${counts['skills']} skills',
+              if (counts['mcp']! > 0) '${counts['mcp']} MCP servers${counts['keys'] == 0 ? ' (add their keys again)' : ''}',
             ].join(' · '),
             style: context.text.bodySmall,
             textAlign: TextAlign.center,
@@ -189,17 +193,19 @@ class _DataScreenState extends ConsumerState<DataScreen> {
                   ),
                 ),
                 SwitchListTile(
-                  secondary: const Icon(Icons.key_outlined),
+                  secondary: lead(const Icon(Icons.key_outlined)),
                   title: const Text('Include API keys'),
                   subtitle: Text(
-                    _keys ? 'Keys are in the file as plain text: keep it somewhere private.' : 'Add your keys again after restoring.',
+                    _keys
+                        ? 'Keys and MCP server headers are in the file as plain text: keep it somewhere private.'
+                        : 'Add your keys again after restoring. MCP servers come along without their headers.',
                     style: context.text.bodySmall?.copyWith(color: _keys ? AppColors.warning : null),
                   ),
                   value: _keys,
                   onChanged: (v) => setState(() => _keys = v),
                 ),
                 SwitchListTile(
-                  secondary: const Icon(Icons.forum_outlined),
+                  secondary: lead(const Icon(Icons.forum_outlined)),
                   title: const Text('Include AI chats'),
                   subtitle: Text('Makes the file larger', style: context.text.bodySmall),
                   value: _chats,
@@ -207,7 +213,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
                 ),
                 const Divider(indent: Space.l, endIndent: Space.l),
                 ListTile(
-                  leading: const Icon(Icons.upload_file_rounded),
+                  leading: lead(const Icon(Icons.upload_file_rounded)),
                   title: const Text('Export profile'),
                   subtitle: Text('Save it as a .json file', style: context.text.bodySmall),
                   enabled: !_busy,
@@ -215,7 +221,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
                 ),
                 const Divider(indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.settings_backup_restore_rounded),
+                  leading: lead(const Icon(Icons.settings_backup_restore_rounded)),
                   title: const Text('Import profile'),
                   subtitle: Text('Restore from a file you exported', style: context.text.bodySmall),
                   enabled: !_busy,
@@ -225,7 +231,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
               header('CLEAR'),
               card([
                 ListTile(
-                  leading: Icon(Icons.delete_forever_outlined, color: AppColors.danger),
+                  leading: lead(Icon(Icons.delete_forever_outlined, color: AppColors.danger)),
                   title: Text('Clear all data', style: TextStyle(color: AppColors.danger)),
                   subtitle: Text(
                     'Chats, memories, files, briefs, canvas, watches and reminders on this phone',

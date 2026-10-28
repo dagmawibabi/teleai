@@ -420,7 +420,7 @@ class _MemberTile extends ConsumerWidget {
             const Divider(),
             if (userId != 0)
               ListTile(
-                leading: const Icon(Icons.person_outline_rounded),
+                leading: lead(const Icon(Icons.person_outline_rounded)),
                 title: const Text('View profile'),
                 onTap: () {
                   Navigator.pop(sheet);
@@ -429,7 +429,7 @@ class _MemberTile extends ConsumerWidget {
               ),
             if (manageable && m.status is td.ChatMemberStatusBanned)
               ListTile(
-                leading: const Icon(Icons.lock_open_rounded),
+                leading: lead(const Icon(Icons.lock_open_rounded)),
                 title: const Text('Unban'),
                 onTap: () async {
                   Navigator.pop(sheet);
@@ -439,7 +439,7 @@ class _MemberTile extends ConsumerWidget {
               ),
             if (manageable && m.status is! td.ChatMemberStatusBanned) ...[
               ListTile(
-                leading: Icon(Icons.person_remove_outlined, color: AppColors.danger),
+                leading: lead(Icon(Icons.person_remove_outlined, color: AppColors.danger)),
                 title: Text('Remove', style: TextStyle(color: AppColors.danger)),
                 subtitle: const Text('They can come back with a link'),
                 onTap: () async {
@@ -462,7 +462,7 @@ class _MemberTile extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.gavel_rounded, color: AppColors.danger),
+                leading: lead(Icon(Icons.gavel_rounded, color: AppColors.danger)),
                 title: Text('Ban', style: TextStyle(color: AppColors.danger)),
                 onTap: () async {
                   Navigator.pop(sheet);

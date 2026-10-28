@@ -254,9 +254,13 @@ class ReminderStore extends Notifier<List<Reminder>> {
   final Set<String> _running = {};
   bool _loaded = false;
 
+  /// Completes once saved reminders are loaded; changes wait for it, so the
+  /// load can't overwrite them (or bring a deleted one back).
+  late Future<void> ready;
+
   @override
   List<Reminder> build() {
-    _load();
+    ready = _load();
     return const [];
   }
 
@@ -292,6 +296,7 @@ class ReminderStore extends Notifier<List<Reminder>> {
   }
 
   Future<Reminder> add({required String text, DateTime? at, String? cron, String prompt = '', String? conversationId}) async {
+    await ready;
     final next = firstTime(at: at, cron: cron);
     if (next == null) throw const FormatException('Give a time (at / in_minutes) or a cron expression.');
     if (cron == null && next.isBefore(DateTime.now())) throw const FormatException('That time has already passed.');
@@ -313,6 +318,7 @@ class ReminderStore extends Notifier<List<Reminder>> {
   }
 
   Future<Reminder?> update(String id, Reminder Function(Reminder) change) async {
+    await ready;
     final old = byId(id);
     if (old == null) return null;
     var r = change(old);
@@ -328,6 +334,7 @@ class ReminderStore extends Notifier<List<Reminder>> {
   }
 
   Future<bool> remove(String id) async {
+    await ready;
     final r = byId(id);
     if (r == null) return false;
     state = state.where((x) => x.id != id).toList();
@@ -364,7 +371,11 @@ class ReminderStore extends Notifier<List<Reminder>> {
   Future<void> tick() async {
     if (!_loaded) return;
     final now = DateTime.now();
-    for (final r in state.where((r) => r.enabled && r.next != null && !r.next!.isAfter(now)).toList()) {
+    for (final due in state.where((r) => r.enabled && r.next != null && !r.next!.isAfter(now)).toList()) {
+      // Each step below awaits: one turned off or deleted meanwhile is left
+      // alone, and its alarms aren't scheduled again.
+      final r = byId(due.id);
+      if (r == null || !r.enabled || r.next != due.next) continue;
       if (_running.contains(r.id)) continue;
       // Right at start-up nothing can run a job yet; the engine's first
       // tick will.
@@ -380,6 +391,7 @@ class ReminderStore extends Notifier<List<Reminder>> {
         lastRunAt: r.isJob ? null : r.next,
         runs: r.isJob ? null : r.runs + 1,
       );
+      if (byId(r.id) == null) continue;
       state = [for (final x in state) x.id == r.id ? moved : x];
       await _save();
       await _schedule(moved);
@@ -388,7 +400,7 @@ class ReminderStore extends Notifier<List<Reminder>> {
 
   Future<void> _run(Reminder r) async {
     final run = runJob;
-    if (run == null) return;
+    if (run == null || byId(r.id) == null) return;
     _running.add(r.id);
     try {
       await run(r);

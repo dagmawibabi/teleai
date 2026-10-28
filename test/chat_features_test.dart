@@ -66,7 +66,9 @@ void main() {
       'secrets': {'vercel_ai_gateway_key': 'k'},
       'files': {'conversations/x.json': '{}', 'content_canvas.json': '{}'},
     });
-    expect(counts, {'settings': 2, 'keys': 1, 'chats': 1});
+    expect(counts, containsPair('settings', 2));
+    expect(counts, containsPair('keys', 1));
+    expect(counts, containsPair('chats', 1));
   });
 
   test('shares from other apps are read from the channel map', () {

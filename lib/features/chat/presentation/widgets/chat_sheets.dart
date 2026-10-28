@@ -221,7 +221,7 @@ class _ContextSheetState extends ConsumerState<_ContextSheet> {
         const SizedBox(height: Space.xl),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          secondary: const Icon(Icons.auto_mode_rounded),
+          secondary: lead(const Icon(Icons.auto_mode_rounded)),
           title: const Text('Compact automatically'),
           subtitle: Text('At 80%, older messages are summarised before the next answer', style: context.text.bodySmall),
           value: s.autoCompact,
@@ -359,7 +359,7 @@ Future<void> showExportSheet(BuildContext context, Conversation c) => showFormSh
       ])
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(icon),
+          leading: lead(Icon(icon)),
           title: Text(format.label),
           subtitle: Text(hint, style: sheet.text.bodySmall),
           trailing: const Icon(Icons.download_rounded),

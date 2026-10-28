@@ -25,6 +25,7 @@ object MainEngine {
         BriefWidget.attach(context, engine)
         DeviceChannel.attach(context, engine)
         ShareChannel.attach(context, engine)
+        AppOpenChannel.attach(engine)
         engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         cache.put(ENGINE_ID, engine)
         return engine

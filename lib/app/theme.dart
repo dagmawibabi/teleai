@@ -106,6 +106,20 @@ abstract final class Radii {
 
 const tabularFigures = [FontFeature.tabularFigures()];
 
+/// Appearance choices read while building, like [AppColors.palette]: the
+/// app sets them and rebuilds every screen when they change.
+abstract final class AppLook {
+  /// Icons at the start of list rows.
+  static bool leadingIcons = true;
+}
+
+/// A list row's leading icon, or none when Appearance turns them off (the
+/// row then starts with its text, with no gap).
+Widget? lead(Widget icon) => AppLook.leadingIcons ? icon : null;
+
+/// A hand-built row's leading icon and the gap after it, or nothing.
+List<Widget> leadRow(Widget icon, double gap) => AppLook.leadingIcons ? [icon, SizedBox(width: gap)] : const [];
+
 ThemeData buildTheme({
   Color? accent,
   double chatFontSize = 15.5,

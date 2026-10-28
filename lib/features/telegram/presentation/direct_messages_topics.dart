@@ -189,17 +189,17 @@ class _TopicRow extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(unread ? Icons.mark_chat_read_outlined : Icons.mark_chat_unread_outlined),
+              leading: lead(Icon(unread ? Icons.mark_chat_read_outlined : Icons.mark_chat_unread_outlined)),
               title: Text(unread ? 'Mark as read' : 'Mark as unread'),
               onTap: () => Navigator.pop(context, 'unread'),
             ),
             ListTile(
-              leading: const Icon(Icons.star_outline_rounded),
+              leading: lead(const Icon(Icons.star_outline_rounded)),
               title: Text(topic.canSendUnpaidMessages ? 'Charge Stars again' : 'Let them message for free'),
               onTap: () => Navigator.pop(context, 'paid'),
             ),
             ListTile(
-              leading: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+              leading: lead(Icon(Icons.delete_outline_rounded, color: AppColors.danger)),
               title: Text('Delete conversation', style: TextStyle(color: AppColors.danger)),
               onTap: () => Navigator.pop(context, 'delete'),
             ),

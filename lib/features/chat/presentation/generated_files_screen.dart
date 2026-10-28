@@ -195,21 +195,21 @@ class _GeneratedFilesScreenState extends ConsumerState<GeneratedFilesScreen>
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.open_in_new_rounded),
+              leading: lead(const Icon(Icons.open_in_new_rounded)),
               title: const Text('Open'),
               onTap: () => Navigator.pop(c, 'open'),
             ),
             ListTile(
-              leading: const Icon(Icons.copy_rounded),
+              leading: lead(const Icon(Icons.copy_rounded)),
               title: const Text('Copy path'),
               onTap: () => Navigator.pop(c, 'copy'),
             ),
             if (e.source.deletable)
               ListTile(
-                leading: Icon(
+                leading: lead(Icon(
                   Icons.delete_outline_rounded,
                   color: AppColors.danger,
-                ),
+                )),
                 title: Text(
                   'Delete',
                   style: TextStyle(color: AppColors.danger),

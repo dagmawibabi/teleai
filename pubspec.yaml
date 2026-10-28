@@ -72,14 +72,8 @@ dependencies:
   # Every AI call (the chat agent and its tools, images, voices,
   # dictation, model lists) and the Composio, E2B, Cloudflare, Exa,
   # sandbox and browser clients.
-  omni_ai: ^0.4.1
+  omni_ai: ^0.5.0
   markdown: ^7.3.1
-
-# omni_ai is developed alongside the app: fixes found here land in the
-# local checkout first, before they are published.
-dependency_overrides:
-  omni_ai:
-    path: ../../../FlutterAISDK
 
 dev_dependencies:
   flutter_test:

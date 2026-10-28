@@ -987,7 +987,7 @@ Future<void> showMessageActions(
   if (!context.mounted) return;
   Widget action(BuildContext ctx, IconData icon, String label, VoidCallback onTap, {bool danger = false}) => ListTile(
     dense: true,
-    leading: Icon(icon, color: danger ? AppColors.danger : null),
+    leading: lead(Icon(icon, color: danger ? AppColors.danger : null)),
     title: Text(label, style: TextStyle(fontSize: 15, color: danger ? AppColors.danger : null)),
     onTap: () {
       Navigator.pop(ctx);
@@ -1063,7 +1063,7 @@ Future<void> showMessageActions(
             const SizedBox(height: Space.m),
             if (onReply != null)
               ListTile(
-                leading: const Icon(Icons.reply_rounded),
+                leading: lead(const Icon(Icons.reply_rounded)),
                 title: const Text('Reply'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1072,7 +1072,7 @@ Future<void> showMessageActions(
               ),
             if (onReply != null && g.text.trim().isNotEmpty)
               ListTile(
-                leading: const Icon(Icons.format_quote_rounded),
+                leading: lead(const Icon(Icons.format_quote_rounded)),
                 title: const Text('Quote & reply'),
                 subtitle: Text('Pick the words to quote', style: ctx.text.bodySmall),
                 onTap: () async {
@@ -1083,7 +1083,7 @@ Future<void> showMessageActions(
               ),
             if (g.text.isNotEmpty)
               ListTile(
-                leading: const Icon(Icons.copy_rounded),
+                leading: lead(const Icon(Icons.copy_rounded)),
                 title: const Text('Copy text'),
                 onTap: () {
                   Navigator.pop(ctx);

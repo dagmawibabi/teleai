@@ -798,7 +798,7 @@ class _BookSheetState extends ConsumerState<_BookSheet> {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.book_outlined),
+              leading: lead(const Icon(Icons.book_outlined)),
               title: Text('${e['title']}'),
               subtitle: Text(
                 [
@@ -1207,7 +1207,7 @@ class _VideoSheetState extends State<_VideoSheet> {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.bookmark_border_rounded, size: 18),
+              leading: lead(const Icon(Icons.bookmark_border_rounded, size: 18)),
               title: Text(c),
               onTap: () {
                 final t = RegExp(r'^((?:\d+:)?\d{1,2}):(\d{2})').firstMatch(c);
@@ -2138,7 +2138,7 @@ class _AssetRowState extends ConsumerState<_AssetRow> {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.inventory_2_outlined),
+      leading: lead(const Icon(Icons.inventory_2_outlined)),
       title: Text('${a['name']}'),
       subtitle: Text(
         '${a['size_mb']} MB · ${_compact(a['downloads'])} downloads',

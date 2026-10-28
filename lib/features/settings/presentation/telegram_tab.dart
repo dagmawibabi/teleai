@@ -55,7 +55,7 @@ class TelegramTab extends ConsumerWidget {
     );
 
     Widget link(IconData icon, String title, String sub, Widget page) => ListTile(
-      leading: Icon(icon, color: AppColors.text2),
+      leading: lead(Icon(icon, color: AppColors.text2)),
       title: Text(title),
       subtitle: Text(sub, style: context.text.bodySmall),
       trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
@@ -163,38 +163,38 @@ class TelegramTab extends ConsumerWidget {
               ),
             section('How Triangle behaves', [
               SwitchListTile(
-                secondary: Icon(Icons.circle, size: 14, color: AppColors.success),
+                secondary: lead(Icon(Icons.circle, size: 14, color: AppColors.success)),
                 title: const Text('Appear online while using the app'),
                 subtitle: Text('Lets Telegram send typing indicators and live status', style: context.text.bodySmall),
                 value: s.appearOnline,
                 onChanged: ctl.setAppearOnline,
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.done_all_rounded),
+                secondary: lead(const Icon(Icons.done_all_rounded)),
                 title: const Text('Mark chats read when I open them'),
                 value: s.markReadOnOpen,
                 onChanged: ctl.setMarkReadOnOpen,
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.mark_chat_read_outlined),
+                secondary: lead(const Icon(Icons.mark_chat_read_outlined)),
                 title: const Text('Mark read when the assistant reads'),
                 value: s.aiReadOnView,
                 onChanged: ctl.setAiReadOnView,
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.reply_rounded),
+                secondary: lead(const Icon(Icons.reply_rounded)),
                 title: const Text('Mark read when the assistant replies'),
                 value: s.aiReadOnReply,
                 onChanged: ctl.setAiReadOnReply,
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.alternate_email_rounded),
+                secondary: lead(const Icon(Icons.alternate_email_rounded)),
                 title: const Text('Notify me of mentions and replies'),
                 value: s.mentionAlerts,
                 onChanged: ctl.setMentionAlerts,
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.link_rounded),
+                secondary: lead(const Icon(Icons.link_rounded)),
                 title: const Text('Link previews'),
                 value: s.showLinkPreviews,
                 onChanged: ctl.setShowLinkPreviews,
@@ -202,20 +202,20 @@ class TelegramTab extends ConsumerWidget {
             ]),
             section('Downloads', [
               SwitchListTile(
-                secondary: const Icon(Icons.photo_outlined),
+                secondary: lead(const Icon(Icons.photo_outlined)),
                 title: const Text('Photos'),
                 subtitle: Text('Download as soon as they arrive', style: context.text.bodySmall),
                 value: s.autoPhotos,
                 onChanged: (v) => ctl.setAutoDownload(photos: v),
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.mic_none_rounded),
+                secondary: lead(const Icon(Icons.mic_none_rounded)),
                 title: const Text('Voice messages'),
                 value: s.autoVoice,
                 onChanged: (v) => ctl.setAutoDownload(voice: v),
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.music_note_outlined),
+                secondary: lead(const Icon(Icons.music_note_outlined)),
                 title: const Text('Music'),
                 value: s.autoMusic,
                 onChanged: (v) => ctl.setAutoDownload(music: v),
@@ -228,7 +228,7 @@ class TelegramTab extends ConsumerWidget {
                 link(Icons.shield_outlined, 'Privacy & security', 'Check-up, devices, who sees what', const SecurityScreen()),
                 link(Icons.storage_rounded, 'Storage', 'What Telegram keeps on this phone', const StorageScreen()),
                 ListTile(
-                  leading: Icon(Icons.speed_rounded, color: AppColors.text2),
+                  leading: lead(Icon(Icons.speed_rounded, color: AppColors.text2)),
                   title: const Text('Request pacing'),
                   subtitle: Text(
                     'Requests are paced (bursts of ${limiter.capacity}, then about one a second) and stop when Telegram asks to wait.',

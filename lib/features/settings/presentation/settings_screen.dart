@@ -25,6 +25,7 @@ import 'model_picker_screen.dart';
 import 'approvals_screen.dart';
 import 'permissions_screen.dart';
 import 'settings_hub.dart';
+import 'decisions_settings.dart';
 import '../../assistant/memory.dart';
 import '../../assistant/presentation/memory_screen.dart';
 
@@ -32,7 +33,7 @@ import '../../assistant/presentation/memory_screen.dart';
 enum SettingsSection {
   ai(
     'AI & models',
-    'Chat, images and video, voice',
+    'Chat, images and video, voice, decisions',
     Icons.auto_awesome_outlined,
   ),
   assistant(
@@ -129,6 +130,8 @@ class SettingsScreen extends ConsumerWidget {
           appBar: AppBar(
             title: Text(SettingsSection.ai.title),
             bottom: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               tabs: [for (final t in AiTab.values) Tab(text: t.label)],
             ),
           ),
@@ -146,6 +149,7 @@ class SettingsScreen extends ConsumerWidget {
 
   /// One settings page; [tab] picks the part of AI & models shown.
   Widget _page(BuildContext context, WidgetRef ref, SettingsSection section, {AiTab? tab}) {
+    if (tab == AiTab.decisions) return const DecisionsSettingsPage();
     final s = ref.watch(settingsProvider);
     final ctl = ref.read(settingsProvider.notifier);
     final cat = ref.watch(modelCatalogProvider);
@@ -290,11 +294,20 @@ class SettingsScreen extends ConsumerWidget {
               if (tab == AiTab.media) ...[
                 _FeatureSwitch(
                   icon: Icons.brush_outlined,
-                  title: 'Images & video',
+                  title: 'Images',
                   on: 'The assistant can make pictures and look at them.',
                   off: 'Off: no picture is made or looked at.',
                   value: s.mediaEnabled,
                   onChanged: ctl.setMediaEnabled,
+                ),
+                const SizedBox(height: Space.s),
+                _FeatureSwitch(
+                  icon: Icons.movie_creation_outlined,
+                  title: 'Video',
+                  on: 'The assistant can make short videos when you ask for one.',
+                  off: 'Off: no video is made. Videos cost far more than pictures.',
+                  value: s.videoEnabled,
+                  onChanged: ctl.setVideoEnabled,
                 ),
                 const _Header('Image model'),
                 _Card(
@@ -321,13 +334,38 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                const _Header('Video model'),
+                _Card(
+                  children: [
+                    _ModelTile(
+                      icon: Icons.movie_creation_outlined,
+                      title: 'Video',
+                      model: s.videoModel.isEmpty ? null : cat.byId(s.videoModel),
+                      id: s.videoModel.isEmpty ? 'Not chosen' : s.videoModel,
+                      onTap: () => _pick(
+                        context,
+                        ref,
+                        ModelType.video,
+                        s.videoModel,
+                        ctl.setVideoModel,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.l),
+                      child: Text(
+                        'Used by generate_video, which can also start from a picture in the chat. Priced per second by the provider; a clip takes from seconds to minutes.',
+                        style: context.text.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
               ],
               if (section == SettingsSection.assistant) ...[
                 const _Header('Assistant'),
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.bookmarks_outlined),
+                      leading: lead(const Icon(Icons.bookmarks_outlined)),
                       title: const Text('Memory'),
                       subtitle: Text(
                         '${ref.watch(memoryProvider).length} things remembered',
@@ -351,7 +389,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(Icons.lock_outline_rounded),
+                      secondary: lead(const Icon(Icons.lock_outline_rounded)),
                       title: const Text('Read-only mode'),
                       subtitle: Text(
                         'Only tools that read: nothing is sent, changed or deleted',
@@ -362,7 +400,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.front_hand_outlined),
+                      leading: lead(const Icon(Icons.front_hand_outlined)),
                       title: const Text('Approvals'),
                       subtitle: Text(
                         s.approvalMode.explanation,
@@ -380,7 +418,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.mark_chat_read_outlined),
+                      secondary: lead(const Icon(Icons.mark_chat_read_outlined)),
                       title: const Text('Mark chats read when it reads them'),
                       subtitle: Text(
                         'Off: the assistant reads without touching your unread counts',
@@ -391,7 +429,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.reply_rounded),
+                      secondary: lead(const Icon(Icons.reply_rounded)),
                       title: const Text('Mark chats read when it replies'),
                       subtitle: Text(
                         'Like Telegram does when you answer',
@@ -453,7 +491,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.short_text_rounded),
+                      leading: lead(const Icon(Icons.short_text_rounded)),
                       title: const Text('Answer length'),
                       subtitle: Text(
                         s.answerStyle.explanation,
@@ -473,7 +511,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.language_rounded),
+                      leading: lead(const Icon(Icons.language_rounded)),
                       title: const Text('Answer language'),
                       subtitle: Text(
                         'The language the assistant writes in',
@@ -497,7 +535,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.repeat_rounded),
+                      leading: lead(const Icon(Icons.repeat_rounded)),
                       title: const Text('Steps per answer'),
                       subtitle: Text(
                         'Up to ${s.maxSteps} rounds of tool calls. More digs deeper but costs more.',
@@ -520,7 +558,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(Icons.bolt_rounded),
+                      secondary: lead(const Icon(Icons.bolt_rounded)),
                       title: const Text('Proactive assistant'),
                       subtitle: Text(
                         s.proactive
@@ -532,7 +570,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: ctl.setProactive,
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.notifications_none_rounded),
+                      secondary: lead(const Icon(Icons.notifications_none_rounded)),
                       title: const Text('Notifications'),
                       subtitle: Text(
                         'What watches and routines find, reminders, briefs, and approvals they wait for',
@@ -543,7 +581,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     if (s.notifications) ...[
                       SwitchListTile(
-                        secondary: const Icon(Icons.bedtime_outlined),
+                        secondary: lead(const Icon(Icons.bedtime_outlined)),
                         title: const Text('Quiet hours'),
                         subtitle: Text(
                           s.quietHours
@@ -597,7 +635,7 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                     if (ref.watch(telegramConnectedProvider))
                     SwitchListTile(
-                      secondary: const Icon(Icons.alternate_email_rounded),
+                      secondary: lead(const Icon(Icons.alternate_email_rounded)),
                       title: const Text('When I\'m mentioned'),
                       subtitle: Text(
                         'A notification when someone @mentions you or replies to you in a group; tap to open the chat',
@@ -607,7 +645,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: ctl.setMentionAlerts,
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.nightlight_outlined),
+                      secondary: lead(const Icon(Icons.nightlight_outlined)),
                       title: const Text('Keep running in the background'),
                       subtitle: Text(
                         'A quiet ongoing notification keeps watches, app watches and routines running after you leave the app',
@@ -617,7 +655,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: ctl.setKeepAlive,
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.all_inclusive_rounded),
+                      secondary: lead(const Icon(Icons.all_inclusive_rounded)),
                       title: const Text('Always run in the background'),
                       subtitle: Text(
                         'Once opened, Triangle stays ready in the background even with no watches on',
@@ -627,7 +665,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: ctl.setBackgroundAlways,
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.restart_alt_rounded),
+                      secondary: lead(const Icon(Icons.restart_alt_rounded)),
                       title: const Text('Start when the phone restarts'),
                       subtitle: Text(
                         'Starts in the background after a reboot, so watches and reminders carry on without opening the app',
@@ -642,7 +680,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.front_hand_outlined),
+                      leading: lead(const Icon(Icons.front_hand_outlined)),
                       title: const Text('Approvals'),
                       subtitle: Text(
                         s.approvalMode.label,
@@ -656,7 +694,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     ListTile(
-                      leading: const Icon(Icons.verified_user_outlined),
+                      leading: lead(const Icon(Icons.verified_user_outlined)),
                       title: const Text('Permissions'),
                       subtitle: Text(
                         'Battery, notifications, alarms, microphone, location, texts, calls, contacts',
@@ -766,7 +804,7 @@ class SettingsScreen extends ConsumerWidget {
                     ...switch (s.voiceEngine) {
                       VoiceEngine.device => [
                         ListTile(
-                          leading: const Icon(Icons.record_voice_over_outlined),
+                          leading: lead(const Icon(Icons.record_voice_over_outlined)),
                           title: const Text('Device voice'),
                           subtitle: Text(
                             s.deviceVoice.isEmpty
@@ -809,7 +847,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                         const Divider(indent: 56),
                         ListTile(
-                          leading: const Icon(Icons.record_voice_over_outlined),
+                          leading: lead(const Icon(Icons.record_voice_over_outlined)),
                           title: const Text('Voice'),
                           subtitle: Text(
                             s.aiVoice.isEmpty ? 'Model default' : s.aiVoice,
@@ -843,7 +881,7 @@ class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ListTile(
-                          leading: const Icon(Icons.record_voice_over_outlined),
+                          leading: lead(const Icon(Icons.record_voice_over_outlined)),
                           title: const Text('Addis AI voice'),
                           subtitle: Text(
                             s.aiVoice.isEmpty
@@ -879,7 +917,7 @@ class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ListTile(
-                          leading: const Icon(Icons.record_voice_over_outlined),
+                          leading: lead(const Icon(Icons.record_voice_over_outlined)),
                           title: const Text('ElevenLabs voice'),
                           subtitle: Text(
                             s.elevenVoiceName.isEmpty
@@ -904,7 +942,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                         const Divider(indent: 56),
                         ListTile(
-                          leading: const Icon(Icons.tune_rounded),
+                          leading: lead(const Icon(Icons.tune_rounded)),
                           title: const Text('ElevenLabs model'),
                           subtitle: Text(
                             ElevenLabsProvider.speechModels
@@ -995,7 +1033,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(Icons.photo_outlined),
+                      secondary: lead(const Icon(Icons.photo_outlined)),
                       title: const Text('Download photos automatically'),
                       subtitle: Text(
                         'Otherwise photos show blurred until you tap them',
@@ -1005,7 +1043,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: (v) => ctl.setAutoDownload(photos: v),
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.mic_none_rounded),
+                      secondary: lead(const Icon(Icons.mic_none_rounded)),
                       title: const Text(
                         'Download voice messages automatically',
                       ),
@@ -1017,7 +1055,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: (v) => ctl.setAutoDownload(voice: v),
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.music_note_outlined),
+                      secondary: lead(const Icon(Icons.music_note_outlined)),
                       title: const Text('Download music automatically'),
                       subtitle: Text(
                         'Songs can be large; off downloads when you press play',
@@ -1046,7 +1084,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(Icons.forum_outlined),
+                      secondary: lead(const Icon(Icons.forum_outlined)),
                       title: const Text('Chats'),
                       subtitle: Text(
                         'DMs, groups, channels, bots, contacts and calls',
@@ -1056,7 +1094,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: ctl.setDrawerChats,
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.folder_outlined),
+                      secondary: lead(const Icon(Icons.folder_outlined)),
                       title: const Text('Folders'),
                       subtitle: Text(
                         'Your Telegram chat folders',
@@ -1066,7 +1104,7 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: ctl.setDrawerFolders,
                     ),
                     SwitchListTile(
-                      secondary: const Icon(Icons.widgets_outlined),
+                      secondary: lead(const Icon(Icons.widgets_outlined)),
                       title: const Text('Tools'),
                       subtitle: Text(
                         'Files, Brief, Content Canvas, Search all chats and Browser',
@@ -1183,6 +1221,47 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                const _Header('Opening the app'),
+                _Card(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(Space.l),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SegmentedButton<bool>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment(value: false, icon: Icon(Icons.add_comment_outlined), label: Text('New chat')),
+                              ButtonSegment(value: true, icon: Icon(Icons.history_rounded), label: Text('Last chat')),
+                            ],
+                            selected: {s.openLastChat},
+                            onSelectionChanged: (v) => ctl.setOpenLastChat(v.first),
+                          ),
+                          const SizedBox(height: Space.s),
+                          Text(
+                            s.openLastChat
+                                ? 'Opening Triangle shows the chat you last had open. Switching back from another app always keeps where you were.'
+                                : 'Opening Triangle starts a new chat. Switching back from another app always keeps where you were.',
+                            style: context.text.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const _Header('Lists'),
+                _Card(
+                  children: [
+                    SwitchListTile(
+                      secondary: lead(const Icon(Icons.format_list_bulleted_rounded)),
+                      title: const Text('Leading icons'),
+                      subtitle: Text('Icons at the start of rows in settings, menus and lists', style: context.text.bodySmall),
+                      value: s.leadingIcons,
+                      onChanged: ctl.setLeadingIcons,
+                    ),
+                  ],
+                ),
                 const _Header('Code'),
                 _Card(
                   children: [
@@ -1245,7 +1324,7 @@ class SettingsScreen extends ConsumerWidget {
                     ]),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     SwitchListTile(
-                      secondary: const Icon(Icons.toll_outlined),
+                      secondary: lead(const Icon(Icons.toll_outlined)),
                       title: const Text('Tokens and cost under answers'),
                       subtitle: Text(
                         'A small line under each reply: tokens in and out, cached and reasoning tokens, and what it cost.',
@@ -1256,7 +1335,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     SwitchListTile(
-                      secondary: const Icon(Icons.web_asset_outlined),
+                      secondary: lead(const Icon(Icons.web_asset_outlined)),
                       title: const Text('Link previews'),
                       subtitle: Text(
                         'The site card under messages with links',
@@ -1267,7 +1346,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     ListTile(
-                      leading: const Icon(Icons.translate_rounded),
+                      leading: lead(const Icon(Icons.translate_rounded)),
                       title: const Text('Translate into'),
                       subtitle: Text(
                         'For the Translate button on messages',
@@ -1298,7 +1377,7 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: const Icon(Icons.schedule_rounded),
+                      secondary: lead(const Icon(Icons.schedule_rounded)),
                       title: const Text('24-hour clock'),
                       subtitle: Text(
                         s.use24h ? '14:05' : '2:05 PM',
@@ -1309,7 +1388,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.account_circle_outlined),
+                      secondary: lead(const Icon(Icons.account_circle_outlined)),
                       title: const Text('Avatars in groups'),
                       subtitle: Text(
                         'Who wrote each message, at a glance',
@@ -1320,7 +1399,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.view_headline_rounded),
+                      secondary: lead(const Icon(Icons.view_headline_rounded)),
                       title: const Text('Compact chat lists'),
                       subtitle: Text(
                         'Smaller rows, more chats on screen',
@@ -1392,11 +1471,11 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     SwitchListTile(
-                      secondary: Icon(
+                      secondary: lead(Icon(
                         Icons.circle,
                         size: 14,
                         color: AppColors.success,
-                      ),
+                      )),
                       title: const Text('Appear online while using the app'),
                       subtitle: Text(
                         'Needed to see who is typing and live online status. You go offline as soon as you leave the app.',
@@ -1407,7 +1486,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.done_all_rounded),
+                      secondary: lead(const Icon(Icons.done_all_rounded)),
                       title: const Text('Mark chats read when I open them'),
                       subtitle: Text(
                         'Off: reading here stays invisible, and chats stay unread in Telegram.',
@@ -1418,7 +1497,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.mark_chat_read_outlined),
+                      secondary: lead(const Icon(Icons.mark_chat_read_outlined)),
                       title: const Text('Mark read when the assistant replies'),
                       subtitle: Text(
                         'When it sends or answers in a DM, group or channel, the messages there show as seen.',
@@ -1429,7 +1508,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     SwitchListTile(
-                      secondary: const Icon(Icons.visibility_outlined),
+                      secondary: lead(const Icon(Icons.visibility_outlined)),
                       title: const Text(
                         'Mark read when the assistant opens a chat',
                       ),
@@ -1447,10 +1526,10 @@ class SettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: Icon(
+                      leading: lead(Icon(
                         Icons.delete_sweep_outlined,
                         color: AppColors.danger,
-                      ),
+                      )),
                       title: const Text('Delete all AI conversations'),
                       subtitle: Text(
                         'Your Telegram is not touched',
@@ -1474,10 +1553,10 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: Icon(
+                      leading: lead(Icon(
                         Icons.wb_twilight_rounded,
                         color: AppColors.danger,
-                      ),
+                      )),
                       title: const Text('Delete all briefs'),
                       onTap: () async {
                         if (!await confirmAction(
@@ -1495,10 +1574,10 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: Icon(
+                      leading: lead(Icon(
                         Icons.dashboard_customize_outlined,
                         color: AppColors.danger,
-                      ),
+                      )),
                       title: const Text('Empty the Content Canvas'),
                       onTap: () async {
                         if (!await confirmAction(
@@ -1516,7 +1595,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.restart_alt_rounded),
+                      leading: lead(const Icon(Icons.restart_alt_rounded)),
                       title: const Text('Reset preferences'),
                       subtitle: Text(
                         'Every setting back to its default. Keys, models and instructions stay.',
@@ -1586,10 +1665,10 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
                     ListTile(
-                      leading: Icon(
+                      leading: lead(Icon(
                         Icons.logout_rounded,
                         color: AppColors.danger,
-                      ),
+                      )),
                       title: Text(
                         'Sign out',
                         style: TextStyle(color: AppColors.danger),
@@ -1738,7 +1817,7 @@ class _ModelTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = model;
     return ListTile(
-      leading: Icon(icon),
+      leading: lead(Icon(icon)),
       title: Text(title),
       subtitle: Text(
         [
@@ -1898,7 +1977,7 @@ List<Widget> _dividedSwitches(
   for (final (i, (icon, title, subtitle, value, onChanged)) in rows.indexed) ...[
     if (i > 0) const Divider(indent: 56),
     SwitchListTile(
-      secondary: Icon(icon),
+      secondary: lead(Icon(icon)),
       title: Text(title),
       subtitle: Text(subtitle, style: context.text.bodySmall),
       value: value,
@@ -1911,7 +1990,8 @@ List<Widget> _dividedSwitches(
 enum AiTab {
   chat('Chat'),
   media('Images & video'),
-  voice('Voice');
+  voice('Voice'),
+  decisions('Decisions');
 
   const AiTab(this.label);
   final String label;
@@ -1942,7 +2022,7 @@ class _FeatureSwitch extends StatelessWidget {
     child: _Card(
       children: [
         SwitchListTile(
-          secondary: Icon(icon, color: value ? AppColors.text : AppColors.text3),
+          secondary: lead(Icon(icon, color: value ? AppColors.text : AppColors.text3)),
           title: Text(title),
           subtitle: Text(value ? on : off, style: context.text.bodySmall),
           value: value,
@@ -2244,3 +2324,10 @@ class _InstructionsFieldState extends ConsumerState<_InstructionsField> {
     );
   }
 }
+
+// The settings pages' own building blocks, for pages kept in other files
+// (Decisions, MCP & Skills) so they look the same.
+typedef SettingsCard = _Card;
+typedef SettingsHeader = _Header;
+typedef SettingsKeyTile = _KeyTile;
+typedef SettingsFeatureSwitch = _FeatureSwitch;

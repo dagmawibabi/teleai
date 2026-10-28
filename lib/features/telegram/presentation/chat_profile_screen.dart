@@ -1096,7 +1096,7 @@ class _SharedRow extends ConsumerWidget {
       final url = _firstUrl(g.formatted);
       return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-        leading: Container(
+        leading: lead(Container(
           width: 44,
           height: 44,
           decoration: BoxDecoration(
@@ -1104,7 +1104,7 @@ class _SharedRow extends ConsumerWidget {
             borderRadius: BorderRadius.circular(Radii.m),
           ),
           child: Icon(Icons.link_rounded, color: AppColors.accent),
-        ),
+        )),
         title: Text(
           url ?? g.text,
           maxLines: 1,
@@ -1131,7 +1131,7 @@ class _SharedRow extends ConsumerWidget {
         : 0;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Container(
+      leading: lead(Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
@@ -1139,7 +1139,7 @@ class _SharedRow extends ConsumerWidget {
           borderRadius: BorderRadius.circular(Radii.m),
         ),
         child: Icon(kindIcon(g.kind), color: AppColors.accent),
-      ),
+      )),
       title: Text(
         g.detail ?? g.text,
         maxLines: 1,

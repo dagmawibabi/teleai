@@ -114,7 +114,7 @@ class BriefSettingsScreen extends ConsumerWidget {
                 _Card(
                   children: [
                     ListTile(
-                      leading: Icon(Icons.send_rounded, color: AppColors.text2),
+                      leading: lead(Icon(Icons.send_rounded, color: AppColors.text2)),
                       title: const Text('Telegram isn\'t connected'),
                       subtitle: Text(
                         'Briefs cover your connected apps for now. Connect Telegram under Settings → Apps & web to choose chats.',
@@ -246,7 +246,7 @@ class BriefSettingsScreen extends ConsumerWidget {
               _Card(
                 children: [
                   ListTile(
-                    leading: Icon(Icons.widgets_outlined, color: AppColors.text2),
+                    leading: lead(Icon(Icons.widgets_outlined, color: AppColors.text2)),
                     title: const Text('Brief widget'),
                     subtitle: Text(
                       'Long-press your home screen → Widgets → Triangle → Brief. It shows the latest brief and opens it when tapped.',
@@ -254,7 +254,7 @@ class BriefSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   ListTile(
-                    leading: Icon(Icons.tune_rounded, color: AppColors.text2),
+                    leading: lead(Icon(Icons.tune_rounded, color: AppColors.text2)),
                     title: const Text('Customize the widget'),
                     subtitle: Text('Text size, colours, opacity, what it shows', style: context.text.bodySmall),
                     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.text3),
