@@ -1,0 +1,18 @@
+name: triangle_companion_omni_test
+description: "Tests the companion against omni_ai's MCP client, the one Triangle uses."
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  omni_ai: 0.5.0
+  path: ^1.9.1
+  triangle_companion:
+    path: ..
