@@ -18,7 +18,7 @@ The page has one job: make those connections tangible and invite an Android down
                  / phone / PHONE / phone /
                     favorite app connections
 
-  What becomes possible       [ask / create / watch / code]
+  What becomes possible       [ask / create / watch / PC / code]
   Context and explanation     [interactive conversation example]
 
   Your connected world        [apps converge around Triangle]

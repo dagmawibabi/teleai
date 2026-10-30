@@ -2830,6 +2830,9 @@ footer {
 		justify-content: center;
 		padding: 11px 8px;
 	}
+	.workspace-tabs button:last-child:nth-child(odd) {
+		grid-column: 1 / -1;
+	}
 	.workspace-panel {
 		grid-template-columns: 1fr;
 		gap: 27px;

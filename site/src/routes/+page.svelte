@@ -78,6 +78,22 @@
 			tags: ['Background watches', 'Notifications', 'Your schedule']
 		},
 		{
+			name: 'Reach your PC',
+			icon: 'monitor',
+			label: 'YOUR COMPUTER, FROM THE COUCH',
+			title: 'Your PC, from your phone.',
+			text: 'Run Triangle Companion on Windows and ask for what you need: find a file, open an app, click through a window, run a command. Watch the screen live and take over by touch whenever you like. You choose what it can do, and it can ask on the PC first.',
+			prompt: 'Find last month’s invoice on my PC and send it to me.',
+			tools: ['Searching your shared folders', 'Copying the file to your phone'],
+			answer: 'Found it, and it’s on your phone.',
+			details: [
+				'It was in Documents, under Invoices.',
+				'The PDF is saved in Files, ready to open or share.',
+				'Only the folders you shared were searched.'
+			],
+			tags: ['Triangle Companion', 'Shared folders', 'Live screen']
+		},
+		{
 			name: 'Go a little further',
 			icon: 'code',
 			label: 'SURPRISINGLY HANDY. SERIOUSLY CAPABLE.',
@@ -107,8 +123,8 @@
 			icon: 'mic',
 			class: 'voice-card',
 			label: 'SAY IT YOUR WAY',
-			title: 'More than words on a screen.',
-			text: 'Dictate a thought, record a voice note, or listen to a reply. Sometimes talking is just easier.'
+			title: 'Just talk it through.',
+			text: 'Open voice mode and have a real conversation, hands-free. It answers out loud as it writes, and you can see the words anytime. Or dictate a thought and listen to a reply.'
 		},
 		{
 			icon: 'folder',
@@ -181,6 +197,11 @@
 			question: 'What happens to my data?',
 			answer:
 				'Your API keys are stored locally on your device. When you use an AI model or a connected service, the information needed for that request is processed by that provider. You choose the tools the assistant can use, and sending or changing things is presented for approval by default.'
+		},
+		{
+			question: 'Can Triangle use my computer?',
+			answer:
+				'Yes, on Windows, with the Triangle Companion app running on your PC and your phone connected over Tailscale or home Wi-Fi. Each ability has its own switch on the PC: shared folders, seeing the screen, mouse and keyboard, the clipboard, commands, and apps and system. Changes can be set to ask for your OK on the PC first.'
 		},
 		{
 			question: 'How do I install it?',
@@ -561,7 +582,7 @@
 									></span>{/each}
 							</div>
 							<span class="waveform-caption"
-								><Icon name="mic" size={12} /> A thought, out loud.</span
+								><Icon name="mic" size={12} /> Listening…</span
 							>
 						{:else if index === 2}<div class="canvas-stack">
 								<div>
