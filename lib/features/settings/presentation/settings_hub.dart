@@ -151,7 +151,7 @@ class SettingsHub extends ConsumerWidget {
                               ? const RainbowBrandMark(size: 26)
                               : const BrandMark(size: 26),
                           title: const Text('Rainbow logo'),
-                          subtitle: Text('The mark slowly cycles through colours', style: context.text.bodySmall),
+                          subtitle: Text('The mark and voice mode cycle through colours', style: context.text.bodySmall),
                           value: sheetRef.watch(settingsProvider).rainbowLogo,
                           onChanged: sheetRef.read(settingsProvider.notifier).setRainbowLogo,
                         ),

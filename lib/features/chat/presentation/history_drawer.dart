@@ -22,6 +22,7 @@ import '../../brief/brief_store.dart';
 import '../../canvas/canvas_store.dart';
 import '../../telegram/presentation/content_canvas_screen.dart';
 import '../../web/browser_screen.dart';
+import '../../pc/pc_screen.dart';
 import '../../auth/data/auth_controller.dart';
 import '../../search/everywhere_search_screen.dart';
 import '../../settings/presentation/tools_screen.dart' show AppsWebScreen;
@@ -270,6 +271,15 @@ class _HistoryDrawerState extends ConsumerState<HistoryDrawer> {
                           onTap: () {
                             Navigator.pop(context);
                             BrowserScreen.open(context);
+                          },
+                        ),
+                        _DrawerActionTile(
+                          icon: Icons.desktop_windows_outlined,
+                          title: 'PC screen',
+                          subtitle: 'See and use your PC live, through Triangle Companion',
+                          onTap: () {
+                            Navigator.pop(context);
+                            PcScreen.open(context);
                           },
                         ),
                       ],

@@ -527,9 +527,12 @@ extension _WebTools on TelegramToolRunner {
     final file = await _web.download(url, name: args['name'] as String?);
     final size = await file.length();
     final name = file.path.split(RegExp(r'[\\/]')).last;
+    final head = await file.openRead(0, 32).expand((b) => b).toList();
     return ToolOutput({
       'created': true,
       'file_path': file.path,
+      // Shows the picture on the tool card and in its details.
+      if (WebFetcher.isPicture(head)) 'image_path': file.path,
       'name': name,
       'size_kb': (size / 1024).ceil(),
       'note':

@@ -41,6 +41,13 @@ class Speaker extends ChangeNotifier {
   List<Map<String, String>> deviceVoices = const [];
 
   int _gen = 0;
+
+  /// Voice mode: more parts may still come, so the player waits for them.
+  bool _live = false;
+  Completer<void>? _more;
+
+  /// Voice mode is waiting for the next sentence of the answer.
+  bool get waitingForMore => _live && index >= parts.length;
   Completer<void>? _resume;
   Completer<void>? _done;
 
@@ -140,8 +147,54 @@ class Speaker extends ChangeNotifier {
     unawaited(_run(++_gen));
   }
 
+  /// Starts reading parts as they arrive, for voice mode: the first sentence
+  /// of a reply is heard while the rest is still being written.
+  Future<void> beginLive({String title = 'Voice'}) async {
+    await stop();
+    parts = const [];
+    index = 0;
+    this.title = title;
+    sourceId = null;
+    speaking = true;
+    paused = false;
+    lastError = null;
+    _audio.clear();
+    _live = true;
+    notifyListeners();
+    unawaited(_run(++_gen));
+  }
+
+  /// Adds a part to the live reading.
+  void addLive(String part) {
+    if (!_live || part.trim().isEmpty) return;
+    parts = [...parts, part];
+    // Fetched early, so a cloud voice doesn't leave a gap between sentences.
+    final i = parts.length - 1;
+    if (_settings.voiceEngine != VoiceEngine.device && i <= index + 1) {
+      unawaited(_fetch(i).then((_) {}, onError: (_) {}));
+    }
+    _wakeLive();
+    notifyListeners();
+  }
+
+  /// No more parts are coming; the reading ends after the last one.
+  void endLive() {
+    _live = false;
+    _wakeLive();
+  }
+
+  void _wakeLive() {
+    final more = _more;
+    _more = null;
+    if (more != null && !more.isCompleted) more.complete();
+  }
+
   Future<void> _run(int gen) async {
-    while (gen == _gen && index < parts.length) {
+    while (gen == _gen && (index < parts.length || _live)) {
+      if (index >= parts.length) {
+        await (_more ??= Completer<void>()).future;
+        continue;
+      }
       final i = index;
       await _waitIfPaused(gen);
       if (gen != _gen) return;
@@ -340,6 +393,8 @@ class Speaker extends ChangeNotifier {
 
   Future<void> stop() async {
     _gen++;
+    _live = false;
+    _wakeLive();
     speaking = false;
     paused = false;
     loading = false;

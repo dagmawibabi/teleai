@@ -26,6 +26,7 @@ object MainEngine {
         DeviceChannel.attach(context, engine)
         ShareChannel.attach(context, engine)
         AppOpenChannel.attach(engine)
+        VoiceLevelChannel.attach(engine)
         engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         cache.put(ENGINE_ID, engine)
         return engine

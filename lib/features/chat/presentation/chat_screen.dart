@@ -19,6 +19,7 @@ import '../data/chat_controller.dart';
 import '../domain/chat_models.dart';
 import '../../voice/dictation.dart';
 import '../../voice/player_sheet.dart';
+import '../../voice/voice_mode_screen.dart';
 import '../../voice/voice_note_recorder.dart';
 import '../../media/audio_player_ui.dart';
 import '../../../app/app.dart' show appRouteObserver;
@@ -938,6 +939,21 @@ class _ComposerState extends ConsumerState<_Composer> {
                       ),
                     ),
                     const SizedBox(width: Space.xs),
+                    if (!canSend && !listening && !dictation.transcribing && ref.watch(settingsProvider.select((s) => s.voiceEnabled))) ...[
+                      _RoundButton(
+                        icon: Icons.graphic_eq_rounded,
+                        tooltip: 'Talk to Triangle',
+                        quiet: true,
+                        onTap: () {
+                          if (ref.read(settingsProvider).hasAnyKey) {
+                            VoiceModeScreen.open(context);
+                          } else {
+                            showSnack(context, 'Add an AI provider API key first.');
+                          }
+                        },
+                      ),
+                      const SizedBox(width: Space.xs),
+                    ],
                     if (!widget.busy && (!canSend || listening) && ref.watch(settingsProvider.select((s) => s.voiceEnabled)))
                       _MicButton(
                         listening: listening,

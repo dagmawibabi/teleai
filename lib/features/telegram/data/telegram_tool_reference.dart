@@ -671,6 +671,7 @@ const toolReferences = <String, ToolReference>{
   'download_file': ToolReference([
     'created',
     'file_path',
+    'image_path',
     'name',
     'size_kb',
     'note',

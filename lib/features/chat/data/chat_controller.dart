@@ -135,6 +135,16 @@ class ChatController extends Notifier<ChatState> {
 
   bool _onScreen(Conversation c) => identical(state.conversation, c);
 
+  /// The conversation being talked in, in voice mode: its answers are
+  /// written to be heard.
+  String? voiceConversationId;
+
+  static const _voiceGuidance =
+      'The user is talking to you out loud in voice mode, and your answer is read aloud as it is written. '
+      'Talk the way people talk: short, natural sentences, a sentence or two unless they ask for more. '
+      'No markdown, lists, tables, code, links or emoji. Say numbers and dates as they are spoken. '
+      'Before a tool that takes a while, say in a few words what you are doing.';
+
   void _touch(Conversation c) {
     if (ref.mounted && (_onScreen(c) || _observed.contains(c.id)))
       state = state.copyWith();
@@ -841,7 +851,7 @@ class ChatController extends Notifier<ChatState> {
     final agent = ai.agent(
       name: 'triangle',
       instructions:
-          '${_systemPrompt(watch: watch)}\n${await ai.memory.prompt() ?? ''}\n'
+          '${_systemPrompt(watch: watch)}\n${c.id == voiceConversationId ? '$_voiceGuidance\n' : ''}${await ai.memory.prompt() ?? ''}\n'
           '${await _capabilityGuidance(offered)}',
       model: model,
       // Every tool, omni_ai's included, is the app's: switches, approval

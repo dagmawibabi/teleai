@@ -1145,6 +1145,32 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     const Divider(indent: Space.l, endIndent: Space.l),
+                    Padding(
+                      padding: const EdgeInsets.all(Space.l),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Voice mode shape', style: context.text.titleSmall),
+                          const SizedBox(height: Space.m),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<OrbShape>(
+                              showSelectedIcon: false,
+                              segments: [
+                                for (final (o, icon) in const [
+                                  (OrbShape.triangle, Icons.change_history_rounded),
+                                  (OrbShape.sphere, Icons.circle_outlined),
+                                ])
+                                  ButtonSegment(value: o, icon: Icon(icon, size: 18), label: Text(o.label)),
+                              ],
+                              selected: {s.orbShape},
+                              onSelectionChanged: (v) => ctl.setOrbShape(v.first),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(indent: Space.l, endIndent: Space.l),
                     _AppearancePreview(
                       accent: AppColors.activeAccent,
                       fontSize: s.chatFontSize,

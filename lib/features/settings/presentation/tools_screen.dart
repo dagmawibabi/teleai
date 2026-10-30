@@ -141,15 +141,15 @@ class AppsWebScreen extends ConsumerWidget {
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(text: ready ? 'Telegram ✓' : 'Telegram'),
               Tab(text: s.hasComposioKey ? 'Composio · $connected' : 'Composio'),
               Tab(text: s.hasExaKey ? 'Exa ✓' : 'Exa'),
               Tab(text: s.hasCloudflare ? 'Cloudflare ✓' : 'Cloudflare'),
               Tab(text: s.hasE2bKey ? 'E2B ✓' : 'E2B'),
+              Tab(text: ready ? 'Telegram ✓' : 'Telegram'),
             ],
           ),
         ),
-        body: const TabBarView(children: [TelegramTab(), AppsTab(), ExaTab(), CloudflareTab(), E2bTab()]),
+        body: const TabBarView(children: [AppsTab(), ExaTab(), CloudflareTab(), E2bTab(), TelegramTab()]),
       ),
     );
   }

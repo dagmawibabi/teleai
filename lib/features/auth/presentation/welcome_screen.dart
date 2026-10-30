@@ -100,6 +100,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     ),
     const _Page(
+      title: 'Your PC, from your phone.',
+      body: 'Run Triangle Companion on Windows and the assistant can see your screen, move the mouse, type, open apps and find your files. '
+          'You can watch and take over live too. You choose what it may do on the PC, and can have it ask there first.',
+      art: _PcControl(),
+    ),
+    const _Page(
       title: 'Find what interests you.',
       body: 'Search YouTube, catch up on X, explore public GitHub projects, and discover books with covers, details and legal free copies.',
       art: _FeatureGrid(
@@ -365,6 +371,182 @@ class _Glyph extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A PC screen with the pointer gliding across it to a button and clicking.
+class _PcControl extends StatefulWidget {
+  const _PcControl();
+
+  @override
+  State<_PcControl> createState() => _PcControlState();
+}
+
+class _PcControlState extends State<_PcControl>
+    with SingleTickerProviderStateMixin {
+  late final _motion = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _motion
+        ..stop()
+        ..value = 0.7;
+    } else if (!_motion.isAnimating) {
+      _motion.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 264,
+          height: 164,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              borderRadius: BorderRadius.circular(Radii.m),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(Radii.m),
+              child: AnimatedBuilder(
+                animation: _motion,
+                builder: (_, _) => CustomPaint(
+                  painter: _PcControlPainter(
+                    _motion.value,
+                    line: AppColors.surface3,
+                    ink: AppColors.text,
+                    accent: AppColors.accent,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Container(
+          width: 36,
+          height: 14,
+          color: AppColors.surface3,
+        ),
+        Container(
+          width: 88,
+          height: 4,
+          decoration: BoxDecoration(
+            color: AppColors.surface3,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PcControlPainter extends CustomPainter {
+  const _PcControlPainter(
+    this.t, {
+    required this.line,
+    required this.ink,
+    required this.accent,
+  });
+
+  /// 0 to 1 through one loop: glide, click, rest.
+  final double t;
+  final Color line, ink, accent;
+
+  /// Where the pointer is when it has gone [p] of the way, 0 to 1.
+  static Offset _at(double p, Size s) {
+    final a = Offset(s.width * 0.14, s.height * 0.3);
+    final c = Offset(s.width * 0.42, s.height * 0.95);
+    final b = Offset(s.width * 0.76, s.height * 0.74);
+    return a * ((1 - p) * (1 - p)) + c * (2 * p * (1 - p)) + b * (p * p);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fill = Paint()..color = line;
+    // The window: a title bar and a few lines of content.
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, 20), fill);
+    for (final (i, w) in const [0.62, 0.48, 0.55].indexed) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(16, 36.0 + i * 16, size.width * w, 6),
+          const Radius.circular(3),
+        ),
+        fill,
+      );
+    }
+
+    final glide = Curves.easeInOut.transform((t / 0.55).clamp(0.0, 1.0));
+    final click = ((t - 0.55) / 0.12).clamp(0.0, 1.0);
+    final clicked = t >= 0.55;
+
+    // The button it is heading for.
+    final target = _at(1, size);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: target, width: 66, height: 26),
+        const Radius.circular(8),
+      ),
+      Paint()..color = clicked ? accent : line,
+    );
+
+    // The way it came, fading out behind the pointer.
+    final fade = 1 - ((t - 0.7) / 0.3).clamp(0.0, 1.0);
+    final trail = Paint()
+      ..color = ink.withValues(alpha: 0.35 * fade)
+      ..style = PaintingStyle.fill;
+    for (var p = 0.0; p < glide; p += 0.04) {
+      canvas.drawCircle(_at(p, size), 1.5, trail);
+    }
+
+    // The ripple of the click.
+    if (click > 0 && click < 1) {
+      canvas.drawCircle(
+        target,
+        6 + 18 * click,
+        Paint()
+          ..color = ink.withValues(alpha: 0.5 * (1 - click))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+    }
+
+    // The pointer, tip at its position.
+    final tip = _at(glide, size);
+    final arrow = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..relativeLineTo(0, 17)
+      ..relativeLineTo(4.4, -3.8)
+      ..relativeLineTo(3, 6.6)
+      ..relativeLineTo(2.8, -1.3)
+      ..relativeLineTo(-3, -6.4)
+      ..relativeLineTo(5.8, -0.5)
+      ..close();
+    canvas.drawPath(arrow, Paint()..color = ink);
+    canvas.drawPath(
+      arrow,
+      Paint()
+        ..color = Colors.black
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PcControlPainter old) => old.t != t;
 }
 
 /// A few questions in bubbles, as the chat shows them.

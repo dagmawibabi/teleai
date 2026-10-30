@@ -11,6 +11,7 @@ import 'package:omni_ai/omni_ai.dart'
 import '../../../app/theme.dart';
 import '../../../core/widgets/app_sheet.dart';
 import '../../ai/data/ai.dart';
+import '../../pc/pc_screen.dart';
 import '../../telegram/data/telegram_tools.dart' show ToolCategory;
 import 'settings_screen.dart';
 import 'tools_screen.dart' show FeatureTools;
@@ -318,6 +319,20 @@ class _McpServerSheetState extends ConsumerState<_McpServerSheet> {
   String? _error;
   bool _loading = false;
 
+  /// Set when this server is a Triangle Companion that answers, for its live screen.
+  PcLink? _pc;
+
+  @override
+  void initState() {
+    super.initState();
+    final link = PcLink.fromServer(widget.server);
+    if (link != null) {
+      link.probe().then((info) {
+        if (info != null && mounted) setState(() => _pc = link);
+      });
+    }
+  }
+
   Future<void> _connect() async {
     setState(() {
       _loading = true;
@@ -369,6 +384,17 @@ class _McpServerSheetState extends ConsumerState<_McpServerSheet> {
         if (s.command != null) _Fact('Command', [s.command!, ...s.args].join(' '), mono: true),
         _Fact('Headers', s.headers.isEmpty ? 'None' : s.headers.keys.join(', ')),
         _Fact('Tool calls', s.approval.kind == 'always' ? 'Ask before each call' : 'Follow the tool\'s own setting'),
+        if (_pc != null) ...[
+          const SizedBox(height: Space.l),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              PcScreen.open(context, link: _pc);
+            },
+            icon: const Icon(Icons.desktop_windows_outlined, size: 18),
+            label: const Text('Open PC screen'),
+          ),
+        ],
         const SizedBox(height: Space.l),
         Row(
           children: [

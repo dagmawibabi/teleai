@@ -27,6 +27,15 @@ enum AppThemeMode {
   final String label;
 }
 
+/// What voice mode's reacting shape is.
+enum OrbShape {
+  triangle('Triangle'),
+  sphere('Sphere');
+
+  const OrbShape(this.label);
+  final String label;
+}
+
 /// The typeface answers and messages are set in.
 enum ChatFont {
   system('Default', null),
@@ -168,6 +177,7 @@ class AppSettings {
     this.showModelName = true,
     this.chatFont = ChatFont.system,
     this.themeMode = AppThemeMode.dark,
+    this.orbShape = OrbShape.triangle,
     this.voiceEnabled = true,
     this.mediaEnabled = true,
     this.videoEnabled = false,
@@ -290,6 +300,7 @@ class AppSettings {
   final ChatFont chatFont;
   /// Light, dark or following the phone.
   final AppThemeMode themeMode;
+  final OrbShape orbShape;
   /// Read aloud, dictation and the audio tools.
   final bool voiceEnabled;
   /// Image and video tools: making pictures and looking at them.
@@ -551,6 +562,7 @@ class AppSettings {
     bool? showModelName,
     ChatFont? chatFont,
     AppThemeMode? themeMode,
+    OrbShape? orbShape,
     bool? voiceEnabled,
     bool? mediaEnabled,
     bool? videoEnabled,
@@ -651,6 +663,7 @@ class AppSettings {
     showModelName: showModelName ?? this.showModelName,
     chatFont: chatFont ?? this.chatFont,
     themeMode: themeMode ?? this.themeMode,
+    orbShape: orbShape ?? this.orbShape,
     voiceEnabled: voiceEnabled ?? this.voiceEnabled,
     mediaEnabled: mediaEnabled ?? this.mediaEnabled,
     videoEnabled: videoEnabled ?? this.videoEnabled,
@@ -812,6 +825,7 @@ class SettingsController extends Notifier<AppSettings> {
       showModelName: p.getBool('show_model_name') ?? d.showModelName,
       chatFont: ChatFont.values.asNameMap()[p.getString('chat_font')] ?? d.chatFont,
       themeMode: AppThemeMode.values.asNameMap()[p.getString('theme_mode')] ?? d.themeMode,
+      orbShape: OrbShape.values.asNameMap()[p.getString('orb_shape')] ?? d.orbShape,
       voiceEnabled: p.getBool('voice_enabled') ?? d.voiceEnabled,
       mediaEnabled: p.getBool('media_enabled') ?? d.mediaEnabled,
       videoEnabled: p.getBool('video_enabled') ?? d.videoEnabled,
@@ -1182,6 +1196,7 @@ class SettingsController extends Notifier<AppSettings> {
   Future<void> setShowModelName(bool v) => customize(state.copyWith(showModelName: v), 'show_model_name', v);
   Future<void> setChatFont(ChatFont v) => customize(state.copyWith(chatFont: v), 'chat_font', v.name);
   Future<void> setThemeMode(AppThemeMode v) => customize(state.copyWith(themeMode: v), 'theme_mode', v.name);
+  Future<void> setOrbShape(OrbShape v) => customize(state.copyWith(orbShape: v), 'orb_shape', v.name);
   Future<void> setVoiceEnabled(bool v) => customize(state.copyWith(voiceEnabled: v), 'voice_enabled', v);
   Future<void> setMediaEnabled(bool v) => customize(state.copyWith(mediaEnabled: v), 'media_enabled', v);
   Future<void> setVideoEnabled(bool v) => customize(state.copyWith(videoEnabled: v), 'video_enabled', v);

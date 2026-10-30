@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 import 'package:http/http.dart' as http;
+import 'package:mime/mime.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Plain HTTP for the assistant: reading pages without running their
@@ -108,6 +109,17 @@ class WebFetcher {
   }
 
   static bool isJson(http.Response r) => (r.headers['content-type'] ?? '').contains('json');
+
+  /// Whether a file starting with [head] is a picture the app can show. Goes by
+  /// the bytes: addresses often have no extension, and an error page can be
+  /// saved under a .jpg name.
+  static bool isPicture(List<int> head) => const {
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+  }.contains(lookupMimeType('', headerBytes: head));
 
   /// Saves [url] to the app's downloads folder.
   Future<File> download(Uri url, {String? name}) async {

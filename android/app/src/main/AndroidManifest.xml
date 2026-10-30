@@ -2,6 +2,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Dictation: the device recognizer and recordings for AI/ElevenLabs. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Voice mode: how loud the AI's voice is, so the orb can follow it. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <!-- Watches: notifications, and staying alive in the background. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
