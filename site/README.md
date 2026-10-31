@@ -1,6 +1,6 @@
 # Triangle website
 
-A SvelteKit landing page for Triangle, with self-hosted type, scroll reveals, product screenshots, interactive feature previews, an approval demo, and links to the Android releases.
+A SvelteKit landing page for Triangle, with a canvas hero that reacts to the pointer, self-hosted type, product screenshots, a self-typing feature demo, an approval demo, and links to the Android releases.
 
 ## Local development
 
@@ -23,9 +23,9 @@ The landing page is prerendered. The existing Vercel adapter is retained.
 
 - `src/routes/+page.svelte`: page content, interactions, and metadata.
 - `src/routes/layout.css`: design tokens, layouts, motion, and breakpoints.
-- `src/lib/components/`: small reusable brand, icon, and phone components.
+- `src/lib/components/`: the hero plate, the pointer triangle, and small brand and phone components.
 - `static/screenshots/`: actual Flutter message and brief widgets with fictional sample data.
-- `static/fonts/`: self-hosted Sora and Manrope, including their OFL licenses.
+- `static/fonts/`: self-hosted Sora, including its OFL license.
 - `static/social-preview.jpg`: 1200 × 630 social sharing image.
 - `scripts/social-preview.html`: source composition for the share image; serve with the static assets and capture at 1200 × 630 to regenerate it.
 - `DESIGN.md`: visual direction and screenshot provenance.
