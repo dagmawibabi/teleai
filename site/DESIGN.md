@@ -31,6 +31,15 @@ Monochrome and industrial: a machined plate, not a marketing page.
   ████████ white download section, with a giant triangle ████
 ```
 
+## Tool catalogue
+
+`/tools` lists every tool, generated from the app so it can't drift. After tools change, regenerate it:
+
+- From the Flutter root: `flutter test site/scripts/export_tools_test.dart`
+- From `companion/`: `flutter test ../site/scripts/export_companion_tools_test.dart`
+
+`src/lib/data/catalogue.ts` sorts categories into groups and shortens descriptions. The build fails if a tool's category isn't in a group, so nothing goes missing silently.
+
 ## Motion
 
 The brief asks for a lot of animation, so motion is everywhere, with a shared vocabulary:

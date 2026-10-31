@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { PageProps } from './$types';
+	import { setupReveals } from '#lib/motion.js';
 	import BrandIcon from '#lib/components/BrandIcon.svelte';
-	import Cursor from '#lib/components/Cursor.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Phone from '#lib/components/Phone.svelte';
 	import Tri from '#lib/components/Tri.svelte';
 	import TrianglePlate from '#lib/components/TrianglePlate.svelte';
 
+	let { data }: PageProps = $props();
+
 	const github = 'https://github.com/dagmawibabi/triangle';
 	const releases = `${github}/releases`;
+	// Always the newest release, as long as the file keeps this name.
+	const companion = `${releases}/latest/download/Companion.rar`;
 
 	const apps = ['Telegram', 'Gmail', 'Calendar', 'Slack', 'Notion', 'Drive', 'GitHub', 'Linear', 'Todoist'];
 
@@ -52,6 +57,19 @@
 			]
 		},
 		{
+			name: 'Browse the web',
+			title: 'It uses websites for you.',
+			text: 'A real browser that reads pages, fills in forms, downloads files and takes screenshots. Watch it live, or take over whenever you like.',
+			prompt: 'Find the visa form on the embassy site and fill in what you know.',
+			tools: ['Opening the page in the browser', 'Filling in the form'],
+			answer: 'It’s filled in, and waiting for you.',
+			details: [
+				'Your name and passport number are in.',
+				'Two fields need you: travel dates and a photo.',
+				'Open the browser to check it before you send it.'
+			]
+		},
+		{
 			name: 'Use your PC',
 			title: 'Your computer, from your phone.',
 			text: 'Run Triangle Companion on Windows. The assistant can find files, click, type and run commands, or you can watch the screen live and take over by touch.',
@@ -78,6 +96,57 @@
 			]
 		}
 	];
+
+	const finishSteps = [
+		{
+			title: 'Choose what it can do',
+			text: 'Under <strong>Shared folders</strong>, click Add and pick the folders your phone may see. Then switch on <strong>See the screen</strong> to view the PC, and <strong>Control mouse &amp; keyboard</strong> to use it.'
+		},
+		{
+			title: 'Add your PC to Triangle',
+			text: 'On your phone, go to <strong>Settings → MCP &amp; Skills → MCP servers → Add by address</strong>. Name it pc and paste the address. Scanning the QR code in the companion with your camera or Google Lens is the easiest way to copy it.'
+		},
+		{
+			title: 'Connect',
+			text: 'Open the drawer in Triangle and tap <strong>PC screen</strong> to see your screen, or ask the assistant something like “What’s in my Documents folder?”'
+		}
+	];
+	const guides = {
+		wifi: {
+			label: 'Home Wi-Fi',
+			note: 'Nothing extra to install, but the phone must be on the same Wi-Fi as the PC, and the traffic isn’t encrypted. Use it only on your own network.',
+			steps: [
+				{
+					title: 'Download and run it',
+					text: 'Extract the whole folder and run <strong>triangle_companion</strong> from inside it. If Windows says it protected your PC, click <strong>More info</strong>, then <strong>Run anyway</strong>.'
+				},
+				{
+					title: 'Pick Home Wi-Fi',
+					text: 'Choose <strong>Home Wi-Fi</strong> at the top of the window. If Windows asks about network access, allow it on private networks. If you missed that, click <strong>Allow</strong> next to Windows Firewall.'
+				},
+				...finishSteps
+			]
+		},
+		tailscale: {
+			label: 'Tailscale',
+			note: 'Encrypted and works from anywhere, and only your own devices can reach it. It takes a few more minutes to set up.',
+			steps: [
+				{
+					title: 'Set up Tailscale',
+					text: 'Install Tailscale on your PC and phone, and sign in to the same account on both. In the Tailscale admin console, go to <strong>DNS</strong> and turn on <strong>MagicDNS</strong> and <strong>HTTPS Certificates</strong>.'
+				},
+				{
+					title: 'Download and run it',
+					text: 'Extract the whole folder and run <strong>triangle_companion</strong> from inside it. If Windows says it protected your PC, click <strong>More info</strong>, then <strong>Run anyway</strong>.'
+				},
+				{
+					title: 'Pick Tailscale',
+					text: 'Choose <strong>Tailscale</strong> at the top of the window. The companion publishes itself. If it doesn’t, click <strong>Publish</strong>.'
+				},
+				...finishSteps
+			]
+		}
+	};
 
 	const shots = [
 		{
@@ -153,13 +222,9 @@
 		}
 	];
 
-	let scrollY = $state(0);
-	let pageHeight = $state(1);
-	let viewportHeight = $state(1);
-	let menuOpen = $state(false);
-	let headerHidden = $state(false);
 	let selectedTab = $state(0);
 	let activeShot = $state(0);
+	let guideMode = $state<'wifi' | 'tailscale'>('wifi');
 	let approval = $state<'pending' | 'approved' | 'dismissed'>('pending');
 	let dialogShot = $state(shots[0]);
 	let screenshotDialog: HTMLDialogElement;
@@ -172,7 +237,6 @@
 	let linesShown = $state(99);
 
 	const example = $derived(tabs[selectedTab]);
-	const progress = $derived(Math.min(1, scrollY / Math.max(1, pageHeight - viewportHeight)));
 
 	let timers: number[] = [];
 	let reducedMotion = false;
@@ -237,21 +301,7 @@
 	onMount(() => {
 		reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-		const reveals = new IntersectionObserver(
-			(entries) => {
-				for (const entry of entries) {
-					if (entry.isIntersecting) {
-						entry.target.classList.add('is-visible');
-						reveals.unobserve(entry.target);
-					}
-				}
-			},
-			{ threshold: 0.14, rootMargin: '0px 0px -30px 0px' }
-		);
-		if (!reducedMotion) {
-			document.documentElement.classList.add('motion-ready');
-			document.querySelectorAll('[data-reveal]').forEach((element) => reveals.observe(element));
-		}
+		const stopReveals = setupReveals();
 
 		const demoSeen = new IntersectionObserver(
 			([entry]) => {
@@ -274,62 +324,21 @@
 		);
 		document.querySelectorAll('[data-shot]').forEach((element) => shotSeen.observe(element));
 
-		const sized = new ResizeObserver(() => {
-			pageHeight = document.documentElement.scrollHeight;
-		});
-		sized.observe(document.body);
-
-		let last = window.scrollY;
-		function scrolled() {
-			const now = window.scrollY;
-			if (Math.abs(now - last) > 6) {
-				headerHidden = now > last && now > 500;
-				last = now;
-			}
-		}
-		window.addEventListener('scroll', scrolled, { passive: true });
-
-		// Buttons lean toward the mouse, a little.
-		function lean(event: PointerEvent) {
-			if (event.pointerType !== 'mouse' || reducedMotion) return;
-			const button = (event.target as Element)?.closest?.('[data-magnetic]') as HTMLElement | null;
-			if (!button) return;
-			const box = button.getBoundingClientRect();
-			button.style.setProperty('--lean-x', `${(event.clientX - box.left - box.width / 2) * 0.16}px`);
-			button.style.setProperty('--lean-y', `${(event.clientY - box.top - box.height / 2) * 0.28}px`);
-		}
-		function straighten(event: PointerEvent) {
-			const button = event.target as HTMLElement;
-			if (button?.matches?.('[data-magnetic]')) {
-				button.style.setProperty('--lean-x', '0px');
-				button.style.setProperty('--lean-y', '0px');
-			}
-		}
-		document.addEventListener('pointermove', lean, { passive: true });
-		document.addEventListener('pointerout', straighten, { passive: true });
-
 		return () => {
 			timers.forEach(clearTimeout);
-			reveals.disconnect();
+			stopReveals();
 			demoSeen.disconnect();
 			shotSeen.disconnect();
-			sized.disconnect();
-			window.removeEventListener('scroll', scrolled);
-			document.removeEventListener('pointermove', lean);
-			document.removeEventListener('pointerout', straighten);
-			document.documentElement.classList.remove('motion-ready');
 		};
 	});
 </script>
 
-<svelte:window bind:scrollY bind:innerHeight={viewportHeight} />
 <svelte:head>
 	<title>Triangle: your world, one conversation</title>
 	<meta
 		name="description"
 		content="Triangle brings AI, Telegram, your apps, your phone and your PC into one conversation. For Android, with your own AI keys."
 	/>
-	<meta name="theme-color" content="#000000" />
 	<meta property="og:title" content="Triangle: your world, one conversation" />
 	<meta
 		property="og:description"
@@ -345,52 +354,7 @@
 		content="Triangle. Your world, one conversation. App previews of the assistant and morning brief."
 	/>
 	<meta name="twitter:card" content="summary_large_image" />
-	<link
-		rel="preload"
-		href="/fonts/sora-latin.woff2"
-		as="font"
-		type="font/woff2"
-		crossorigin="anonymous"
-	/>
 </svelte:head>
-
-<a class="skip-link" href="#main">Skip to content</a>
-<Cursor />
-
-<header class:hidden-up={headerHidden && !menuOpen} class:solid={scrollY > 40 || menuOpen}>
-	<a class="brand" href="#main" aria-label="Triangle home">
-		<svg class="brand-mark" viewBox="0 0 40 40" width="26" height="26" fill="none" aria-hidden="true">
-			<path class="brand-faint" d="M20 5 37 34H3Z" />
-			<path class="brand-line" d="M20 5 37 34H3Z" pathLength="1" style={`stroke-dashoffset: ${1 - progress}`} />
-		</svg>
-		<span>triangle</span>
-	</a>
-	<nav aria-label="Main navigation" class="nav-links">
-		<a href="#features"><span>What it does</span></a>
-		<a href="#apps"><span>Tools</span></a>
-		<a href="#control"><span>Control</span></a>
-		<a href={github} target="_blank" rel="noreferrer"><span>GitHub</span></a>
-	</nav>
-	<a class="button small" data-magnetic href="#download"><span>Download</span><Tri size={8} /></a>
-	<button
-		class="menu-toggle"
-		type="button"
-		aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-		aria-expanded={menuOpen}
-		onclick={() => (menuOpen = !menuOpen)}
-	>
-		<i class:open={menuOpen}></i><i class:open={menuOpen}></i>
-	</button>
-</header>
-<div class="menu-sheet" class:open={menuOpen} inert={!menuOpen}>
-	<nav aria-label="Menu">
-		<a href="#features" onclick={() => (menuOpen = false)}>What it does</a>
-		<a href="#apps" onclick={() => (menuOpen = false)}>Tools</a>
-		<a href="#control" onclick={() => (menuOpen = false)}>Control</a>
-		<a href="#download" onclick={() => (menuOpen = false)}>Download</a>
-		<a href={github} target="_blank" rel="noreferrer">GitHub</a>
-	</nav>
-</div>
 
 <main id="main">
 	<section class="hero" aria-labelledby="hero-heading">
@@ -575,6 +539,40 @@
 					<p>Conversations, Telegram, email, files and the web.</p>
 				</div>
 			</article>
+			<article class="cell span-4 cell-browser wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<div class="browser-win">
+						<div class="browser-bar"><Tri size={9} turn={270} /><span>wikipedia.org/wiki/Moon</span></div>
+						<div class="browser-page">
+							<i style="--w: 62%"></i>
+							<i style="--w: 92%"></i>
+							<i style="--w: 84%"></i>
+							<i style="--w: 48%"></i>
+							<b></b>
+						</div>
+					</div>
+				</div>
+				<div class="copy">
+					<h3>A real browser</h3>
+					<p>
+						It reads pages, fills in forms, clicks through sites, downloads files and takes
+						screenshots. Watch it live, or take over whenever you like.
+					</p>
+				</div>
+			</article>
+			<article class="cell span-2 cell-creative wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<div class="bars">
+						{#each Array.from({ length: 22 }) as _, i}<i
+								style={`--h: ${18 + (Math.sin(i * 0.9) + 1) * 28 + (i % 3) * 7}px; --d: ${i * -0.09}s`}
+							></i>{/each}
+					</div>
+				</div>
+				<div class="copy">
+					<h3>Make things</h3>
+					<p>Images, speech, sound effects, music and video from a description.</p>
+				</div>
+			</article>
 			<article class="cell span-3 cell-pc wipe" data-reveal>
 				<div class="art" aria-hidden="true">
 					<svg viewBox="0 0 240 150" class="pc-screen">
@@ -593,6 +591,7 @@
 						Triangle Companion for Windows lets it move the mouse, type, open apps and reach the
 						folders you share. You can watch and take over live.
 					</p>
+					<a class="link cell-link" href="#companion"><span>Set up Triangle Companion</span></a>
 				</div>
 			</article>
 			<article class="cell span-3 cell-telegram wipe" data-reveal>
@@ -607,6 +606,47 @@
 				<div class="copy">
 					<h3>A whole Telegram client</h3>
 					<p>Chats, channels, folders, files, stickers and voice notes, with your own account.</p>
+				</div>
+			</article>
+			<article class="cell span-2 cell-brief wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<ul class="brief-lines">
+						<li><i></i><span style="--w: 88%"></span></li>
+						<li><i></i><span style="--w: 66%"></span></li>
+						<li><i></i><span style="--w: 76%"></span></li>
+						<li><i></i><span style="--w: 42%"></span></li>
+					</ul>
+				</div>
+				<div class="copy">
+					<h3>Morning and night briefs</h3>
+					<p>What happened across your chats, with what needs you first.</p>
+				</div>
+			</article>
+			<article class="cell span-2 cell-reminders wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<svg class="clock" viewBox="0 0 120 120">
+						<circle cx="60" cy="60" r="54" />
+						<circle class="clock-tick" cx="60" cy="60" r="47" pathLength="201" />
+						<path class="clock-hand" d="M60 18 66 62H54Z" />
+					</svg>
+				</div>
+				<div class="copy">
+					<h3>Reminders and routines</h3>
+					<p>“Every weekday at 9, catch me up.” One-off or repeating.</p>
+				</div>
+			</article>
+			<article class="cell span-2 cell-memory wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<svg class="memory-map" viewBox="0 0 120 104">
+						<path d="M60 8 112 96H8Z" pathLength="1" />
+						<circle cx="60" cy="8" r="5" />
+						<circle cx="112" cy="96" r="5" />
+						<circle cx="8" cy="96" r="5" />
+					</svg>
+				</div>
+				<div class="copy">
+					<h3>Memory</h3>
+					<p>It remembers your preferences and the people you mention, across chats.</p>
 				</div>
 			</article>
 			<article class="cell span-2 cell-canvas wipe" data-reveal>
@@ -644,6 +684,101 @@
 					<p>Cloudflare, E2B sandboxes, MCP servers and skills.</p>
 				</div>
 			</article>
+			<article class="cell span-3 cell-discover wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<div class="posters"><i></i><i></i><i></i></div>
+				</div>
+				<div class="copy">
+					<h3>Things to watch, read and hear</h3>
+					<p>Search YouTube, X, books, films, shows and music, with results you can open right there.</p>
+				</div>
+			</article>
+			<article class="cell span-3 cell-widgets wipe" data-reveal>
+				<div class="art" aria-hidden="true">
+					<div class="tiles"><i></i><i></i><i></i><i></i><i></i></div>
+				</div>
+				<div class="copy">
+					<h3>Home-screen widgets</h3>
+					<p>Ask for a widget in your own words, and it builds one for your home screen.</p>
+				</div>
+			</article>
+		</div>
+		<div class="all-tools" data-reveal>
+			<p>And the rest: {data.toolCount} tools in all.</p>
+			<a class="button" data-magnetic href="/tools"><span>See every tool</span><Tri /></a>
+		</div>
+	</section>
+
+	<section class="companion-section band" id="companion" aria-labelledby="companion-heading">
+		<div class="companion-top">
+			<div data-reveal="type"><h2 id="companion-heading">Triangle Companion, for your PC.</h2></div>
+			<div data-reveal>
+				<p>
+					A small Windows app that connects your phone to your PC. See and use your screen by touch,
+					or let the assistant find files, click, type and run commands. Nothing is on until you
+					switch it on.
+				</p>
+				<div class="companion-actions">
+					<a class="button" data-magnetic href={companion}><span>Download Companion</span><Tri turn={180} /></a>
+					<a class="link" href="/tools#pc"><span>See its tools</span></a>
+				</div>
+			</div>
+		</div>
+		<div class="guide">
+			<div class="guide-side" data-reveal>
+				<h3>Set it up and connect.</h3>
+				<div class="modes" role="group" aria-label="How to connect" style={`--mode: ${guideMode === 'wifi' ? 0 : 1}`}>
+					{#each Object.entries(guides) as [mode, guide]}
+						<button
+							type="button"
+							class:active={guideMode === mode}
+							aria-pressed={guideMode === mode}
+							onclick={() => (guideMode = mode as 'wifi' | 'tailscale')}
+						>
+							{guide.label}
+						</button>
+					{/each}
+				</div>
+				{#key guideMode}<p class="mode-note">{guides[guideMode].note}</p>{/key}
+			</div>
+			{#key guideMode}
+				<ol class="guide-steps">
+					{#each guides[guideMode].steps as step, index}
+						<li style={`--i: ${index}`}>
+							<h4>{step.title}</h4>
+							<p>{@html step.text}</p>
+						</li>
+					{/each}
+				</ol>
+			{/key}
+		</div>
+		<div class="companion-facts" data-reveal>
+			<div>
+				<h4>Using the screen by touch</h4>
+				<ul>
+					<li><b>Tap</b> to click, and tap twice to double-click</li>
+					<li><b>Long-press</b> to right-click, then move to drag</li>
+					<li><b>One finger</b> to scroll, and <b>two</b> to zoom and pan</li>
+					<li><b>Keyboard button</b> to type, with Esc, Tab, arrows and shortcuts</li>
+				</ul>
+			</div>
+			<div>
+				<h4>What you switch on</h4>
+				<ul>
+					<li><b>Shared folders</b>, and whether each can be changed</li>
+					<li><b>See the screen</b></li>
+					<li><b>Control mouse &amp; keyboard</b></li>
+					<li><b>Clipboard</b>, <b>Run commands</b>, and <b>Apps &amp; system</b></li>
+				</ul>
+			</div>
+			<div>
+				<h4>If it won’t connect</h4>
+				<ul>
+					<li><b>No PC found:</b> check the companion is running, the phone is on the same network, and your Wi-Fi is set to Private in Windows</li>
+					<li><b>The PC refused:</b> See the screen is off, or the companion is paused</li>
+					<li><b>Touches do nothing:</b> switch on Control mouse &amp; keyboard</li>
+				</ul>
+			</div>
 		</div>
 	</section>
 
@@ -709,7 +844,12 @@
 			{#each questions as item}
 				<details name="triangle-faq">
 					<summary><span>{item.question}</span><Tri size={12} class="faq-mark" /></summary>
-					<p>{item.answer}</p>
+					<p>
+						{item.answer}
+						{#if item.question === 'Can Triangle use my computer?'}
+							<a class="link" href="#companion"><span>Set up Triangle Companion</span></a>
+						{/if}
+					</p>
 				</details>
 			{/each}
 		</div>
@@ -721,26 +861,19 @@
 		</svg>
 		<div class="download-copy">
 			<div data-reveal="type"><h2 id="download-heading">Bring it all together.</h2></div>
-			<p>Triangle is for Android. Triangle Companion runs on Windows.</p>
+			<p>Triangle is for Android. Triangle Companion lets it use your Windows PC.</p>
 			<div class="download-actions">
 				<a class="button dark" data-magnetic href={releases} target="_blank" rel="noreferrer">
 					<span>Download Triangle</span><Tri turn={180} />
 				</a>
-				<a class="link" href={github} target="_blank" rel="noreferrer"><span>Read the source</span></a>
+				<a class="button dark" data-magnetic href={companion}>
+					<span>Download Companion</span><Tri turn={180} />
+				</a>
 			</div>
+			<a class="link download-source" href={github} target="_blank" rel="noreferrer"><span>Read the source</span></a>
 		</div>
 	</section>
 </main>
-
-<footer>
-	<a class="brand" href="#main" aria-label="Triangle home"><Logo size={22} /><span>triangle</span></a>
-	<span>Made by <a class="link quiet" href="https://github.com/dagmawibabi" target="_blank" rel="noreferrer"><span>Dagmawi Babi</span></a></span>
-	<nav aria-label="Footer">
-		<a class="link quiet" href={github} target="_blank" rel="noreferrer"><span>GitHub</span></a>
-		<a class="link quiet" href={releases} target="_blank" rel="noreferrer"><span>Releases</span></a>
-		<a class="link quiet" href={github + '/issues'} target="_blank" rel="noreferrer"><span>Issues</span></a>
-	</nav>
-</footer>
 
 <dialog bind:this={screenshotDialog} class="shot-dialog" aria-labelledby="dialog-title">
 	<div class="dialog-bar">

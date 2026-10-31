@@ -1,0 +1,335 @@
+[
+	{
+		"name": "pc_info",
+		"label": "About this PC",
+		"description": "The PC's name, user, Windows version, screen size, shared folders and which abilities the user switched on. Start here.",
+		"category": "info",
+		"categoryLabel": "Always on",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_folder",
+		"label": "List a folder",
+		"description": "Lists what is in a shared folder: name, type, size and when it changed. Without a path, lists the shared folders themselves.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_files",
+		"label": "Search files",
+		"description": "Finds files and folders by name (case-insensitive; * and ? wildcards work) inside the shared folders, optionally only those containing some text. Stops after 15 seconds or the limit.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_file",
+		"label": "Read a file",
+		"description": "Reads a text file (code, notes, CSV, logs, JSON…). Long files come in parts: pass next_offset back as offset. For pictures, PDFs and other binary files use share_file.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "file_info",
+		"label": "File details",
+		"description": "Size, type and dates of a file or folder; for a folder, how many items it holds.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "share_file",
+		"label": "Get a download link",
+		"description": "Makes a private download link for a file (any type or size), valid for a few minutes. Download it to the phone with your download tool, or look at a picture with your image tool.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "write_file",
+		"label": "Write a file",
+		"description": "Writes text to a file in a folder shared with changes allowed. Mode create (default) refuses to replace a file; append adds to the end; overwrite replaces the whole file.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "make_folder",
+		"label": "Make a folder",
+		"description": "Creates a folder (and any missing parents) in a folder shared with changes allowed.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "move",
+		"label": "Move or rename",
+		"description": "Moves or renames a file or folder. Both places must be in folders shared with changes allowed. Never replaces something already there.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "copy",
+		"label": "Copy",
+		"description": "Copies a file, or a folder with everything in it, into a folder shared with changes allowed. Never replaces something already there.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "download_to_pc",
+		"label": "Download to the PC",
+		"description": "Downloads a web address (http or https) into a folder shared with changes allowed, for example a file the phone uploaded somewhere, or a link the user sent. Big downloads keep going after the answer; check with file_info.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "delete",
+		"label": "Delete",
+		"description": "Moves a file or folder to the Recycle Bin (it can be restored from there). Only in folders shared with changes allowed.",
+		"category": "files",
+		"categoryLabel": "Shared folders",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "screenshot",
+		"label": "Take a screenshot",
+		"description": "Captures the PC screen (one monitor, one window, all monitors, or a region to zoom in) and returns a link to the picture. Look at it with your image tool. Mouse tools take x and y in this picture's pixels.",
+		"category": "screen",
+		"categoryLabel": "See the screen",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mouse_click",
+		"label": "Click",
+		"description": "Clicks at a point. x and y are pixels in the last screenshot (take one first).",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mouse_move",
+		"label": "Move the mouse",
+		"description": "Moves the pointer straight to one point, for menus that open on hover. For a smooth or multi-point movement use mouse_path. x and y are pixels in the last screenshot (take one first).",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mouse_path",
+		"label": "Move along a path",
+		"description": "Moves the mouse continuously through many points in one call, with no steps in between: tracing a shape, drawing, hovering along a menu, moving a slider. Without hold it starts from where the pointer is. With hold it goes to the first point, presses that button, moves through the rest and lets go. x and y are pixels in the last screenshot (take one first).",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mouse_drag",
+		"label": "Drag",
+		"description": "Presses a button at one point, drags to another and lets go. For a curved drag use mouse_path with hold. x and y are pixels in the last screenshot (take one first).",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "scroll",
+		"label": "Scroll",
+		"description": "Scrolls the window under a point. Positive amount scrolls up (or right), negative down (or left); one unit is one wheel notch. x and y are pixels in the last screenshot (take one first).",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "type_text",
+		"label": "Type text",
+		"description": "Types text into whatever has focus, as if typed on the keyboard (any language, emoji too). New lines press Enter. Click the field first.",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "press_keys",
+		"label": "Press keys",
+		"description": "Presses a key or shortcut, held together: enter, esc, tab, ctrl+c, ctrl+shift+t, alt+tab, alt+f4, win+d, win+r, f5, up/down/left/right, pageup, home, delete, volumeup, playpause… Separate several presses with spaces: \"ctrl+a ctrl+c\".",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "open",
+		"label": "Open an app, file or link",
+		"description": "Opens something the way double-clicking would: an app (notepad, calc, chrome, ms-settings:, explorer), a file or folder path, or a web address in the default browser.",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "read_clipboard",
+		"label": "Read the clipboard",
+		"description": "The text currently copied on the PC.",
+		"category": "clipboard",
+		"categoryLabel": "Clipboard",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "write_clipboard",
+		"label": "Copy to the clipboard",
+		"description": "Puts text on the PC's clipboard, ready to paste.",
+		"category": "clipboard",
+		"categoryLabel": "Clipboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "run_command",
+		"label": "Run a PowerShell command",
+		"description": "Runs a PowerShell command on the PC as the user and returns its output. Waits up to wait_seconds; a command still running then keeps going and returns a job_id for command_status. Can change anything the user can: be careful.",
+		"category": "commands",
+		"categoryLabel": "Run commands",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "command_status",
+		"label": "Check a command",
+		"description": "Output so far of a command run_command left running, and whether it finished.",
+		"category": "commands",
+		"categoryLabel": "Run commands",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_windows",
+		"label": "List windows",
+		"description": "The open windows (what Alt+Tab shows), the one in front first: id, title, app, position, size, minimized or maximized.",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "window",
+		"label": "Arrange a window",
+		"description": "Brings a window to the front, minimizes, maximizes, restores, moves/resizes or closes it (close asks the app to close, like its X button, so it may ask to save).",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "read_window",
+		"label": "Read a window's controls",
+		"description": "Lists the visible buttons, fields, links, menu items, tabs, list items and text of a window as numbered elements, with any field's current value, using Windows UI Automation. Then use click_element or type_into by number: faster and more exact than reading a screenshot. Some apps (games, some custom-drawn apps) expose little.",
+		"category": "screen",
+		"categoryLabel": "See the screen",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "click_element",
+		"label": "Click an element",
+		"description": "Clicks element n from the last read_window, in the middle.",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "type_into",
+		"label": "Type into an element",
+		"description": "Clicks field n from the last read_window and types text into it, replacing what is there unless append is true. Set enter to press Enter afterwards (to search or send).",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "do_actions",
+		"label": "Do several steps",
+		"description": "Runs up to 200 mouse and keyboard steps in one go (one approval), then optionally takes a screenshot. Each step is an object with \"action\": click {x,y,button?,double?} · move {x,y} · path {points,duration_ms?,hold?} (continuous movement, like mouse_path) · drag {from_x,from_y,to_x,to_y,duration_ms?,button?} · press {button?,x?,y?} · release {button?} · scroll {x,y,amount} · type {text} · keys {keys} · wait {ms} · click_element {n} · type_into {n,text,enter?} · focus_window {window_id} · open {target}. A button left pressed is let go at the end. x and y are pixels in the last screenshot.",
+		"category": "input",
+		"categoryLabel": "Control mouse & keyboard",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "system_status",
+		"label": "System status",
+		"description": "CPU and memory use, disks and free space, battery, uptime and the busiest apps.",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_processes",
+		"label": "List running apps",
+		"description": "Running processes sorted by memory or CPU time: id, name, memory, CPU seconds and window title.",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "kill_process",
+		"label": "Force-close an app",
+		"description": "Ends a process at once by id or name (unsaved work in it is lost). To close politely, use window with action close.",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "media_control",
+		"label": "Volume and media",
+		"description": "Turns the volume up or down, mutes, or controls whatever is playing (play/pause, next, previous).",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "lock_pc",
+		"label": "Lock the PC",
+		"description": "Locks Windows (like Win+L). Nothing closes; unlocking needs the user's PIN or password at the PC.",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "power",
+		"label": "Sleep, restart or shut down",
+		"description": "Puts the PC to sleep, or restarts, shuts down or signs out after 30 seconds (cancel with action cancel). The companion stops answering until the PC is back.",
+		"category": "system",
+		"categoryLabel": "Apps & system",
+		"access": "destructive",
+		"approval": true
+	}
+]

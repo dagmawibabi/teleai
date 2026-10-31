@@ -1,0 +1,4106 @@
+[
+	{
+		"name": "get_account_overview",
+		"label": "Looking at your account",
+		"description": "Who the signed-in user is and counts across their whole account: channels, groups, private chats, bots, archived chats, chats with unread messages, unread DMs and mentions. Free and instant (local data).",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_chats",
+		"label": "Listing chats",
+		"description": "Lists the user's chats from local data (free, instant), newest activity first. Use to find chats by name, list channels/groups/DMs, or find chats with unread messages. Each chat includes its id, type, unread counts and a preview of its last message.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_chat_info",
+		"label": "Getting chat details",
+		"description": "Details about one chat: description/bio, member count, username, link, unread state.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_messages",
+		"label": "Reading messages",
+		"description": "Reads messages from one chat or channel, newest first. Returns post refs to cite. Use since_hours for \"today\"/\"this week\", unread_only for what the user hasn't read. Does not mark anything as read.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_recent_activity",
+		"label": "Catching up on recent posts",
+		"description": "What's new: reads the latest messages across the chats with activity in the time window, most recent chats first. Best for \"what's new today\", \"what did my channels post\". Costs Telegram requests, so keep max_chats modest.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_messages",
+		"label": "Searching messages",
+		"description": "Full-text search of messages, in one chat (chat_id) or across all chats. Returns post refs to cite.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_message",
+		"label": "Opening a message",
+		"description": "One message in full, with its link. Use when a preview was cut short.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "show_channel_post",
+		"label": "Showing a channel post",
+		"description": "Delivers one channel post into the current AI conversation for viewing, playing, or opening. This never forwards or sends it to Saved Messages.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_contacts",
+		"label": "Listing contacts",
+		"description": "The user's Telegram contacts with usernames and last-seen status. Optional name filter.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_chat_folders",
+		"label": "Listing folders",
+		"description": "The user's chat folders (e.g. Work, Personal) with how many chats and unread chats each has. Pass folder_id to list the chats in one folder.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_unread_mentions",
+		"label": "Finding mentions",
+		"description": "Messages where the user was @mentioned or replied to and hasn't read yet, across all chats.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_pinned_messages",
+		"label": "Reading pinned messages",
+		"description": "The pinned messages of a chat or channel, newest first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_comments",
+		"label": "Reading comments",
+		"description": "The comments under a channel post (with who wrote each and their reactions), or the replies in a group thread. Comments live in the channel's discussion group: each has its own ref, usable with react_to_message, get_message_reactions or comment_on_post(reply_to_message_id).",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_shared_media",
+		"label": "Browsing shared media",
+		"description": "Photos, videos, files, links, voice notes or audio shared in a chat, newest first.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_chat_members",
+		"label": "Listing members",
+		"description": "Members of a group: admins, bots or recent members. For channels only admins are visible.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_public_chats",
+		"label": "Searching Telegram",
+		"description": "Finds public channels, groups and bots on Telegram by name or @username, including ones the user hasn't joined. Doesn't join anything.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_message",
+		"label": "Sending a message",
+		"description": "Sends a message to a chat, or posts in a channel the user can post in, optionally with photos, videos or files. The user sees an editable draft and must approve it before anything is sent; they may change the text or attachments, or decline. Only call when the user asked you to send something. Text may use Telegram formatting: **bold**, *italic*, <u>underline</u>, ~~strikethrough~~, ||spoiler||, `code`, ```code block```, [text](https://link). The other person sees \"typing…\" or \"sending a photo…\" first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "forward_message",
+		"label": "Forwarding",
+		"description": "Forwards one or more messages (several at once, in order) to another chat, or to several chats at once with to_chat_ids, Saved Messages included. Optionally without the sender's name (hide_sender) and without captions (remove_caption). The user must approve it first. Only call when the user asked for it.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_forum_topics",
+		"label": "Listing topics",
+		"description": "The topics of a forum group (a group with topics), with unread counts and latest activity. Read a topic with read_messages(chat_id, topic_id).",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_user_profile",
+		"label": "Opening a profile",
+		"description": "A person's profile: name, @username, bio, last seen, whether they are a contact, their personal channel and the groups you have in common.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_chat_action",
+		"label": "Showing chat activity",
+		"description": "Shows a temporary Telegram activity indicator in a chat, such as typing, recording a voice note, uploading media, or choosing a sticker. Use only when the user explicitly asks to show that activity. The user must approve it first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_chat_presence",
+		"label": "Checking active status",
+		"description": "Checks whether a person in a private chat is online, or when Telegram says they were last active. Telegram may deliberately return an approximate status for privacy.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_live_location",
+		"label": "Sharing live location",
+		"description": "Gets the phone's current location and shares it in a chat, optionally live for 1 to 1440 minutes. The user must approve it first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "browse_stickers",
+		"label": "Browsing stickers",
+		"description": "Browses installed, recent and matching Telegram stickers. Results include sticker file ids for send_sticker or save_sticker.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "browse_gifs",
+		"label": "Browsing GIFs",
+		"description": "Browses GIF-style animations shared in one chat. Open a returned post to view it with playback controls, or forward it to send it elsewhere.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_stickers",
+		"label": "Searching public stickers",
+		"description": "Searches public Telegram sticker sets by one or more emoji. Use browse_stickers for installed sticker keyword search.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_sticker",
+		"label": "Sending a sticker",
+		"description": "Sends a sticker returned by browse_stickers or search_stickers. The user must approve it first.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "save_sticker",
+		"label": "Saving a sticker",
+		"description": "Saves a sticker to the user's Telegram recent stickers. The user must approve it first.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "web_search",
+		"label": "Searching the web",
+		"description": "Searches the web with the user's Exa key and returns source titles, URLs and highlights. Use only when the user asks for web research or current information.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "react_to_message",
+		"label": "Reacting",
+		"description": "Adds an emoji reaction to a message (or removes the user's reaction). The user must approve it first. Only call when the user asked you to react.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_chat_notifications",
+		"label": "Changing notifications",
+		"description": "Mutes or unmutes a chat, group or channel (muted: true/false). Use list_chats(include_muted) to see what is muted. The user must approve it first.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mark_as_read",
+		"label": "Marking as read",
+		"description": "Marks everything in a chat as read (clears its unread badge). The user must approve it first. Only call when the user asked for it.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "explore_forum",
+		"label": "Exploring a forum",
+		"description": "Reads a forum group topic by topic: its topics (pinned and most active first) with the latest messages in each. Use for \"what's happening in <forum>\".",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_message_reactions",
+		"label": "Reading reactions",
+		"description": "The reactions on a message: counts per emoji, and who reacted with what where Telegram shows it (groups, and channels the user runs). Works for comments too (use the comment's ref chat id).",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "comment_on_post",
+		"label": "Commenting",
+		"description": "Posts a comment under a channel post (or replies to a comment with reply_to_message_id from get_comments). The user sees an editable draft and must approve it. Only call when the user asked you to comment.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "reply_to_message",
+		"label": "Replying",
+		"description": "Replies to a specific message or post, optionally quoting the exact part you answer (quote must be copied word for word from it). By default the reply goes in the same chat; pass send_in_chat_id to reply from another chat, e.g. quote a channel post inside a DM. Files can be attached. The user sees an editable draft and must approve it. Only call when asked.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "pin_message",
+		"label": "Pinning",
+		"description": "Pins a message at the top of a chat, or unpins it (unpin: true). Silent by default; notify: true alerts the members. In a DM, only_for_me pins it just for the user. See current pins with get_pinned_messages. The user must approve it first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "edit_message",
+		"label": "Editing a message",
+		"description": "Changes one of the user's own messages or channel posts: its text or caption, and/or its media (replace the photo, video, file or audio with one from files, or add one; send_as file keeps it uncompressed). Telegram may refuse to add media to a message that was sent as plain text; the tool says so. The user must approve it first. Only call when asked.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "schedule_message",
+		"label": "Scheduling a message",
+		"description": "Schedules a message (with optional files) to be sent later by Telegram itself, even if this app is closed. The user sees an editable draft and must approve it. Give send_at as local time, or in_minutes.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_scheduled_messages",
+		"label": "Checking scheduled messages",
+		"description": "Messages the user has scheduled to send later, with when they go out. One chat, or (without chat_id) the chats with recent activity the user can write in.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "reschedule_message",
+		"label": "Rescheduling",
+		"description": "Moves a scheduled message to another time, or sends it right away. The user must approve it first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "archive_chat",
+		"label": "Archiving",
+		"description": "Moves a chat into the Archive, or back out to the main list (archived: false). Nothing is deleted. The user must approve it first.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "remember",
+		"label": "Remembering",
+		"description": "Saves something to long-term memory so it is known in every future conversation: preferences, facts about people or chats, standing requests. Use when the user says \"remember…\", or shares something clearly worth keeping. Keep each memory short and self-contained.",
+		"category": "memory",
+		"categoryLabel": "Memory",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "update_memory",
+		"label": "Updating a memory",
+		"description": "Rewrites a saved memory (ids are listed in your instructions and by list_memories).",
+		"category": "memory",
+		"categoryLabel": "Memory",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "forget_memory",
+		"label": "Forgetting",
+		"description": "Deletes a saved memory, when the user asks you to forget something or it is no longer true.",
+		"category": "memory",
+		"categoryLabel": "Memory",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "list_memories",
+		"label": "Checking memory",
+		"description": "Everything saved in long-term memory, optionally filtered.",
+		"category": "memory",
+		"categoryLabel": "Memory",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "create_watch",
+		"label": "Setting up a watch",
+		"description": "Creates a watch that runs on its own. Triggers: new messages in specific chats (chat_ids), all_dms, all_groups, all_channels, mentions of the user, a folder (these need Telegram), a schedule (daily_at \"HH:MM\" or every_minutes), or app: something new in a connected app (app = a toolkit like gmail, slack, github, notion, todoist, or \"any\"; query = what to look for, e.g. \"emails from my bank\"), checked every_minutes (default 15). Modes: notify (a phone notification with the new messages), summarize (you write a short note and the user is notified), act (you follow the instructions on every trigger, e.g. reply to each new DM, and may use any tool). Use for \"tell me when X posts\", \"watch my DMs and answer them\", \"every morning summarise my channels\".",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_watches",
+		"label": "Listing watches",
+		"description": "The user's watches and routines, with what triggers them and what they do.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "update_watch",
+		"label": "Changing a watch",
+		"description": "Changes a watch: turn it on or off, rename it, change its chats, mode, schedule or instructions.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "delete_watch",
+		"label": "Removing a watch",
+		"description": "Removes a watch or routine for good.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "create_widget",
+		"label": "Making a home-screen widget",
+		"description": "Makes a home-screen widget (Android): a scrolling list of rows with optional pictures and links. Give shows to have the assistant keep it up to date every every_hours (subscriber counts, latest news, new movies with posters, weather, a to-do list from an app); a scheduled watch then refreshes it with update_widget. Give items for rows now (for static text, or a first fill). The user adds it from their home screen and picks what each widget shows in Settings → Home-screen widgets.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "update_widget",
+		"label": "Updating a widget",
+		"description": "Replaces a home-screen widget's rows (and optionally its title, what it shows or how often it refreshes). Use it when refreshing a widget or when the user asks to change one.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_widgets",
+		"label": "Listing widgets",
+		"description": "Lists the home-screen widgets: the built-in brief and custom ones, what each shows and when it was updated.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "delete_widget",
+		"label": "Deleting a widget",
+		"description": "Deletes a custom home-screen widget and stops its refresh. The brief widget can't be deleted.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "online_alert",
+		"label": "Setting an online alert",
+		"description": "Notifies the user when someone comes online (\"tell me when Liya is online\"). once: false keeps alerting each time (at most every 15 minutes). remove: true cancels it. Works only if that person lets the user see their last seen (contacts, or everybody); the app keeps running in the background while alerts are set.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_online_alerts",
+		"label": "Listing online alerts",
+		"description": "The people the user asked to be told about when they come online, and whether each is online now.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notify_me",
+		"label": "Notifying",
+		"description": "Shows the user a phone notification now. Useful in watches when something needs their attention; tapping it opens this conversation.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "generate_image",
+		"label": "Creating an image",
+		"description": "Creates an image from a detailed prompt with the image model chosen in Settings. The image is shown to the user in the chat. Use when asked to draw, design or visualize something.",
+		"category": "creative",
+		"categoryLabel": "Creative",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "get_model_settings",
+		"label": "Checking the AI models",
+		"description": "The AI models chosen in Settings (AI & models) for chat, decisions (Jev), images, video and audio, with each model's name, provider and whether it is enabled and ready to use. Audio includes the voice and dictation engines, their models and the selected voice. Reads settings only; no AI call is made.",
+		"category": "ai",
+		"categoryLabel": "AI & models",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "generate_video",
+		"label": "Creating a video",
+		"description": "Creates a short video from a detailed prompt with the video model chosen in Settings, optionally starting from a picture in this chat. It is shown to the user in the chat. Videos cost far more than images and take a while: make one only when asked for a video or animation.",
+		"category": "creative",
+		"categoryLabel": "Creative",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "generate_audio",
+		"label": "Creating audio",
+		"description": "Creates an MP3 spoken by the voice selected in Settings. When Addis AI is selected, use an available Addis voice ID (am-, om-, or ti-) to create Amharic, Afaan Oromo, or Tigrinya speech. The audio is shown in the chat and can be sent to Telegram like a generated image.",
+		"category": "creative",
+		"categoryLabel": "Creative",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "generate_addis_voice",
+		"label": "Creating an Addis AI voice",
+		"description": "Creates an MP3 with Addis Voices 2. Use for Amharic (am), Afaan Oromo (om), or Tigrinya (ti). Choose a voice ID from the live Addis AI catalog when the user names one; otherwise an available default voice for the requested language is selected. Requires the user to add an Addis AI key in Settings.",
+		"category": "creative",
+		"categoryLabel": "Creative",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "generate_sound_effect",
+		"label": "Creating a sound effect",
+		"description": "Creates a sound effect or ambience from a description using ElevenLabs. Requires an ElevenLabs API key in Settings → AI & models. The audio appears in chat and is saved in Files. Use generate_music for songs and scores, and generate_audio for speech.",
+		"category": "creative",
+		"categoryLabel": "Creative",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "generate_music",
+		"label": "Creating music",
+		"description": "Creates music, a song or a score from a description using ElevenLabs. Describe the genre, mood, instruments and any vocals. Requires an ElevenLabs API key in Settings → AI & models and access to music generation. The audio appears in chat and is saved in Files.",
+		"category": "creative",
+		"categoryLabel": "Creative",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "send_voice_message",
+		"label": "Sending a voice message",
+		"description": "Sends one recorded voice note to a chat as a Telegram voice message. Use only for a voice-note attachment the user provided in this conversation, and only when they asked to send it.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_attachments",
+		"label": "Checking files",
+		"description": "Every file in this conversation that can be sent to a chat: pictures, videos, voice notes and documents the user attached, and images or audio you generated. Pass a name in files to send it.",
+		"category": "files",
+		"categoryLabel": "Files",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "create_poll",
+		"label": "Creating a poll",
+		"description": "Posts a poll or a quiz in a chat or channel: 2 to 10 options, anonymous or public, single or multiple answers, or a quiz with one correct answer and an explanation. Can close itself after open_minutes. The user must approve it first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_poll_results",
+		"label": "Reading poll results",
+		"description": "The results of a poll or quiz: votes and percentages per option, whether it is closed, what the user chose, and for public polls who voted for each option.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "vote_poll",
+		"label": "Voting",
+		"description": "Votes in a poll (option indexes from 0), or takes the vote back with an empty list. Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "stop_poll",
+		"label": "Closing a poll",
+		"description": "Closes one of the user's polls so nobody can vote any more. Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "send_contact",
+		"label": "Sharing a contact",
+		"description": "Shares one of the user's Telegram contacts (or the user themself) as a contact card in a chat. Needs approval.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "view_image",
+		"label": "Looking at images",
+		"description": "Lets you inspect images from any available source: attachments (by name, including earlier messages), generated images, screenshots, downloaded images, local file paths or file URLs, direct HTTP/HTTPS image URLs and image data URLs. For Telegram photos, video thumbnails, GIF frames, stickers and link previews, pass refs \"post:<chat_id>:<message_id>\". Telegram is only needed for refs. Up to 6 images at once. The selected chat model must support image input. The images come right after the result.",
+		"category": "vision",
+		"categoryLabel": "Images & vision",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "download_message_file",
+		"label": "Downloading a file",
+		"description": "Downloads the file a Telegram message carries (document, PDF, voice note, audio, video, video note, GIF, photo or sticker) to the phone. Text files come back as text, pictures are shown to you, and the file can then be sent on with send_message or worked on with run_code / e2b_upload_file. For what a voice or audio message says, use transcribe_message.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "transcribe_message",
+		"label": "Listening to a message",
+		"description": "What a voice note, audio file, video note or video says: downloads it and writes out its speech. Uses Addis AI for Amharic and Afaan Oromo, ElevenLabs Scribe, or the dictation model from AI & models, whichever is set up.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "view_stickers_and_gifs",
+		"label": "Looking at stickers and GIFs",
+		"description": "Shows you stickers (file_id from get_sticker_set, list_favorite_stickers or search_stickers) and GIFs (gif_id from search_gifs or list_saved_gifs) as pictures, so you can pick a fitting one before send_sticker or send_gif. Animated ones show their first frame. For a sticker or GIF in a message, use view_image with its ref. Up to 8 at once; the chat model must see images.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_gifs",
+		"label": "Searching GIFs",
+		"description": "Finds GIFs on Telegram (through its @gif search) for a word or mood, e.g. \"thank you\", \"facepalm\". Returns gif_id values for send_gif.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_saved_gifs",
+		"label": "Opening saved GIFs",
+		"description": "The user's saved GIFs, with gif_id values for send_gif.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_gif",
+		"label": "Sending a GIF",
+		"description": "Sends a GIF (a gif_id from search_gifs or list_saved_gifs) to a chat. Needs approval.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "save_gif",
+		"label": "Saving a GIF",
+		"description": "Adds a GIF from a message (chat_id and message_id) to the user's saved GIFs.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_sticker_sets",
+		"label": "Opening sticker packs",
+		"description": "The sticker packs the user has installed, with set_id values for get_sticker_set.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_sticker_set",
+		"label": "Opening a sticker pack",
+		"description": "The stickers in one pack (set_id from list_sticker_sets), with file_id values for send_sticker.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_favorite_stickers",
+		"label": "Opening favourite stickers",
+		"description": "The user's favourite and recently used stickers, with file_id values for send_sticker.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "favorite_sticker",
+		"label": "Favouriting a sticker",
+		"description": "Adds a sticker (file_id) to favourites, or removes it with remove: true.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_backgrounds",
+		"label": "Opening backgrounds",
+		"description": "Telegram backgrounds installed on the account (wallpapers, patterns, gradients), with background_id values for set_chat_background.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_chat_background",
+		"label": "Checking the background",
+		"description": "The background a chat currently uses, if it has its own.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "set_chat_background",
+		"label": "Changing the background",
+		"description": "Sets a chat's background. Give exactly one of: background_id (from list_backgrounds), file (an image the user attached, by name or path), or color / colors (hex like \"#1E2A3A\"; two colours make a gradient). remove: true restores the default. only_for_me (default true) keeps it on this account; false also sets it for the other person in a private chat. Needs approval.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_bot_buttons",
+		"label": "Reading bot buttons",
+		"description": "The buttons on a bot message (chat_id, message_id), row by row, with their kind (callback, url, switch_inline, web_app, reply…). Use before press_bot_button.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "press_bot_button",
+		"label": "Pressing a bot button",
+		"description": "Presses a button on a bot message, by its text or by row/column (0-based) from get_bot_buttons. Callback buttons return the bot's answer; url buttons return the link (not opened); reply-keyboard buttons send their text to the bot. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_calls",
+		"label": "Opening call history",
+		"description": "The user's call history, newest first: who, incoming or outgoing, voice or video, how long, and whether it was missed, declined or ended. only_missed: true for missed calls.",
+		"category": "calls",
+		"categoryLabel": "Calls & live streams",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "recently_joined_chats",
+		"label": "Finding new channels and groups",
+		"description": "Channels and groups the user joined most recently, with when they joined. days limits how far back (default 30).",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "contact_joins",
+		"label": "Finding contacts who joined",
+		"description": "Contacts who recently joined Telegram (\"X joined Telegram\"), from the user's private chats.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "export_channel_summary",
+		"label": "Exporting channel statistics",
+		"description": "Creates a shareable PNG summary for a channel the user can read: profile photo, name, public link, subscriber count when Telegram exposes it, and average views, shares and reactions from recent posts. Works with public channels too; it does not require admin statistics. The PNG appears in Files and can be sent with send_message by passing its name in files.",
+		"category": "analytics",
+		"categoryLabel": "Analytics",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "translate_message",
+		"label": "Translating",
+		"description": "Telegram's own translation of a message (chat_id, message_id) into to_language (a code like \"en\", \"es\"). Works on Premium accounts or chats with translation on; otherwise translate it yourself.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mark_as_unread",
+		"label": "Marking as unread",
+		"description": "Marks a chat as unread (or clears the mark with unread: false), like Telegram's \"Mark as unread\".",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "pin_chat",
+		"label": "Pinning a chat",
+		"description": "Pins a chat to the top of the chat list (or unpins with pinned: false). Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "add_chat_to_folder",
+		"label": "Changing a folder",
+		"description": "Adds a chat to one of the user's Telegram folders (folder_id from list_chat_folders), or takes it out with remove: true. Needs approval.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_my_chats",
+		"label": "Listing your channels and groups",
+		"description": "Channels, groups and bots by the user's role: role \"owner\" (created by the user), \"admin\" (owner or admin) or \"member\". type: channel, group or bot (bots the user owns, from BotFather).",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_members",
+		"label": "Listing members",
+		"description": "Members of a group or subscribers of a channel (channels only for admins) with each one's role, custom title, admin rights or restrictions, join date and who added them. filter: recent, admins, bots, restricted, banned, or search with query.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_member",
+		"label": "Checking a member",
+		"description": "One member's role, rights or restrictions in a group or channel (user_id), and the chat's default permissions.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_chat_permissions",
+		"label": "Reading permissions",
+		"description": "What ordinary members of a group may do (its default permissions), plus slow mode where known.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "set_chat_permissions",
+		"label": "Changing permissions",
+		"description": "As an admin: changes what all members of a group may do. Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "promote_member",
+		"label": "Changing an admin",
+		"description": "As an admin with that right: makes a member an admin with the given rights, or demotes them back to a member with demote: true. title sets their member tag (the label by their name). Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_member_tag",
+		"label": "Tagging a member",
+		"description": "Sets or clears (empty tag) the member tag shown next to someone's name in a group — what used to be an admin's custom title, now for any member. Needs the right to manage tags. Read tags with get_members.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "restrict_member",
+		"label": "Restricting a member",
+		"description": "As an admin: limits what one member may do (e.g. mute them with send_messages false) for days (0 = forever), or lifts restrictions with lift: true. Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "edit_chat_info",
+		"label": "Editing chat info",
+		"description": "As an admin: changes a group's or channel's title, description, or photo (photo: an attached image's name). Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_invite_links",
+		"label": "Listing invite links",
+		"description": "Invite links of a group or channel you admin, with their usage, limits and pending requests.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "create_invite_link",
+		"label": "Making an invite link",
+		"description": "Creates an invite link: optional name, expiry in hours, member limit, and approval of joiners (requires_approval). revoke: an existing link to revoke instead. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_join_requests",
+		"label": "Checking join requests",
+		"description": "People asking to join a group or channel you admin, with their bio and when they asked.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "answer_join_request",
+		"label": "Answering a join request",
+		"description": "Approves or declines someone's request to join (user_id; approve true or false). Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_admin_log",
+		"label": "Reading the admin log",
+		"description": "Recent admin actions in a group or channel you admin (last 48 hours): edits, deletions, bans, joins, leaves, settings changes. query filters by text.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "add_members",
+		"label": "Adding members",
+		"description": "Adds users (user_ids, e.g. contacts) to a group or channel. Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "create_chat",
+		"label": "Creating a chat",
+		"description": "Creates a new channel, group or forum group with a title and description, optionally adding user_ids. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "join_chat",
+		"label": "Joining a chat",
+		"description": "Joins a public channel or group (chat_id or @username) or one by invite link (link). check_only: true just previews an invite link. Needs approval unless check_only.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_blocked",
+		"label": "Listing blocked accounts",
+		"description": "Users, bots and chats the user has blocked, with ids for block_user (unblock).",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_stories",
+		"label": "Looking at stories",
+		"description": "Active stories of a user or channel (chat_id), or with archived: true the ones it posted before (your own or channels you admin): date, caption, views and reactions where shown.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "add_contact",
+		"label": "Adding a contact",
+		"description": "Adds a user to contacts with a first and last name (user_id), or imports a phone number. share_phone: true shares the user's number with them. Needs approval.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_draft",
+		"label": "Saving a draft",
+		"description": "Leaves a draft in a chat's message box (text, or empty to clear it) for the user to finish and send themselves. Nothing is sent.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "start_bot",
+		"label": "Starting a bot",
+		"description": "Presses Start on a bot (bot user_id), with an optional start parameter from a deep link. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_chat_stats",
+		"label": "Reading statistics",
+		"description": "Statistics of a channel or group you admin (Telegram offers them for bigger chats): members and growth, views, shares and reactions per post, top posters, recent post performance, and boost level.",
+		"category": "analytics",
+		"categoryLabel": "Analytics",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_post_stats",
+		"label": "Reading post statistics",
+		"description": "Views, shares and reactions of one channel post you admin (chat_id, message_id).",
+		"category": "analytics",
+		"categoryLabel": "Analytics",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_my_bots",
+		"label": "Listing your bots",
+		"description": "Bots the user owns, with user_id, username and whether the assistant can act as it (connect_bot).",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_bot_profile",
+		"label": "Reading a bot profile",
+		"description": "An owned bot's name, description (shown before Start) and short description (its bio).",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "edit_bot",
+		"label": "Editing a bot",
+		"description": "Changes an owned bot's name, description, short description (bio), or photo (an attached image's name in file). Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "create_bot",
+		"label": "Creating a bot",
+		"description": "Creates a new bot with a display name and a username ending in \"bot\". Its token is kept in the phone's secure storage (never shown) so connect: true lets the assistant drive it through the Bot API. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "botfather",
+		"label": "Talking to BotFather",
+		"description": "Sends @BotFather a command and its follow-up answers in order, e.g. [\"/setcommands\", \"@my_bot\", \"start - Begin\\nhelp - Help\"], [\"/setinline\", \"@my_bot\", \"Search…\"], [\"/setjoingroups\", \"@my_bot\", \"Disable\"], [\"/mybots\"]. Returns BotFather's replies. Deleting bots and revoking tokens are refused here. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "delete_messages",
+		"label": "Deleting messages",
+		"description": "Deletes messages (message_ids) in a chat. for_everyone: true also removes them for the other people where Telegram allows it (your own messages, or any message as an admin). Can't be undone. Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "clear_chat_history",
+		"label": "Clearing a chat",
+		"description": "Deletes the whole message history of a chat for the user (for_everyone: true also for the other person in a private chat). The chat stays in the list. Can't be undone. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "leave_chat",
+		"label": "Leaving a chat",
+		"description": "Leaves a group or unsubscribes from a channel. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "delete_chat",
+		"label": "Deleting a chat",
+		"description": "Removes a chat entirely: for a private chat, deletes its history and removes it from the list; for a group or channel the user owns, deletes it for all members. Can't be undone. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "block_user",
+		"label": "Blocking",
+		"description": "Blocks a user or bot (user_id), or unblocks them with unblock: true. Needs approval.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "remove_contact",
+		"label": "Removing a contact",
+		"description": "Removes users (user_ids) from the user's contacts. Needs approval.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "ban_member",
+		"label": "Banning a member",
+		"description": "As an admin: removes a member (user_id) from a group or channel. kick_only: true lets them rejoin later; otherwise they are banned (days: for how long, 0 = forever). delete_messages: true also deletes their messages. unban: true lifts a ban. Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "delete_all_from_member",
+		"label": "Deleting a member's messages",
+		"description": "As an admin of a group: deletes every message a member (user_id) sent there. Needs approval.",
+		"category": "members",
+		"categoryLabel": "Members & administration",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "list_briefs",
+		"label": "Opening briefs",
+		"description": "The briefs written so far (morning, night and on demand), newest first, with brief_id values.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_brief",
+		"label": "Reading a brief",
+		"description": "The full text of a brief (brief_id from list_briefs, or \"latest\").",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "write_brief",
+		"label": "Writing a brief",
+		"description": "Writes a new brief now, like \"Brief me now\" in the app: a priority-ordered rundown of what happened across Telegram and connected apps, following the user's brief settings. Read-only research; the brief is saved with the others and its full text comes back. Takes a minute or two. Use when the user asks for a brief, a catch-up or \"what did I miss\".",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_overview",
+		"label": "Opening the Content Canvas",
+		"description": "The Content Canvas: every folder (with folder_id, path and item count) and, with folder, the items in it (item_id, kind, chat, text, note). Use before organising things into it.",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "canvas_create_folder",
+		"label": "Making a canvas folder",
+		"description": "Creates a folder in the Content Canvas (or returns the existing one with that name), optionally inside parent (folder_id or name).",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_update_folder",
+		"label": "Changing a canvas folder",
+		"description": "Renames a canvas folder, changes its description, or moves it under parent (\"\" for the top).",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_export",
+		"label": "Exporting a canvas folder",
+		"description": "Exports a Content Canvas folder (and its subfolders unless subfolders: false) as json, md (Markdown), html or pdf. Returns the file's name; it appears in Files, and send_message can send it (files: [name]).",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_delete_folder",
+		"label": "Deleting a canvas folder",
+		"description": "Deletes a canvas folder and its subfolders (only the canvas, nothing in Telegram). Its items are deleted too unless move_items_to names another folder. Needs approval.",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "canvas_add",
+		"label": "Saving to the canvas",
+		"description": "Saves posts, DMs or comments into a canvas folder (made if missing), with an optional note on why. Pass refs, or chat_id with message_ids. Use one call per folder when classifying.",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_save",
+		"label": "Saving to the canvas",
+		"description": "Saves anything that isn't a Telegram message into a canvas folder (made if missing): a web link, an email, a file of this conversation, or an item from a connected app (a Notion page, Slack message, issue, task, calendar event, R2 file…). Give a title, its url and/or file, a short text (the gist or an excerpt), and source (e.g. \"Gmail\").",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_add_note",
+		"label": "Writing a canvas note",
+		"description": "Adds a text note (markdown) to a canvas folder, e.g. a summary of what the folder holds.",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_move",
+		"label": "Moving canvas items",
+		"description": "Moves canvas items (item_ids from canvas_overview) to another folder.",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "canvas_remove",
+		"label": "Removing canvas items",
+		"description": "Removes items (item_ids) from the canvas. Nothing in Telegram is touched.",
+		"category": "canvas",
+		"categoryLabel": "Canvas",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "create_reminder",
+		"label": "Setting a reminder",
+		"description": "Sets a reminder or a scheduled (cron) job. \"Remind me to walk in 5 minutes\" → text \"Walk\", in_minutes 5. \"Remind me at 18:30\" → at. Repeating: cron, five fields \"minute hour day-of-month month day-of-week\" in local time, e.g. \"0 9 * * 1-5\" weekdays at 9:00, \"*/30 * * * *\" every 30 minutes, \"0 20 * * 0\" Sundays at 20:00. A plain reminder is a phone notification that arrives on time even if the app is closed. Give prompt to make it a job: at that time you run the prompt (e.g. \"summarise my unread channels\", \"send Liya good morning\") and your answer becomes the notification.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_reminders",
+		"label": "Listing reminders",
+		"description": "The user's reminders and scheduled jobs: what they say, when they fire next, how they repeat.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "update_reminder",
+		"label": "Changing a reminder",
+		"description": "Changes a reminder or job: its text, time (in_minutes / at), cron schedule, prompt, or turns it on/off. Pass cron \"\" to make a repeating one fire just once at the new time.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "delete_reminder",
+		"label": "Removing a reminder",
+		"description": "Removes a reminder or scheduled job for good.",
+		"category": "automation",
+		"categoryLabel": "Watches & routines",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "zip_files",
+		"label": "Zipping files",
+		"description": "Packs files of this conversation (attachments, generated or downloaded files) into one .zip, which then is a file of this conversation too: send it with send_message. Use when asked to zip or compress files, or to send many files as one.",
+		"category": "files",
+		"categoryLabel": "Files",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "fetch_url",
+		"label": "Reading a web page",
+		"description": "Reads a web page or file over HTTP without running its scripts: title, readable text, links, forms and the page's script files. Fast; best for blogs, articles, docs, JSON APIs and plain sites (e.g. \"what blogs are on dagmawibabi.com/blog\": fetch it, then fetch the posts you need from the links). Use find to get only the parts mentioning something; raw for the exact source (JavaScript, JSON, HTML) e.g. to look for the API a script calls. If the text is nearly empty the site is a script app: use browser_open instead.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "http_request",
+		"label": "Calling a web API",
+		"description": "Sends any HTTP request (GET, POST, PUT, PATCH, DELETE…) with headers and a JSON, form or raw body, and returns the status, headers and body. For APIs and webhooks. Cookies from earlier fetch_url calls to the same site are sent along. The user approves it first. For reading pages use fetch_url instead.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "submit_form",
+		"label": "Submitting a web form",
+		"description": "Fills in and submits a form on a plain HTML page (one fetch_url listed under forms): hidden fields and defaults are kept, the values you give are set, and the result page is returned. The user approves it first. Forms run by scripts need the browser tools instead.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "download_file",
+		"label": "Downloading a file",
+		"description": "Downloads a file from the web onto the phone. It then counts as a file of this conversation: send it to a chat by passing its name in files, zip it, or look at it with view_image if it is a picture.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "browser_open",
+		"label": "Opening in the browser",
+		"description": "Opens a page in the assistant's real browser, which runs the page's JavaScript like Chrome does. Returns the page's text and its usable elements, numbered (links, buttons, text fields, selects). Then use browser_type to fill fields, browser_click to press buttons, browser_read to read again. Use it for sites that are apps (JavaScript-heavy web apps, forms, anything fetch_url shows empty), and to follow a link (open its href; no approval needed). The user can watch it live in the app's Browser screen.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "browser_read",
+		"label": "Reading the browser page",
+		"description": "Reads the page open in the browser again, after it changed: text (from offset), or only what mentions find, and freshly numbered elements. Numbers from an earlier read may have changed.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "browser_type",
+		"label": "Typing in the browser",
+		"description": "Types text into a field of the open page (element number from the last browser_open/browser_read), or picks an option of a select by its text. Replaces what is there unless append is true. Nothing is sent until a button is clicked (browser_click) or the field is submitted (browser_submit).",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "browser_click",
+		"label": "Clicking in the browser",
+		"description": "Clicks an element of the open page (a button, link, checkbox, tab) by its number, waits for the page to react and returns it. Clicks can send or buy things, so the user approves each one. To just follow a link, browser_open its href instead.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "browser_submit",
+		"label": "Submitting in the browser",
+		"description": "Presses Enter in a field of the open page and submits its form, e.g. a search box. The user approves it first.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "browser_back",
+		"label": "Going back",
+		"description": "Goes back to the previous page in the browser and reads it.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "browser_run_js",
+		"label": "Running a script on the page",
+		"description": "Runs JavaScript in the open page and returns the value of its last expression (as JSON). For reading what the other tools miss (document.querySelectorAll(...)) or doing what they can't. The user approves it first.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_star_balance",
+		"label": "Checking your Stars",
+		"description": "The user's Telegram Stars balance, plus how many Stars their active subscriptions need and the prices for buying more (buying happens in Telegram's official app).",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_star_transactions",
+		"label": "Reading Star history",
+		"description": "The user's Star transactions, newest first: Stars bought, received from people, spent on reactions, paid media, subscriptions, bots and gifts, with who was on the other side.",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_star_reaction",
+		"label": "Sending Stars",
+		"description": "Gives Stars to a post or message as a paid ⭐ reaction (from 1 to 2500 Stars); the Stars go to the channel or chat's owner and the user shows up among its top supporters unless anonymous. This is how to \"star\" a post or a person's content. Spends the user's Stars, so the user approves it every time.",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_star_reactors",
+		"label": "Seeing who sent Stars",
+		"description": "Who gave Stars to a post or message, the top supporters first, and how many in total.",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_star_subscriptions",
+		"label": "Listing Star subscriptions",
+		"description": "The channels and groups the user pays Stars for each month, with price, renewal date and status.",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "set_star_subscription",
+		"label": "Changing a Star subscription",
+		"description": "Cancels a Star subscription (it runs until the paid period ends) or turns a cancelled one back on. Needs approval.",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_star_revenue",
+		"label": "Checking Star earnings",
+		"description": "Stars earned by one of the user's channels or bots (chat_id of the channel, or of the bot's chat): total, available to withdraw, and their value in USD.",
+		"category": "stars",
+		"categoryLabel": "Stars",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "web_screenshot",
+		"label": "Taking a screenshot",
+		"description": "Takes a screenshot (PNG) of a web page with the second browser engine: the phone-sized screen, or the whole page with full_page. Without url it shoots the page open in the main browser (browser_open). The picture is shown to the user, you can look at it with view_image, and it can be sent to a chat with send_message. Use when the user wants to see a page, or when a page is easier to understand by looking.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "web_inspect",
+		"label": "Inspecting a page",
+		"description": "Opens a page in the second browser engine and returns what a developer would check: console messages and errors, the network requests it made (APIs it calls), its cookie names, and the HTML after its scripts ran. Without url it inspects the main browser's page. Good for finding the API behind a web app or why a page fails.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "web_run_async_js",
+		"label": "Running a page script",
+		"description": "Runs JavaScript in a page in the second browser engine as an async function body: it may await (fetch the site's own API with its cookies, wait for elements), and its return value comes back as JSON. Without url, uses the main browser's page. The user approves it first.",
+		"category": "web",
+		"categoryLabel": "Web & browsing",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "run_code",
+		"label": "Running code",
+		"description": "Runs code in a sandbox on the phone, cut off from the app and Telegram: Python (Pyodide: the standard library plus numpy, pandas, matplotlib, pillow and other packages it loads from imports; first use downloads Python) or JavaScript. Use it to calculate, analyse data, convert files, make charts, images, CSV/JSON/text files. Pass files (names from this conversation) to give the code input files: in Python they are in the working directory, in JavaScript files[\"name\"] is a Uint8Array. To produce files, Python writes them into the out/ folder (e.g. plt.savefig(\"out/chart.png\")); JavaScript sets outFiles[\"name\"] = string or Uint8Array. Produced files are shown to the user and can be sent with send_message. Printed output comes back, and the value of the last expression (Python) or of return (JavaScript runs as an async function body).",
+		"category": "code",
+		"categoryLabel": "Code sandbox",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "github_repo",
+		"label": "Looking at a GitHub repo",
+		"description": "A public GitHub repository at a glance: description, stars, forks, open issues, languages, topics, licence, default branch, latest activity and the start of its README. repo is \"owner/name\" or any github.com URL.",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_list",
+		"label": "Browsing a GitHub repo",
+		"description": "Lists the files and folders at a path of a public repo (the root when path is missing), on a branch, tag or commit (ref).",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_read",
+		"label": "Reading a file on GitHub",
+		"description": "Reads a file from a public repo: repo + path (+ ref), or a github.com/…/blob/… URL in repo. Long files read in parts with offset; find returns only the lines around a word.",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_search",
+		"label": "Searching GitHub",
+		"description": "Searches public GitHub: repositories (e.g. \"flutter telegram client stars:>50\"), issues and pull requests (e.g. \"repo:owner/name crash is:open\"), or users. Uses GitHub's search syntax.",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_issues",
+		"label": "Reading GitHub issues",
+		"description": "Issues or pull requests of a public repo (open, closed or all), or one of them in full with its comments (number).",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_commits",
+		"label": "Reading GitHub commits",
+		"description": "Recent commits of a public repo, optionally only those touching path, on a branch (ref); or one commit in full (sha) with its changed files.",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_releases",
+		"label": "Reading GitHub releases",
+		"description": "Releases of a public repo, newest first, with their notes and downloadable assets (APKs, binaries) and download counts.",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_download",
+		"label": "Downloading from GitHub",
+		"description": "Downloads from a public repo onto the phone: the whole repo as a .zip (at ref), one file (path), or a release asset (asset_url from github_releases). It becomes a file of this conversation, ready for send_message or run_code.",
+		"category": "developer",
+		"categoryLabel": "Public GitHub",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_stories",
+		"label": "Listing stories",
+		"description": "Stories of a person or channel (chat_id; the user's own when missing): the active ones (last 24-48 h), the ones kept on the profile, and for the user's own also the archive. Each with story_id, date, caption, views and reactions where Telegram shows them.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "view_story",
+		"label": "Viewing a story",
+		"description": "One story in full: caption, photo or video, privacy, views, reactions and forwards. The picture (or a video's first frame) is shown to the user and can be looked at with view_image. Viewing marks it seen, as in Telegram, unless peek is true.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "story_viewers",
+		"label": "Seeing who viewed a story",
+		"description": "Who viewed one of the user's own stories (or a channel's they admin), who reacted with what, and who forwarded or reposted it.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "post_story",
+		"label": "Posting a story",
+		"description": "Posts a photo or video (up to 60 s) as a story, from a file of this conversation, with an optional caption. Privacy: everyone, contacts, close_friends or selected (user_ids). active_hours 6, 12, 24 or 48 (6/12/48 need Premium). keep_on_profile keeps it on the profile after it expires. chat_id posts for a channel the user can post stories in. The user approves it first.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "edit_story",
+		"label": "Editing a story",
+		"description": "Changes one of the user's stories: its caption, its photo/video (files), its privacy, or whether it stays on the profile. Needs approval.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "delete_story",
+		"label": "Deleting a story",
+		"description": "Deletes one of the user's stories (or a channel's they manage) for everyone. Can't be undone.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "react_to_story",
+		"label": "Reacting to a story",
+		"description": "Puts an emoji reaction on someone's story, or removes the user's reaction (emoji empty). Needs approval.",
+		"category": "stories",
+		"categoryLabel": "Stories",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_folder",
+		"label": "Reading a folder",
+		"description": "A chat folder's full rules: its name, icon, the chats included, excluded and pinned, and the chat types it takes in.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "create_folder",
+		"label": "Creating a folder",
+		"description": "Creates a Telegram chat folder: a name, chats to include (chat_ids), and/or whole types (contacts, non_contacts, bots, groups, channels), chats to exclude, and filters (exclude_muted, exclude_read, exclude_archived). icon: All, Unread, Unmuted, Bots, Channels, Groups, Private, Custom, Setup, Cat, Crown, Favorite, Flower, Game, Home, Love, Mask, Party, Sport, Study, Trade, Travel, Work. Needs approval.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "edit_folder",
+		"label": "Editing a folder",
+		"description": "Changes a chat folder: rename, change icon, add_chat_ids / remove_chat_ids, pin chats, change the included types or filters. Unmentioned settings stay. Needs approval.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "delete_folder",
+		"label": "Deleting a folder",
+		"description": "Deletes a chat folder. The chats themselves stay. Needs approval.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "reorder_folders",
+		"label": "Reordering folders",
+		"description": "Puts the chat folders in a new order (all folder_ids, first to last). Needs approval.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "suggested_folders",
+		"label": "Getting folder ideas",
+		"description": "Folders Telegram suggests for this account (e.g. \"Unread\", \"Personal\"), ready to create with create_folder.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "share_folder",
+		"label": "Sharing a folder",
+		"description": "Makes an invite link to a folder so others can add it with its chats (groups and channels only), or lists its existing links (list: true). Needs approval to make one.",
+		"category": "folders",
+		"categoryLabel": "Folders",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_chat_settings",
+		"label": "Changing chat settings",
+		"description": "Changes how a chat works (as its admin, or for a private chat where it applies): auto_delete (seconds: 0 off, 86400 a day, 604800 a week, 2678400 a month), slow_mode (seconds between messages: 0, 10, 30, 60, 300, 900, 3600), protect_content (no forwarding or saving), history_for_new_members, join_by_request, join_to_send (must join to write in a discussion group), sign_messages and show_author (channels), hide_members, aggressive_antispam, translatable, username (public link; empty makes it private), discussion_chat_id (link a channel's comments group; 0 unlinks). Only the given ones change. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_chat_reactions",
+		"label": "Changing allowed reactions",
+		"description": "Which reactions members may use in a group or channel the user admins: all, some (emojis), or none. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "manage_topic",
+		"label": "Managing a topic",
+		"description": "In a group with topics: create one (name, no topic_id), or change one (topic_id): rename, close or reopen (closed), pin or unpin (pinned). Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "delete_topic",
+		"label": "Deleting a topic",
+		"description": "Deletes a topic of a group with all its messages. Can't be undone.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "get_boosts",
+		"label": "Checking boosts",
+		"description": "A channel's or group's boost level, how many boosts it has and needs for the next level, Premium members, and (for admins) who boosted it.",
+		"category": "analytics",
+		"categoryLabel": "Analytics",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "invite_link_joins",
+		"label": "Seeing who joined by a link",
+		"description": "Who joined a group or channel through one of its invite links (from list_invite_links), and when.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_sessions",
+		"label": "Checking logged-in devices",
+		"description": "Every device and app logged in to the account: app and version, whether it is an official Telegram app, device, system, IP and location, when it logged in and was last active, which one is this phone, and the auto-logout period for inactive devices.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "end_session",
+		"label": "Logging a device out",
+		"description": "Logs one device out of the account (session_id from list_sessions), or every device except this phone (all_others). Use when the user doesn't recognise a device. Always asks first.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "set_session_options",
+		"label": "Changing device settings",
+		"description": "Sets after how many days of inactivity devices are logged out (7, 30, 90, 180 or 365), and/or whether one device (session_id) may take calls. Needs approval.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_privacy",
+		"label": "Checking privacy",
+		"description": "The account's privacy settings: who sees last seen, profile photo, phone number, bio and birthday; who may add the user to groups and call them; whether read times are shown; whether strangers may start chats. Each with the people added as exceptions.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "set_privacy",
+		"label": "Changing privacy",
+		"description": "Changes one privacy setting: setting is last_seen, profile_photo, phone_number, bio, birthdate, invites, calls, p2p_calls, read_dates (show_read_dates) or new_chats (allow strangers). audience: everybody, contacts or nobody; always_user_ids and never_user_ids are exceptions. Needs approval.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_profile",
+		"label": "Reading your profile",
+		"description": "The user's own profile: name, username, bio, birthday, phone, Premium, and their personal channel.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "edit_profile",
+		"label": "Editing your profile",
+		"description": "Changes the user's profile: first_name/last_name, bio (70 characters, more with Premium), username (empty removes it), birthday (\"YYYY-MM-DD\" or \"MM-DD\"; \"\" removes it), a new profile photo from files, or the personal channel shown on the profile (personal_channel_id; 0 removes). Only given fields change. Needs approval.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "account_health",
+		"label": "Checking account security",
+		"description": "A security check-up of the account: two-step verification and its recovery email, devices logged in (unknown, unofficial or long-idle ones), who can see the phone number and who can add the user to groups, and the account's self-destruct period, with a score and what to fix.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "open_telegram_link",
+		"label": "Opening a Telegram link",
+		"description": "Works out what a Telegram link is and opens it for you: t.me/username (a chat, channel, bot or person: its chat_id and details), t.me/channel/123 and t.me/c/… (that message, readable straight away), invite links t.me/+… (the chat, its size and description, without joining), stories, sticker sets, folder links, bot start links and others. Use the returned chat_id with the other tools (read_messages, join_chat…).",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_all_chats",
+		"label": "Searching every chat",
+		"description": "Searches all the user's chats at once (or one chat, a folder, or the archive) for a kind of content: photos, videos, files, links, music, voice messages, video messages, GIFs, or any message, optionally matching query and between dates. E.g. \"every PDF people sent me last month\" (type files, query \"pdf\", since_days 31). Results are newest first; pass next_offset for more.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "inline_bot_query",
+		"label": "Asking an inline bot",
+		"description": "Asks an inline bot (@gif, @vid, @wiki, @bing, @pic, @sticker, @youtube, @music, any bot with inline mode) for results for a query, as typing \"@bot query\" in Telegram does. Returns numbered results; send one with send_inline_result.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_inline_result",
+		"label": "Sending an inline result",
+		"description": "Sends one result from inline_bot_query to a chat, as if picked from the inline list. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_message_effects",
+		"label": "Listing message effects",
+		"description": "The animated effects a message can be sent with in private chats (🔥 👍 ❤️ 🎉 💩 and more): effect_id and emoji, and which need Premium. Pass effect_id to send_message to use one.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "reactions_to_me",
+		"label": "Checking reactions to your messages",
+		"description": "Reactions people put on the user's messages: by default the new (unseen) ones across all chats, with who reacted with what on which message; with chat_id and all, every reaction on the user's recent messages in that chat.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mark_reactions_seen",
+		"label": "Marking reactions seen",
+		"description": "Marks the new reactions to the user's messages as seen, in one chat or (no chat_id) in every chat. Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "video_chat",
+		"label": "Checking a video chat",
+		"description": "Whether a group or channel has a video chat (group call or live stream) going or scheduled: its title, how many are in it, who is speaking, whether the user can manage it. One-to-one calls can't be placed from this app; list_calls shows their history.",
+		"category": "calls",
+		"categoryLabel": "Calls & live streams",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "manage_video_chat",
+		"label": "Managing a video chat",
+		"description": "As admin of a group or channel: start a video chat (now, or scheduled with start_at; live_stream for an RTMP stream), end it, rename it (title), invite user_ids, get an invite link, or mute/unmute new participants. Needs approval.",
+		"category": "calls",
+		"categoryLabel": "Calls & live streams",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "storage_report",
+		"label": "Checking storage",
+		"description": "How much space Telegram's files take on this phone, in total, by kind (photos, videos, music…) and by chat (the biggest first), plus its database.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "clean_storage",
+		"label": "Clearing cached files",
+		"description": "Frees space by deleting cached Telegram files on this phone (they stay in Telegram and download again when opened): only older_than_days, only some kinds (photos, videos, files, music, voice, video_messages, gifs, stickers), only some chats, or until the cache is under keep_mb. Needs approval.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "data_usage",
+		"label": "Checking data use",
+		"description": "How much mobile data, Wi-Fi and roaming Telegram used on this phone since the counters were last reset, by kind (photos, videos, files, calls…). reset: true starts the counters again (needs approval through the app).",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_books",
+		"label": "Searching books",
+		"description": "Searches books by title, author, subject or anything (query), across Open Library (millions of books: editions, ratings, covers, which are free to read), Project Gutenberg and Standard Ebooks (public-domain ebooks, free to download), and Google Books. free_only keeps books with a legal free copy. Each result has a book_id for book_details and download_book.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "book_details",
+		"label": "Reading about a book",
+		"description": "Everything about one book (book_id from search_books): description, authors, first published, subjects, editions and ISBNs, pages, ratings, the formats it can be downloaded in when it is free, and its cover, which is shown to the user.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "find_free_copy",
+		"label": "Looking for a free copy",
+		"description": "Checks every legal source for a free copy of a book (public domain or openly licensed): Gutenberg, Standard Ebooks, and Internet Archive scans. Says plainly when there is none (most books still under copyright) and where it can be borrowed or bought instead.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "download_book",
+		"label": "Downloading a book",
+		"description": "Downloads a free, legal ebook (book_id from search_books or find_free_copy) onto the phone: epub (default), kindle, pdf or txt where offered. It becomes a file of this conversation: send it with send_message, or read it with run_code. Only public-domain and openly licensed books can be downloaded.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "youtube_search",
+		"label": "Searching YouTube",
+		"description": "Searches YouTube: videos with title, channel, length, views, when published and a link.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "youtube_video",
+		"label": "Reading a YouTube video",
+		"description": "A YouTube video's details (url or id): title, channel, published date, length, views, category, tags, the full description, chapters, which caption languages exist, and its thumbnail (shown to the user).",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "youtube_transcript",
+		"label": "Reading a transcript",
+		"description": "The captions of a YouTube video as text with timestamps, in a language when given. YouTube often refuses apps without a signed-in browser; then the tool says so, and the description and chapters are what there is.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "youtube_channel",
+		"label": "Looking at a YouTube channel",
+		"description": "A YouTube channel (@handle, link or channel id): name, description, subscribers, videos count, and its latest uploads.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "youtube_playlist",
+		"label": "Reading a YouTube playlist",
+		"description": "The videos of a YouTube playlist (link or id), with titles, channels and dates.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "x_post",
+		"label": "Reading a post on X",
+		"description": "One post on X (Twitter) from its link or id: text, author, date, likes, reposts, replies, views, its photos and videos (the first photo is shown), and the post it quotes. Works without an X account.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "x_profile",
+		"label": "Looking at an X profile",
+		"description": "An X (Twitter) profile: name, bio, followers, following, posts count, joined date, location, website and picture. Recent posts, search and posting need the user signed in to x.com in the app's browser (then use browser_open on x.com).",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_rich_message",
+		"label": "Sending a rich message",
+		"description": "Sends a rich message laid out in blocks: # headings, paragraphs, - bullet / 1. numbered / - [ ] checkbox lists (nest by indenting), | tables | with :--: alignment, > quotes (a last \"— Name\" line is the credit), ``` code ```, $$ math $$ and inline $math$, --- dividers, <details><summary>Title</summary> … </details> collapsibles, and ![caption](file) for an attached photo, video, GIF, audio or file. Inline: **bold**, _italic_, __underline__, ~~strike~~, ||spoiler||, ==highlight==, `code`, [text](url), ^sup^, ~sub~. Use it for tables, reports and structured answers; plain chat goes through send_message. Some features may need Telegram Premium. Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "edit_rich_message",
+		"label": "Editing a rich message",
+		"description": "Replaces the text of one of the user's messages with a rich message written in the same Markdown as send_rich_message (no new media). Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "read_rich_message",
+		"label": "Reading a rich message",
+		"description": "The whole of a rich message as Markdown (tables, headings, lists…). Messages lists show long ones cut short; this loads the rest.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_channel_dms",
+		"label": "Reading channel DMs",
+		"description": "For a channel the user administers (or its direct-messages group): the people who messaged the channel, one conversation (topic) each, with unread counts and the last message. Read one with read_channel_dm; answer with reply_channel_dm.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_channel_dm",
+		"label": "Reading a channel DM",
+		"description": "Messages of one channel direct-messages conversation (topic_id from list_channel_dms), newest first.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "reply_channel_dm",
+		"label": "Answering a channel DM",
+		"description": "Answers someone in a channel's direct messages as the channel. Text, or attached files. Needs approval.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_channel_dms",
+		"label": "Changing channel DMs",
+		"description": "Turns a channel's direct messages on or off (as its owner or an admin), optionally charging star_price Stars per message (0 = free). Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_profile_music",
+		"label": "Reading profile music",
+		"description": "The songs on someone's profile (or the user's own with no user_id): title, performer, length and file_id. send_message can't forward them; mention them instead.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "add_profile_music",
+		"label": "Adding profile music",
+		"description": "Adds an attached audio file (mp3, m4a…) to the user's own profile music. Needs approval.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "remove_profile_music",
+		"label": "Removing profile music",
+		"description": "Removes a song (file_id from get_profile_music) from the user's profile. Needs approval.",
+		"category": "account",
+		"categoryLabel": "Account & security",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "list_welcome_messages",
+		"label": "Reading welcome messages",
+		"description": "The welcome messages a group or channel sends people who join (needs the admin right to send welcome messages), with their ids.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "set_welcome_message",
+		"label": "Setting a welcome message",
+		"description": "Adds a welcome message to a group or channel, or replaces one with welcome_message_id. text may be Markdown like send_rich_message (sent as a rich message when it has headings, tables or lists); one attached photo, video or file goes with it. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "delete_welcome_message",
+		"label": "Deleting a welcome message",
+		"description": "Deletes one welcome message (or all with all: true) from a group or channel. Needs approval.",
+		"category": "chats",
+		"categoryLabel": "Chats",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "message_read_status",
+		"label": "Checking if it was read",
+		"description": "Whether messages the user sent were read. In a private chat: read or not, and when (if neither side hides read times and it was sent in the last week). In a group: who viewed it (small groups, recent messages). In a channel: the view count. Without message_id it checks the user's last few messages in the chat. Telegram never says whether someone merely opened the chat.",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "get_replied_message",
+		"label": "Following a reply",
+		"description": "The message another one replies to or quotes (in the same chat or another one), with the quoted part. Use it to understand a reply in context; its ref opens the original. follow: n walks up a reply chain up to n steps (default 1, max 10).",
+		"category": "messages",
+		"categoryLabel": "Messages",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "view_profile_photo",
+		"label": "Looking at a profile photo",
+		"description": "Lets you see someone's profile picture (user_id), or a group's or channel's photo (chat_id), with your own eyes; count > 1 also shows their earlier profile pictures (users only, up to 6). The pictures come right after the result, and the user sees them too.",
+		"category": "media",
+		"categoryLabel": "Media & appearance",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "set_private_note",
+		"label": "Saving a private note",
+		"description": "Saves a private note on a contact's profile that only the user sees in Telegram (e.g. \"met at the conference, likes chess\"). Empty note clears it. Supports **bold**, _italic_, __underline__, ~~strike~~ and ||spoiler||. Read notes with get_private_note or get_chat_info.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "get_private_note",
+		"label": "Reading a private note",
+		"description": "The user's private Telegram note on a contact, if any.",
+		"category": "contacts",
+		"categoryLabel": "Contacts & profile",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "send_ephemeral_command",
+		"label": "Sending a private bot command",
+		"description": "Sends a bot one of its ephemeral commands in a chat: only that bot receives it, and its answer is visible only to the user (others in a group see nothing). Only commands the bot marks as ephemeral work (get_bot_commands shows them). Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "get_bot_commands",
+		"label": "Reading bot commands",
+		"description": "A bot's commands with descriptions, and which are ephemeral (answered privately).",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "stop_bot_reply",
+		"label": "Stopping a bot reply",
+		"description": "Stops a bot (an AI bot, usually) that is still writing its answer in a chat, keeping or dropping what it wrote as the bot decides.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "connect_bot",
+		"label": "Connecting a bot",
+		"description": "Lets the assistant act as one of the user's own bots: fetches its token from @BotFather and keeps it in the phone's secure storage (never shown). Then bot_api and stream_bot_message work with it. disconnect: true forgets it. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "bot_api",
+		"label": "Using the Bot API",
+		"description": "Calls a Telegram Bot API method as a connected bot (connect_bot first), e.g. getMe, getUpdates, sendMessage {chat_id, text}, setMyCommands {commands: [{command, description}]}, setMyDescription, setChatMenuButton, getChat, sendPhoto with a URL, answerCallbackQuery, sendMessageDraft. params is the method's JSON body. Reading methods (get…) run without asking; everything else needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "stream_bot_message",
+		"label": "Streaming a bot message",
+		"description": "Has a connected bot write a message to someone live, the way AI bots do: the text appears word by word as a draft (sendMessageDraft), then lands as a real message. chat_id is the private chat with the person (their user id); defaults to the user themself. Needs approval.",
+		"category": "bots",
+		"categoryLabel": "Bots",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "music_search",
+		"label": "Searching music",
+		"description": "Finds songs, albums or artists (Apple Music catalogue, no account): title, artist, album, year, genre, length, artwork, a 30-second preview, and YouTube Music / Spotify links (the user is on Android: share those, not Apple Music links). type: song (default), album or artist. The user sees cards they can tap and play.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "music_album",
+		"label": "Opening an album",
+		"description": "An album's tracks (with previews), release date, genre, label and artwork. album_id from music_search.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "music_artist",
+		"label": "Looking up an artist",
+		"description": "An artist: a short biography (Wikipedia), where they're from, active years, genres (MusicBrainz) and their albums, newest first. Give artist_id from music_search, or name.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "movie_search",
+		"label": "Searching movies",
+		"description": "Finds films: title, year, director, genres, length and poster (Wikidata and Wikipedia, no account). For TV series use tv_search.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "movie_details",
+		"label": "Looking up a movie",
+		"description": "One film in full: Wikipedia summary, director, writers, main cast, release date, genres, runtime, country, language, age rating, budget and box office when known, poster, trailer and IMDb link. movie_id (like \"Q25188\") from movie_search.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "tv_search",
+		"label": "Searching TV shows",
+		"description": "Finds TV series (TVmaze): network, years, status, genres, rating, poster and summary.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "tv_show",
+		"label": "Looking up a TV show",
+		"description": "A TV series in full: summary, seasons (episode counts and dates), main cast, the next episode if it is still airing, and with season set, that season's episodes. show_id from tv_search.",
+		"category": "discover",
+		"categoryLabel": "Entertainment",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_fetch_emails",
+		"label": "Checking your email",
+		"description": "Fetches a list of email messages from a Gmail account, supporting filtering, pagination, and optional full content retrieval. Results are NOT sorted by recency; sort by internalDate client-side. The messages field may be absent or empty (valid no-results state); always null-check before accessing messageId or threadId. Null-check subject and header fields before string operations. For large result sets, prefer ids_only=true or metadata-only listing, then hydrate via gmail_fetch_message_by_message_id.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_fetch_message_by_message_id",
+		"label": "Opening an email",
+		"description": "Fetches a specific email message by its ID, provided the `message_id` exists and is accessible to the authenticated `user_id`. Spam/trash messages are excluded unless upstream list/search calls used `include_spam_trash=true`. Use `internalDate` (milliseconds since epoch) rather than header `Date` for recency checks.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_fetch_message_by_thread_id",
+		"label": "Reading an email thread",
+		"description": "Retrieves messages from a Gmail thread using its `thread_id`, where the thread must be accessible by the specified `user_id`. Returns a `messages` array; `thread_id` is not echoed in the response. Message order is not guaranteed — sort by `internalDate` to find oldest/newest. Check `labelIds` per message to filter drafts. Concurrent bulk calls may trigger 403 `userRateLimitExceeded` or 429; cap concurrency ~10 and use exponential backoff.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_list_threads",
+		"label": "Listing email threads",
+		"description": "Retrieves a list of email threads from a Gmail account, identified by `user_id` (email address or 'me'), supporting filtering and pagination. Spam and trash are excluded by default unless explicitly targeted via `label:spam` or `label:trash` in the query.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_list_labels",
+		"label": "Listing Gmail labels",
+		"description": "Retrieves all system and user-created labels for a Gmail account in a single unpaginated response. Primary use: obtain internal label IDs (e.g., 'Label_123') required by other Gmail tools — display names cannot be used as label identifiers and cause silent failures or errors. System labels (INBOX, UNREAD, SPAM, TRASH, etc.) are case-sensitive and must be used exactly as returned; INBOX, SPAM, and TRASH are read-only and cannot be added/removed via label modification tools.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_list_drafts",
+		"label": "Listing drafts",
+		"description": "Retrieves a paginated list of email drafts from a user's Gmail account. Use verbose=true to get full draft details including subject, body, sender, and timestamp. Draft ordering is non-guaranteed; iterate using page_token until it is absent to retrieve all drafts. Newly created drafts may not appear immediately. Rapid calls may trigger 403 userRateLimitExceeded or 429 errors; apply exponential backoff (1s, 2s, 4s) before retrying.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_get_profile",
+		"label": "Checking your Gmail account",
+		"description": "Retrieves Gmail profile information (email address, aggregate messagesTotal/threadsTotal, historyId) for a user. messagesTotal counts individual emails; threadsTotal counts conversations; neither is per-label — use gmail_fetch_emails with label filters for label-specific counts. The returned historyId seeds incremental sync via GMAIL_LIST_HISTORY; if historyIdTooOld is returned, rescan with gmail_fetch_emails before resuming. Response may be wrapped under a top-level data field; unwrap before reading fields.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_search_people",
+		"label": "Looking up contacts",
+		"description": "Searches contacts by matching the query against names, nicknames, emails, phone numbers, and organizations, optionally including 'Other Contacts'. Only searches the authenticated user's contact directory — people existing solely in message headers won't appear; use gmail_fetch_emails for those. Results may be zero or multiple; never auto-select from ambiguous results. Results paginate via next_page_token; follow until empty and deduplicate by email.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "gmail_send_email",
+		"label": "Sending an email",
+		"description": "Sends an email via Gmail API using the authenticated user's Google profile display name. Sends immediately and is irreversible — confirm recipients, subject, body, and attachments before calling. At least one of 'to' (or 'recipient_email'), 'cc', or 'bcc' must be provided. At least one of subject or body must be provided. Requires `is_html=True` if the body contains HTML. All common file types including PNG, JPG, PDF, MP4, etc. are supported as attachments. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_reply_to_thread",
+		"label": "Replying to an email",
+		"description": "Sends a reply within a specific Gmail thread using the original thread's subject; do not provide a custom subject as it will start a new conversation instead of replying in-thread. Requires a valid `thread_id` and at least one of `recipient_email`, `cc`, or `bcc`. Supports optional file attachments. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_forward_message",
+		"label": "Forwarding an email",
+		"description": "Forward an existing Gmail message to specified recipients, preserving original body and attachments. Verify recipients and content before forwarding to avoid unintended exposure. Bulk forwarding may trigger 429/5xx rate limits; keep concurrency to 5–10 and apply backoff. Messages near Gmail's size limits may fail; reconstruct a smaller draft if needed. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_create_email_draft",
+		"label": "Drafting an email",
+		"description": "Creates a Gmail email draft. While all fields are optional per the Gmail API, practical validation requires at least one of recipient_email, cc, or bcc and at least one of subject or body. Supports To/Cc/Bcc recipients, subject, plain/HTML body (ensure `is_html=True` for HTML), attachments, and threading. Returns a draft_id that must be used as-is with gmail_send_draft — synthetic or stale IDs will fail. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_send_draft",
+		"label": "Sending a draft",
+		"description": "Sends an existing draft email AS-IS to recipients already defined within the draft. IMPORTANT: This action does NOT accept recipient parameters (to, cc, bcc). The Gmail API's drafts/send endpoint sends drafts to whatever recipients are already set in the draft's To, Cc, and Bcc headers - it cannot add or override recipients. If the draft has no recipients, you must either: 1. Create a new draft with recipients using gmail_create_email_draft, then send it 2. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_add_label_to_email",
+		"label": "Labelling an email",
+		"description": "Adds and/or removes specified Gmail labels for a message; ensure `message_id` and all `label_ids` are valid (use 'listLabels' for custom label IDs). Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_batch_modify_messages",
+		"label": "Updating emails",
+		"description": "Modify labels on multiple Gmail messages in one efficient API call. Supports up to 1,000 messages per request for bulk operations like archiving, marking as read/unread, or applying custom labels. High-volume calls may return 429 rateLimitExceeded or 403 userRateLimitExceeded; apply exponential backoff. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_create_label",
+		"label": "Creating a label",
+		"description": "Creates a new label with a unique name in the specified user's Gmail account. Returns a labelId (e.g., 'Label_123') required for downstream tools like gmail_add_label_to_email, gmail_batch_modify_messages, and GMAIL_MODIFY_THREAD_LABELS — those tools do not accept display names. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_untrash_message",
+		"label": "Restoring an email",
+		"description": "Tool to remove a message from trash in Gmail. Use when you need to restore a previously trashed email message. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "gmail_move_to_trash",
+		"label": "Moving an email to Trash",
+		"description": "Moves an existing, non-deleted email message to the trash for the specified user. Trashed messages are recoverable and still count toward storage quota until purged. Prefer this over gmail_batch_delete_messages when recovery may be needed. For bulk operations, use gmail_batch_modify_messages or gmail_batch_delete_messages instead of repeated calls to this tool. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "gmail_delete_draft",
+		"label": "Deleting a draft",
+		"description": "Permanently deletes a specific Gmail draft using its ID with no recovery possible; verify the correct `draft_id` and obtain explicit user confirmation before calling. Ensure the draft exists and the user has necessary permissions for the given `user_id`. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "gmail_delete_message",
+		"label": "Deleting an email forever",
+		"description": "Permanently deletes a specific email message by its ID from a Gmail mailbox; for `user_id`, use 'me' for the authenticated user or an email address to which the authenticated user has delegated access. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "gmail_batch_delete_messages",
+		"label": "Deleting emails forever",
+		"description": "Tool to permanently delete multiple Gmail messages in bulk, bypassing Trash with no recovery possible. Use when you need to efficiently remove large numbers of emails (e.g., retention enforcement, mailbox hygiene). Use gmail_move_to_trash instead when reversibility may be needed. Always obtain explicit user confirmation and verify a sample of message IDs before executing. High-volume calls may trigger 429 rateLimitExceeded or 403 userRateLimitExceeded errors; apply exponential backoff. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "gmail",
+		"categoryLabel": "Gmail",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "outlook_list_messages",
+		"label": "Checking Outlook mail",
+		"description": "List or query Outlook messages from one folder (Inbox by default) or mailbox-wide with folder='allfolders'. Use simple filter fields for common conditions, filter for a raw OData expression, or search for full-text matching. Supports field selection, sorting, page size, offset, and opaque continuation tokens. Microsoft Graph does not allow search with filter, orderby, or skip; use OUTLOOK_QUERY_EMAILS only when you want its stricter single-folder OData validation.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "outlook_search_messages",
+		"label": "Searching Outlook mail",
+		"description": "Search Outlook messages using KQL syntax. Supports Microsoft 365, work/school, and personal Microsoft accounts. Personal accounts use the Messages API fallback. Examples: 'from:user@example.com AND received>=2025-10-01', 'to:info@jcdn.nl AND subject:invoice', 'received>today-30 AND hasattachment:yes'",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "outlook_get_message",
+		"label": "Opening an Outlook email",
+		"description": "Retrieve a message by immutable ID from the specified Outlook mailbox. Use `select` to include fields such as `internetMessageHeaders`. A 404 can indicate a deleted message, a different mailbox, or a stale legacy mutable ID.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "outlook_list_events",
+		"label": "Checking your Outlook calendar",
+		"description": "Retrieves events from a user's Outlook calendar via Microsoft Graph API. Supports primary/secondary/shared calendars, pagination, filtering, property selection, sorting, and timezone specification. Use calendar_id to access non-primary calendars.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "outlook_send_email",
+		"label": "Sending an Outlook email",
+		"description": "Sends an email with subject, body, recipients, and optional attachments via Microsoft Graph API. Supports comma-separated email addresses in the to_email field for multiple recipients. Accepts either a single file or a list of files as attachments. Attachments require a non-empty file with valid name and mimetype. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "outlook_reply_email",
+		"label": "Replying in Outlook",
+		"description": "Sends a reply to an Outlook email message with optional HTML formatting, attachments, CC, and BCC recipients. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "outlook_create_draft",
+		"label": "Drafting an Outlook email",
+		"description": "Creates a new Outlook email draft with subject, body, recipients, and an optional attachment. This action creates a standalone draft for new conversations. To create a draft reply to an existing conversation/message, use the OUTLOOK_CREATE_DRAFT_REPLY action instead. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "outlook_move_message",
+		"label": "Moving an Outlook email",
+		"description": "Move a message to another folder within the specified user's mailbox. Immutable message IDs remain stable across moves within the mailbox. High-volume parallel moves can trigger HTTP 429 (MailboxConcurrency) throttling; honor the Retry-After header. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "outlook_calendar_create_event",
+		"label": "Adding an Outlook event",
+		"description": "Creates a new Outlook calendar event, ensuring `start_datetime` is chronologically before `end_datetime`. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "outlook_delete_message",
+		"label": "Deleting an Outlook email",
+		"description": "Tool to permanently delete an Outlook email message by its message_id. Use when removing unwanted messages, cleaning up drafts, or performing mailbox maintenance. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "outlook",
+		"categoryLabel": "Outlook",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "googlecalendar_events_list",
+		"label": "Checking your calendar",
+		"description": "Lists or incrementally synchronizes events from one calendar, defaulting to the connected user's primary calendar. Use timeMin/timeMax for a time window, singleEvents to expand recurring series, showDeleted to include cancelled events, query for text search, orderBy to sort, pageToken to continue a page sequence, and syncToken to retrieve changes after a completed full sync.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlecalendar_find_event",
+		"label": "Finding an event",
+		"description": "Finds events in a specified Google Calendar using text query, time ranges (event start/end, last modification), and event types. Ensure `timeMin` is not chronologically after `timeMax` if both are provided. Results may span multiple pages; always follow `nextPageToken` until absent to avoid silently missing events. Validate the correct match from results by checking summary, start.dateTime, and organizer.email before using event_id for mutations.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlecalendar_find_free_slots",
+		"label": "Finding free time",
+		"description": "Finds both free and busy time slots in Google Calendars for specified calendars within a defined time range. If `time_min` is not provided, defaults to the current timestamp in the specified timezone. If `time_max` is not provided, defaults to 23:59:59 of the day specified in `time_min` (if provided), otherwise defaults to 23:59:59 of the current day in the specified timezone.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlecalendar_list_calendars",
+		"label": "Listing calendars",
+		"description": "Lists calendars accessible through the connected user's CalendarList, returning IDs and user-specific metadata such as access role, color, visibility, selection, and reminders. Hidden calendars are omitted unless show_hidden is true; min_access_role and show_deleted provide additional filtering. Continue with page_token until next_page_token is absent; for incremental synchronization, pass next_sync_token back as sync_token.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlecalendar_create_event",
+		"label": "Adding an event",
+		"description": "Creates a timed event using start_datetime and either end_datetime or duration fields, or an all-day event using an inclusive start_date and exclusive end_date. send_updates defaults to \"all\", which emails all attendees; choose \"externalOnly\" or \"none\" to control notifications. The organizer is added as an attendee unless exclude_organizer is true, and a Google Meet link is requested by default. No conflict checking is performed; use GOOGLECALENDAR_FREE_BUSY_QUERY first when conflicts matter. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googlecalendar_quick_add",
+		"label": "Adding an event",
+		"description": "Parses natural language text to quickly create a basic Google Calendar event with its title, date, and time, suitable for simple scheduling; does not support direct attendee addition or recurring events, and `calendar_id` must be valid if not 'primary'. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googlecalendar_patch_event",
+		"label": "Changing an event",
+		"description": "Update specified fields of an existing event in a Google Calendar using patch semantics (array fields like `attendees` are fully replaced if provided); ensure the `calendar_id` and `event_id` are valid and the user has write access to the calendar. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googlecalendar_delete_event",
+		"label": "Deleting an event",
+		"description": "Deletes an event from the specified calendar. Only Google's HTTP 204 confirms deletion; 404 or 410 can also mean the event belongs to a different calendar. Bulk deletions may trigger `rateLimitExceeded` or `userRateLimitExceeded`; cap concurrency to 5–10 requests and apply exponential backoff. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "calendar",
+		"categoryLabel": "Google Calendar",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "googledrive_find_file",
+		"label": "Searching your Drive",
+		"description": "The comprehensive Google Drive search tool that handles all file and folder discovery needs. Use this for any file finding task - from simple name searches to complex queries with date filters, MIME types, permissions, custom properties, folder scoping, and more. Searches across My Drive and shared drives with full metadata support.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googledrive_get_file_metadata",
+		"label": "Looking at a Drive file",
+		"description": "Gets a Drive file's metadata by ID, optionally returning only the metadata selected by `fields`. Use `fields` such as `id,name,mimeType,parents,modifiedTime` when a compact partial response is needed; omit it for Google's default metadata. This does not download file content: use GOOGLEDRIVE_DOWNLOAD_FILE for native bytes or exported Workspace content.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googledrive_parse_file",
+		"label": "Reading a Drive file",
+		"description": "DEPRECATED: Exports Google Workspace files (max 10MB) to a specified format using `mime_type`, or downloads other file types; use `GOOGLEDRIVE_DOWNLOAD_FILE` instead.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googledocs_search_documents",
+		"label": "Searching your Docs",
+		"description": "Search for Google Documents using various filters including name, content, date ranges, and more.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googledocs_get_document_plaintext",
+		"label": "Reading a Doc",
+		"description": "Retrieve a Google Doc by ID and return a best-effort plain-text rendering. Converts document structure into plain text including paragraphs, lists, and tables without requiring clients to traverse complex Docs API JSON.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlesheets_search_spreadsheets",
+		"label": "Searching your Sheets",
+		"description": "Search for Google Spreadsheets using various filters including name, content, date ranges, and more.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlesheets_get_sheet_names",
+		"label": "Listing sheet tabs",
+		"description": "Lists all worksheet names from a specified Google Spreadsheet (which must exist), useful for discovering sheets before further operations.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googlesheets_values_get",
+		"label": "Reading a spreadsheet",
+		"description": "Returns a range of values from a spreadsheet. Use when you need to read data from specific cells or ranges in a Google Sheet.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "googledrive_create_file_from_text",
+		"label": "Creating a Drive file",
+		"description": "Creates a new file in Google Drive from provided text content (up to 10MB), supporting various formats including automatic conversion to Google Workspace types. Returns flat metadata fields (`id`, `mimeType`, `name`) at the top level — not nested under a `file` object. Created files are private by default; use a sharing tool afterward for collaborative access. Rapid successive calls may trigger `403 rateLimitExceeded` or `429 userRateLimitExceeded`; apply exponential backoff between retries. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googledrive_create_folder",
+		"label": "Creating a Drive folder",
+		"description": "Creates a new folder in Google Drive, optionally within an EXISTING parent folder specified by its ID or name. The parent folder MUST already exist - use GOOGLEDRIVE_FIND_FOLDER first to verify the parent exists or find its ID. Google Drive permits duplicate folder names, so always store and reuse the folder ID returned by this action rather than relying on names for future lookups. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googledrive_add_file_sharing_preference",
+		"label": "Sharing a Drive file",
+		"description": "DEPRECATED: Use GOOGLEDRIVE_CREATE_PERMISSION instead; use GOOGLEDRIVE_UPDATE_PERMISSION to modify existing permissions (avoids duplicate entries). Modifies sharing permissions for an existing Google Drive file, granting a specified role to a user, group, domain, or 'anyone'. Bulk calls may trigger 403 rateLimitExceeded (~100 req/100s/user); use jittered exponential backoff. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googledocs_create_document_markdown",
+		"label": "Creating a Doc",
+		"description": "Creates a new Google Docs document, optionally initializing it with a title and content provided as Markdown text. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googledocs_update_document_markdown",
+		"label": "Rewriting a Doc",
+		"description": "Replaces the entire content of an existing Google Docs document with new Markdown text; requires edit permissions for the document. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "googlesheets_spreadsheets_values_append",
+		"label": "Adding rows to a sheet",
+		"description": "Tool to append values to a spreadsheet. Use when you need to add new data to the end of an existing table in a Google Sheet. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googlesheets_values_update",
+		"label": "Updating a sheet",
+		"description": "Tool to set values in a range of a Google Spreadsheet. Use when you need to update or overwrite existing cell values in a specific range. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "googledrive_trash_file",
+		"label": "Moving a Drive file to Trash",
+		"description": "Tool to move a file or folder to trash (soft delete). Use when you need to delete a file but want to allow recovery via UNTRASH_FILE. This action is distinct from permanent deletion and provides a safer cleanup workflow. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "googleDocs",
+		"categoryLabel": "Drive, Docs & Sheets",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "slack_list_all_channels",
+		"label": "Listing Slack channels",
+		"description": "Lists conversations available to the user with various filters and search options. Always use resolved `channel_id` (not display names) for downstream operations, as names may be non-unique. The `created` field in results is a Unix epoch timestamp (UTC). Pagination across large workspaces may return HTTP 429 with a `Retry-After` header; honor the delay and resume from the last successful cursor.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_find_channels",
+		"label": "Finding Slack channels",
+		"description": "Find channels in a Slack workspace by any criteria - name, topic, purpose, or description. Returns channel IDs (C*/G* prefixed) required by most Slack tools — always resolve names to IDs here before passing to other tools. NOTE: This action searches channels and conversations visible to the authenticated user.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_fetch_conversation_history",
+		"label": "Reading a Slack channel",
+		"description": "Fetches a chronological list of messages and events from a specified Slack conversation, accessible by the authenticated user/bot, with options for pagination and time range filtering. IMPORTANT LIMITATION: This action only returns messages from the main channel timeline. Threaded replies are NOT returned by this endpoint. To retrieve threaded replies, use the slack_fetch_message_thread_from_a_conversation action (conversations.replies API) instead.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_fetch_message_thread_from_a_conversation",
+		"label": "Reading a Slack thread",
+		"description": "Retrieves replies to a specific parent message in a Slack conversation, using the channel ID and the parent message's timestamp (`ts`). Note: The parent message in the response contains metadata (reply_count, reply_users, latest_reply) that indicates expected thread activity.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_search_messages",
+		"label": "Searching Slack",
+		"description": "Workspace‑wide Slack message search with date ranges and filters. Use `query` modifiers (e.g., in:#channel, from:@user, before/after:YYYY-MM-DD), sorting (score/timestamp), and pagination.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_list_unread_channel_messages",
+		"label": "Checking unread Slack",
+		"description": "Lists all unread messages in a specified Slack channel for the authenticated user. This action fetches messages that have been posted since the user's last read position in the channel. Use this action when you need to retrieve messages the user hasn't seen yet. The action determines the user's read position and returns all messages posted after that timestamp. Note: This only returns messages from the main channel timeline, not threaded replies.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_find_users",
+		"label": "Finding Slack people",
+		"description": "Find users in a Slack workspace by any criteria - email, name, display name, or other text. Includes optimized email lookup for exact email matches. Zero results may reflect email visibility restrictions or workspace policies, not global absence. Repeated calls may trigger HTTP 429; honor the Retry-After header.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_list_reminders",
+		"label": "Listing Slack reminders",
+		"description": "Lists all reminders with their details for the authenticated Slack user; returns an empty array if no reminders exist (valid state, not an error). Reminder text is not unique—perform client-side matching on returned objects before extracting a reminder ID for use with SLACK_DELETE_A_SLACK_REMINDER.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "slack_send_message",
+		"label": "Sending a Slack message",
+		"description": "Posts a message to a Slack channel, DM, or private group. Provide exactly one visible content mode: `markdown_text` for normal Markdown content, or `blocks` for raw Slack Block Kit layouts. Use `fallback_text` only with `blocks`; it maps to Slack's top-level `text` fallback. Fails with `not_in_channel`, `channel_not_found`, or `channel_is_archived` if the bot lacks access. Rate-limited at ~1 req/sec (HTTP 429, honor `Retry-After`). Not idempotent — duplicate calls post duplicate messages. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "slack_schedule_message",
+		"label": "Scheduling a Slack message",
+		"description": "Schedules a message to a Slack channel, DM, or private group for a future time (`post_at`), requiring `text`, `blocks`, or `attachments` for content; scheduling is limited to 120 days in advance. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "slack_updates_a_slack_message",
+		"label": "Editing a Slack message",
+		"description": "Updates a Slack message by timestamp. Provide exactly one visible content mode: `markdown_text` for normal Markdown content, or `blocks` for raw Slack Block Kit layouts. Use `fallback_text` only with `blocks`; it maps to Slack's top-level `text` fallback. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "slack_add_reaction_to_an_item",
+		"label": "Reacting in Slack",
+		"description": "Adds a specified emoji reaction to an existing message in a Slack channel, identified by its timestamp; does not remove or retrieve reactions. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "slack_set_status",
+		"label": "Setting your Slack status",
+		"description": "(DEPRECATED: use `SLACK_SET_USER_PROFILE`) Updates a Slack user's profile, setting either individual fields or multiple fields via a JSON object. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "slack_create_a_reminder",
+		"label": "Adding a Slack reminder",
+		"description": "Creates a Slack reminder with specified text and time; time accepts Unix timestamps, seconds from now, or natural language (e.g., 'in 15 minutes', 'every Thursday at 2pm'). Changes something in the user's account: only when they asked; they approve first.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "slack_deletes_a_message_from_a_chat",
+		"label": "Deleting a Slack message",
+		"description": "Deletes a message, identified by its channel ID and timestamp, from a Slack channel, private group, or direct message conversation; the authenticated user or bot must be the original poster. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "slack_leave_a_conversation",
+		"label": "Leaving a Slack channel",
+		"description": "(DEPRECATED: use `SLACK_LEAVE_CONVERSATION`) Leaves a Slack conversation given its channel ID; fails if leaving as the last member of a private channel or if used on a Slack Connect channel. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "slack_archive_conversation",
+		"label": "Archiving a Slack channel",
+		"description": "Archives a Slack conversation by its ID, rendering it read-only and hidden while retaining history, ideal for cleaning up inactive channels; be aware that some channels (like #general or certain DMs) cannot be archived and this may impact connected integrations. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "slack",
+		"categoryLabel": "Slack",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "notion_search_notion_page",
+		"label": "Searching Notion",
+		"description": "Searches Notion pages and databases by title. Use specific search terms to find items by title (primary approach). KNOWN LIMITATIONS: (1) Search indexing is not immediate - recently shared items may not appear. (2) Search is not exhaustive - results may be incomplete. (3) Database pages return all custom properties with full nested structures, which can create large responses for databases with many properties - use filter_properties to reduce response size.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notion_get_page_markdown",
+		"label": "Reading a Notion page",
+		"description": "Retrieve a Notion page's full content rendered as Notion-flavored Markdown in a single API call. Use when you need the readable content of a page without recursive block-children fetching.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notion_fetch_data",
+		"label": "Browsing Notion",
+		"description": "Fetches Notion items (pages and/or databases) from the Notion workspace, use this to get minimal data about the items in the workspace with a query or list all items in the workspace with minimal data",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notion_query_database",
+		"label": "Reading a Notion database",
+		"description": "Queries a Notion database to retrieve pages (rows). In Notion, databases are collections where each row is a page and columns are properties. Returns paginated results with metadata. Important requirements: - The database must be shared with your integration - Property names in sorts must match existing database properties exactly (case-sensitive) - For timestamp sorting, use 'created_time' or 'last_edited_time' (case-insensitive) - The start_cursor must be the opaque value from a previous response's next_cursor fi…",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notion_fetch_database",
+		"label": "Looking at a Notion database",
+		"description": "Fetches a Notion database's structural metadata (properties, title, etc.) via its `database_id`, not the data entries; `database_id` must reference an existing database.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notion_fetch_comments",
+		"label": "Reading Notion comments",
+		"description": "Fetches unresolved comments for a specified Notion block or page ID. The block/page must be shared with your Notion integration and the integration must have 'Read comments' capability enabled, otherwise a 404 error will be returned.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "notion_create_notion_page",
+		"label": "Creating a Notion page",
+		"description": "Creates a new page in a Notion workspace under a specified parent page or database. Supports creating pages with markdown content using the native markdown parameter, or as an empty page that can be populated later. PREREQUISITES: - Parent page/database must exist and be accessible in your Notion workspace - Use search_pages or list_databases first to obtain valid parent IDs LIMITATIONS: - Cannot create root-level pages (must have a parent) - May encounter conflicts if creating pages too quickly - Title-based paren… Changes something in the user's account: only when they asked; they approve first.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "notion_add_multiple_page_content",
+		"label": "Adding to a Notion page",
+		"description": "Bulk-add content blocks to Notion. Text >2000 chars auto-splits. Parses markdown formatting. ⚠️ PARENT BLOCK TYPES: Content is added AS CHILDREN of parent_block_id. - To add content AFTER a heading, use PAGE ID as parent + heading ID in 'after' param. - Headings CANNOT have children unless is_toggleable=True. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "notion_insert_row_database",
+		"label": "Adding a Notion row",
+		"description": "Creates a new page (row) in a specified Notion database. Prerequisites: - Database must be shared with your integration - Property names AND types must match schema exactly (case-sensitive) - Use notion_fetch_data with fetch_type='databases' first to get exact property names and types - Each database has ONE 'title' property; other text fields are 'rich_text' - Database must NOT have multiple data sources (synced databases are not supported) Common Errors: - 404: Database not shared with integration - 400 \"not a pr… Changes something in the user's account: only when they asked; they approve first.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "notion_update_row_database",
+		"label": "Updating a Notion row",
+		"description": "Updates a specific row/page within a Notion database by its page UUID (row_id). IMPORTANT CLARIFICATION: This action updates INDIVIDUAL ROWS (pages) in a database, NOT the database structure. - To update a ROW/PAGE: Use THIS action with `row_id` (the page UUID) - To update DATABASE SCHEMA (columns, properties, title): Use NOTION_UPDATE_SCHEMA_DATABASE with `database_id` REQUIRED: `row_id` is MANDATORY. This is the UUID of the specific page/row to update. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "notion_create_comment",
+		"label": "Commenting in Notion",
+		"description": "Adds a comment to a Notion page (via `parent_page_id`) OR to an existing discussion thread (via `discussion_id`); cannot create new discussion threads on specific blocks (inline comments). Changes something in the user's account: only when they asked; they approve first.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "notion_archive_notion_page",
+		"label": "Archiving a Notion page",
+		"description": "Archives (moves to trash) or unarchives (restores from trash) a specified Notion page. Limitation: Workspace-level pages (top-level pages with no parent page or database) cannot be archived via the API and must be archived manually in the Notion UI. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "notion_replace_page_content",
+		"label": "Replacing a Notion page",
+		"description": "Safely replaces a page's child blocks by optionally backing up current content, deleting existing children, then appending new children in batches. Use when you need to rebuild a page without leaving partial states. Notion does not provide atomic transactions; this tool orchestrates a multi-step workflow with optional backup to reduce risk. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "notion_delete_block",
+		"label": "Deleting a Notion block",
+		"description": "Archives a Notion block, page, or database using its ID, which sets its 'archived' property to true (like moving to \"Trash\" in the UI) and allows it to be restored later. Note: This operation will fail if the block has an archived parent or ancestor in the hierarchy. You must unarchive the ancestor before archiving/deleting its descendants. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "notion",
+		"categoryLabel": "Notion",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "github_list_notifications",
+		"label": "Checking GitHub notifications",
+		"description": "Tool to list notification threads for the authenticated user with efficient polling support. Use when you need to fetch the user's GitHub notification inbox with filters like unread/participating/since. Returns notification threads plus polling headers (Last-Modified, ETag, X-Poll-Interval) for efficient polling. IMPORTANT: This endpoint requires a Personal Access Token (classic) with 'notifications' or 'repo' scope. It does NOT work with GitHub App tokens or fine-grained personal access tokens.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_search_issues_and_pull_requests",
+		"label": "Searching your GitHub",
+		"description": "Searches GitHub for issues and pull requests. Supports keywords, qualifiers (repo:, org:, user:, state:, label:, author:, assignee:, mentions:, etc.), and type filters (is:issue, is:pr). Type filters cannot be used alone - they must be combined with at least one keyword or other qualifier. All other qualifiers work independently. The @me shorthand (e.g., assignee:@me, mentions:@me) is automatically resolved to your username.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_get_an_issue",
+		"label": "Opening an issue",
+		"description": "Retrieves detailed information about a specific issue in a repository using the owner, repository name, and issue number.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_get_a_pull_request",
+		"label": "Opening a pull request",
+		"description": "Retrieves a specific pull request from a GitHub repository using its owner, repository name, and pull request number.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "github_create_an_issue",
+		"label": "Opening an issue",
+		"description": "Creates a new issue in a GitHub repository, requiring the repository to exist and have issues enabled; specific fields like assignees, milestone, or labels may require push access. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "github_create_an_issue_comment",
+		"label": "Commenting on GitHub",
+		"description": "Creates a new comment on an existing GitHub issue or pull request within the specified repository. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "github_mark_notifications_as_read",
+		"label": "Clearing GitHub notifications",
+		"description": "Marks notifications as read or unread, optionally for those updated at or before a `last_read_at` timestamp. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "github_close_issue",
+		"label": "Closing an issue",
+		"description": "Close a GitHub issue by setting its state to closed. Use this action when you need to mark an issue as resolved or no longer relevant. Optionally specify a reason for closing (completed or not_planned) to provide context. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "github_merge_a_pull_request",
+		"label": "Merging a pull request",
+		"description": "Merges an open and mergeable pull request in a repository. A 405 error can occur for multiple reasons: (1) The PR is still in draft mode - convert it to ready-for-review first using GITHUB_UPDATE_A_PULL_REQUEST. (2) Branch protection rules are not satisfied - check for required approving reviews, status checks, or other repository rules that must be met before merging. (3) The base branch has been modified since the PR was last synced - update the PR branch first using GITHUB_UPDATE_A_PULL_REQUEST_BRANCH. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "githubAccount",
+		"categoryLabel": "Your GitHub",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "linear_list_linear_issues",
+		"label": "Listing Linear issues",
+		"description": "Lists non-archived Linear issues; if project_id is not specified, issues from all accessible projects are returned. Can filter by assignee_id. Only project_id and assignee_id server-side filters are supported; label, state, team, cycle, or date filters must be done client-side or via LINEAR_RUN_QUERY_OR_MUTATION. Response is a flat issues array plus page_info object (not GraphQL nodes/pageInfo).",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "linear_search_issues",
+		"label": "Searching Linear",
+		"description": "Search Linear issues using full-text search across identifier, title, and description. Use when you need to find issues by keywords or specific identifiers. Note: This endpoint only supports full-text search; for structured filtering by team, project, assignee, state, or labels, use LIST_ISSUES_BY_TEAM_ID instead.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "linear_get_linear_issue",
+		"label": "Opening a Linear issue",
+		"description": "Retrieves an existing Linear issue's comprehensive details, including id, identifier, title, description, timestamps, state, team, creator, attachments, comments (with user info and timestamps, use issue.comments.nodes for comment IDs), subscribers, and due date. Embedded screenshots are uploads.linear.app URLs in description/comment Markdown, not Attachment records; download them with LINEAR_GET_ATTACHMENT's upload_url input.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "linear_list_linear_teams",
+		"label": "Listing Linear teams",
+		"description": "Retrieves all teams with their members and projects. Use stable team IDs or keys (not display names) for subsequent operations — names are non-unique. Results reflect only teams visible to the authenticated token scope; missing teams or members indicate permission limits. Large workspaces paginate via pageInfo.hasNextPage/endCursor — incomplete pagination silently drops teams or members. Members may belong to multiple teams; deduplicate user IDs when aggregating.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "linear_list_linear_projects",
+		"label": "Listing Linear projects",
+		"description": "Retrieves all projects from the Linear account. Returns a flat array (not a GraphQL connection) with fields id and name; use LINEAR_RUN_QUERY_OR_MUTATION for progress, state, issues, or team linkage. No server-side filtering: all workspace projects are returned regardless of team or name — filter client-side. Multiple projects can share identical names; always confirm project_id before downstream use. Results are permission-scoped to the connected user.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "linear_create_linear_issue",
+		"label": "Creating a Linear issue",
+		"description": "Creates a new issue in a specified Linear project and team, requiring team_id and title, and allowing optional properties like description, assignee, state, priority, cycle, and due date. All UUID parameters (state_id, assignee_id, cycle_id, label_ids, project_id) must belong to the same team as team_id. The created issue's id is returned in data.id — capture it for use as parent_id in sub-issues or follow-up operations. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "linear_update_issue",
+		"label": "Updating a Linear issue",
+		"description": "Updates an existing Linear issue using its `issue_id`; requires at least one other attribute for modification, and all provided entity IDs (for state, assignee, labels, etc.) must be valid UUIDs — only `issueId` accepts key format (e.g., 'ENG-123'). All updated fields are fully overwritten, not merged; omit any field you do not intend to change. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "linear_create_linear_comment",
+		"label": "Commenting in Linear",
+		"description": "Creates a new comment on a specified Linear issue. This action modifies shared workspace data and is not reversible — confirm the target issue and comment content before executing. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "linear_delete_linear_issue",
+		"label": "Deleting a Linear issue",
+		"description": "Archives an existing Linear issue by its ID, which is Linear's standard way of deleting issues; the operation is idempotent. Archiving is permanent with no built-in undo — confirm the issue identifier and title with the user before executing, especially in bulk operations. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "linear",
+		"categoryLabel": "Linear",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "todoist_get_all_tasks",
+		"label": "Checking your tasks",
+		"description": "Fetches all INCOMPLETE tasks from Todoist and returns their details. Supports cursor-based pagination. IMPORTANT LIMITATIONS: - This endpoint only returns active (incomplete) tasks - Cannot retrieve completed tasks - use a different endpoint for that - Filter queries using 'completed', '!completed', or 'completed after' will fail - Project/label references must use ACTUAL EXISTING names from the user's account - Arbitrary text in filters causes 400 errors - use 'search: keyword' for text search Common use cases: -…",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "todoist_filter_tasks",
+		"label": "Filtering tasks",
+		"description": "Tool to get all tasks matching the filter. Use when you need to retrieve tasks based on specific filter criteria. This is a paginated endpoint using cursor-based pagination.",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "todoist_get_all_projects",
+		"label": "Listing Todoist projects",
+		"description": "Get all projects from a user's Todoist account. Retrieves all active (non-archived) projects; use TODOIST_LIST_ARCHIVED_WORKSPACE_PROJECTS for archived ones. Response returns the list in the projects field, with fields including project_id, name, color, parent project, sharing status, and is_inbox_project flag. Always reference projects by project_id — names are non-unique and may be localized. Detect the Inbox via is_inbox_project, not by name.",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "todoist_create_task",
+		"label": "Adding a task",
+		"description": "Create a new task in Todoist using the unified API v1. This action allows users to create tasks with various parameters including content, due dates, priority, and more. The task can be created in a specific project, section, or as a subtask of another task. Bulk creation may trigger HTTP 429; honor Retry-After response headers. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "todoist_update_task",
+		"label": "Updating a task",
+		"description": "Tool to update an existing task's properties. Cannot change a task's project; to move a task, use todoist_create_task then todoist_delete_task. Use when you need to modify a task's details after confirming its ID and new values. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "todoist_close_task",
+		"label": "Completing a task",
+		"description": "DEPRECATED: Use TODOIST_CLOSE_TASK_V1 instead. This tool marks an existing task as completed in Todoist. It requires the `task_id` of the task to be closed. Closing an already-completed task returns an error; check task state first if idempotent behavior is needed. Changes something in the user's account: only when they asked; they approve first.",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "todoist_delete_task",
+		"label": "Deleting a task",
+		"description": "Tool to delete a specific task from Todoist. Permanently removes the task and all its subtasks with no recycle bin or undo option. Confirm with the user before executing, especially for bulk deletions. Destructive: only when the user clearly asked for exactly this; it always waits for approval.",
+		"category": "todoist",
+		"categoryLabel": "Todoist",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "connect_app",
+		"label": "Connecting an app",
+		"description": "Checks whether the user connected an app (gmail, outlook, googlecalendar, googledrive, googledocs, googlesheets, slack, notion, github, linear, todoist, or any other Composio toolkit slug such as hubspot, jira, asana, dropbox, airtable, zoom). Call it before using an app they have not connected. If it returns needs_connection, a Connect button is shown in the chat: tell them to tap it and sign in, then ask again. Never paste the link. Never invent their mail, events, files or messages.",
+		"category": "apps",
+		"categoryLabel": "Any connected app",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "list_connected_apps",
+		"label": "Checking connected apps",
+		"description": "Lists the apps the user connected through Composio, and the apps Triangle has built-in tools for.",
+		"category": "apps",
+		"categoryLabel": "Any connected app",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "find_app_tools",
+		"label": "Finding the right app action",
+		"description": "Searches Composio's catalog of app actions (thousands, across 500+ apps) for one the built-in tools don't cover. Returns tool slugs with their parameters, for run_app_tool. Give the app slug and/or what you want to do.",
+		"category": "apps",
+		"categoryLabel": "Any connected app",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "run_app_tool",
+		"label": "Running an app action",
+		"description": "Runs any Composio action by slug (from find_app_tools) on an app the user connected, with arguments as a JSON object written as text. Prefer the built-in app tools when one fits. Every call waits for the user's approval, because it can do anything the app allows.",
+		"category": "apps",
+		"categoryLabel": "Any connected app",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "e2b_run_code",
+		"label": "Running code in E2B",
+		"description": "Runs code in the user's E2B cloud sandbox (a Linux VM with Jupyter): python (default; numpy, pandas, matplotlib, scipy, requests… and pip install), javascript, bash, r or java. The sandbox keeps its state between calls while it lives (variables, files, installed packages) when the user keeps it in Settings. Charts (plt.show() or the last expression) are shown to the user; printed output and results come back. Use for heavy work the phone sandbox (run_code) can't do: big data, network, packages, long jobs. Put files from this conversation in the sandbox first with e2b_upload_file. The code is shown to the user, who can edit and rerun it.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "e2b_run_command",
+		"label": "Running a command in E2B",
+		"description": "Runs a shell command in the E2B sandbox (e.g. \"ls -la\", \"pip install x\", \"git clone …\") and returns its output and exit code.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "e2b_upload_file",
+		"label": "Putting a file in E2B",
+		"description": "Copies a file from this conversation (its name or path) into the E2B sandbox, by default into /home/user.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "e2b_download_file",
+		"label": "Getting a file from E2B",
+		"description": "Copies a file out of the E2B sandbox onto the phone (up to 15 MB). It becomes a file of this conversation: shown to the user, and sendable with send_message.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "modify",
+		"approval": false
+	},
+	{
+		"name": "e2b_list_files",
+		"label": "Listing E2B files",
+		"description": "Lists a folder in the E2B sandbox (default /home/user): names, sizes, dates.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "e2b_sandboxes",
+		"label": "Checking E2B sandboxes",
+		"description": "Shows the sandbox this app is using, and every sandbox running on the user's E2B account.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "e2b_reset_sandbox",
+		"label": "Restarting the E2B sandbox",
+		"description": "Stops the sandbox this app is using; the next run starts a clean one. Its variables and files are lost.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "e2b_kill_sandbox",
+		"label": "Stopping an E2B sandbox",
+		"description": "Stops any sandbox on the user's E2B account by id (from e2b_sandboxes), including ones other apps started. Its state is lost.",
+		"category": "e2b",
+		"categoryLabel": "E2B code sandbox",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_zones",
+		"label": "Listing Cloudflare sites",
+		"description": "Lists the user's Cloudflare zones (sites): status, plan, name servers. name filters by domain.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "cloudflare_dns_records",
+		"label": "Reading DNS records",
+		"description": "Lists a zone's DNS records (type, name, content, proxied, TTL), optionally filtered by type or name.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "cloudflare_workers",
+		"label": "Listing Workers",
+		"description": "Lists the account's Workers scripts with when each was created and last changed.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "cloudflare_pages",
+		"label": "Listing Pages projects",
+		"description": "Lists Cloudflare Pages projects with their domains and latest deployment; give project for its recent deployments.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "cloudflare_kv",
+		"label": "Reading Workers KV",
+		"description": "Workers KV: with no namespace_id lists namespaces; with one lists its keys (prefix filters); with key too, reads that value.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "cloudflare_api_get",
+		"label": "Asking the Cloudflare API",
+		"description": "GET any Cloudflare API v4 path the other tools don't cover (e.g. /zones/{id}/settings, /accounts/{account_id}/d1/database). {account_id} is filled in. Read-only.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "cloudflare_create_dns_record",
+		"label": "Adding a DNS record",
+		"description": "Adds a DNS record to a zone. Only when the user asked; they approve first.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_update_dns_record",
+		"label": "Changing a DNS record",
+		"description": "Changes fields of a DNS record (record_id from cloudflare_dns_records). Only when the user asked; they approve first.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_purge_cache",
+		"label": "Purging the cache",
+		"description": "Purges a zone's cache: everything, or only the given URLs. They approve first.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_kv_put",
+		"label": "Writing to Workers KV",
+		"description": "Writes a value under a key in a Workers KV namespace. They approve first.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "r2_buckets",
+		"label": "Listing R2 buckets",
+		"description": "Lists the account's R2 storage buckets.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "r2_list",
+		"label": "Browsing R2",
+		"description": "Lists files in an R2 bucket one folder at a time (prefix is the folder, e.g. \"photos/\"), with sizes and dates. Shown to the user as a file browser.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "r2_download",
+		"label": "Getting a file from R2",
+		"description": "Downloads an R2 object onto the phone (up to 50 MB). It becomes a file of this conversation: read it with run_code, or send it with send_message.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "r2_share_link",
+		"label": "Making a share link",
+		"description": "A temporary link anyone can open to download an R2 object (presigned; default 1 hour, up to 7 days).",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "r2_upload",
+		"label": "Uploading to R2",
+		"description": "Uploads a file of this conversation (or text) to an R2 bucket under key. Overwrites an object with the same key. They approve first.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "r2_create_bucket",
+		"label": "Creating an R2 bucket",
+		"description": "Creates an R2 bucket. They approve first.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_delete_dns_record",
+		"label": "Deleting a DNS record",
+		"description": "Deletes a DNS record. Can take a site or email offline. Only when the user clearly asked for exactly this.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_kv_delete",
+		"label": "Deleting a KV key",
+		"description": "Deletes a key from a Workers KV namespace.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_delete_worker",
+		"label": "Deleting a Worker",
+		"description": "Deletes a Workers script. Whatever it serves stops working.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "cloudflare_api_request",
+		"label": "Changing something in Cloudflare",
+		"description": "POST, PUT, PATCH or DELETE on any Cloudflare API v4 path, with a JSON body written as text. For changes the other tools don't cover. {account_id} is filled in. Always asks first.",
+		"category": "cloudflare",
+		"categoryLabel": "Cloudflare",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "r2_delete",
+		"label": "Deleting from R2",
+		"description": "Deletes objects from an R2 bucket. There is no undo.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "r2_delete_bucket",
+		"label": "Deleting an R2 bucket",
+		"description": "Deletes an empty R2 bucket.",
+		"category": "r2",
+		"categoryLabel": "Cloudflare R2 storage",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "device_info",
+		"label": "Checking the phone",
+		"description": "The phone's specs and state: maker and model, chip, Android version and security patch, CPU cores, RAM and storage (total and free), screen, uptime and battery.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "device_battery",
+		"label": "Checking the battery",
+		"description": "Battery level, charging and how (charger, USB, wireless), temperature, health and battery saver.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "network_info",
+		"label": "Checking the network",
+		"description": "The phone's connection: Wi-Fi or mobile data, whether the internet works, VPN, metered, speeds, IP addresses, DNS, carrier and roaming; for Wi-Fi the signal, band, link speed and network name (the name needs location permission).",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "installed_apps",
+		"label": "Listing installed apps",
+		"description": "Apps installed on the phone with version and install/update dates. query filters by name; include_system adds system apps.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_sms",
+		"label": "Reading text messages",
+		"description": "Reads the phone's SMS, newest first: inbox (default), sent or all. Filter by sender (from: number or part of it), text (query), since_hours or unread_only. Use for verification codes, bank or delivery texts, or messages from someone. Does not mark anything read.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "call_log",
+		"label": "Checking calls",
+		"description": "The phone's call history, newest first: who, when, how long, and missed/incoming/outgoing.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "phone_contacts",
+		"label": "Looking up phone contacts",
+		"description": "Searches the phone's contacts (not Telegram's) by name or number, with their numbers. Use it to find who to call or text.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_clipboard",
+		"label": "Reading the clipboard",
+		"description": "The text currently copied on the phone.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "make_call",
+		"label": "Calling",
+		"description": "Places a phone call (a regular call, not Telegram). Find the number with phone_contacts when given a name. With dialer_only the dialer opens with the number instead. The user approves first.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "send_sms",
+		"label": "Sending a text message",
+		"description": "Sends an SMS from the phone. The carrier may charge for it, so it always waits for the user's approval.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "flashlight",
+		"label": "Switching the flashlight",
+		"description": "Turns the flashlight (torch) on or off; toggles when on is left out.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "vibrate",
+		"label": "Vibrating",
+		"description": "Vibrates the phone for a moment, e.g. to find it or as a signal.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "device_volume",
+		"label": "Volume",
+		"description": "Reads the volume of media, ring, alarm, notification and call sounds, and the ringer mode. With percent, mute or unmute it changes one stream (default media); only that asks first.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "ringer_mode",
+		"label": "Changing the ringer",
+		"description": "Sets the ringer to normal, vibrate or silent. Silent may need Do Not Disturb access, which Android asks for.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "media_control",
+		"label": "Controlling playback",
+		"description": "Presses a media key for whatever is playing on the phone (Spotify, YouTube Music, podcasts…): play, pause, toggle, next, previous or stop.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_alarm",
+		"label": "Setting an alarm",
+		"description": "Sets an alarm in the phone's Clock app (rings even on silent, unlike create_reminder). days repeats it: 1 Sunday … 7 Saturday.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "set_timer",
+		"label": "Starting a timer",
+		"description": "Starts a countdown timer in the phone's Clock app.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "open_app",
+		"label": "Opening an app",
+		"description": "Opens an installed app by its package (from installed_apps), e.g. com.spotify.music.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "open_device_settings",
+		"label": "Opening settings",
+		"description": "Opens a page of Android's Settings so the user can change it: Wi-Fi, Bluetooth, mobile data, hotspot, airplane mode, location, battery, display, sound, Do Not Disturb, storage, apps, NFC.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "write_clipboard",
+		"label": "Copying to the clipboard",
+		"description": "Copies text to the phone's clipboard, replacing what is there.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "keep_screen_on",
+		"label": "Keeping the screen on",
+		"description": "Keeps the screen from turning off while Triangle is open (e.g. while reading a recipe), or lets it sleep again.",
+		"category": "device",
+		"categoryLabel": "Device",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "jev_decide",
+		"label": "Deciding with Jev",
+		"description": "Asks TypeSafe Jev several typed questions about one piece of content at once: yes/no (noul), one of named options (choice), a rubric score (score). Returns calibrated probabilities, not prose. Use it to classify, route, triage, moderate or grade consistently, and keep to the thresholds in the answer (yes, uncertain).",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "jev_batch",
+		"label": "Deciding a batch with Jev",
+		"description": "Asks Jev the same questions about many items in ONE call (up to 100): the sentiment of the last messages in a chat, the topic of each email, a score per review. Returns a short answer per item plus totals (counts per choice, yes/no counts, mean score). Always use this for two or more items instead of one Jev call per item; pass each item id (e.g. the message id) to match the answers back.",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "jev_noul",
+		"label": "Jev yes/no",
+		"description": "One yes/no question to Jev about one item: the probability it is true, and yes at your threshold. For two or more items use jev_batch.",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "jev_choice",
+		"label": "Jev choice",
+		"description": "Jev picks one of several named options for one item, with each option's probability and its confidence. For two or more items use jev_batch.",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "jev_score",
+		"label": "Jev score",
+		"description": "Jev rates one item on a rubric: the probability-weighted level, each level's probability, and confidence. For two or more items use jev_batch.",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "jev_box",
+		"label": "Jev box",
+		"description": "Jev finds something in a picture and returns its box: top, bottom, left and right as fractions of the picture from its top-left. Give the picture in images.",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "jev_models",
+		"label": "Listing Jev models",
+		"description": "The Jev model ids your TypeSafe key can use (aliases like jev-latest and pinned versions).",
+		"category": "decisions",
+		"categoryLabel": "Decisions (Jev)",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_search",
+		"label": "Searching MCP servers",
+		"description": "Searches the official MCP Registry for servers that add tools (GitHub, Linear, docs, databases…). Returns each server's registry name, what it does, how it connects, and the values it needs (inputs).",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_list_servers",
+		"label": "Listing MCP servers",
+		"description": "The MCP servers installed in the app: id, transport and address. Doesn't connect to them.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_is_installed",
+		"label": "Checking an MCP server",
+		"description": "Whether an MCP server id is installed. Doesn't connect.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_install_catalog",
+		"label": "Installing an MCP server",
+		"description": "Installs a server from the MCP Registry by its full name (from mcp_search). Give the values its inputs ask for (API keys) in headers, by header or variable name. Servers that run as a local command can only be added by the person in Settings. Asks first.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mcp_install",
+		"label": "Adding an MCP server",
+		"description": "Saves an MCP server by address: a Streamable HTTP (or legacy SSE) endpoint and optional headers. Plain http only for localhost or the local network. Doesn't connect yet. Asks first.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mcp_uninstall",
+		"label": "Removing an MCP server",
+		"description": "Removes an installed MCP server and its saved headers, and closes its connection.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "destructive",
+		"approval": true
+	},
+	{
+		"name": "mcp_list_tools",
+		"label": "Opening an MCP server",
+		"description": "Connects to an installed MCP server and lists its tools with their input schemas, for mcp_call_tool.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_call_tool",
+		"label": "Using an MCP tool",
+		"description": "Runs one tool on an installed MCP server, with arguments matching its input schema from mcp_list_tools. Works right after installing. It can do anything the server allows, so it asks first.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "mcp_list_resources",
+		"label": "Listing MCP resources",
+		"description": "Connects to an installed MCP server and lists the resources (files, records, pages) it offers.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_read_resource",
+		"label": "Reading an MCP resource",
+		"description": "Reads one resource from an installed MCP server.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_list_prompts",
+		"label": "Listing MCP prompts",
+		"description": "Connects to an installed MCP server and lists its prompt templates and their arguments.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "mcp_get_prompt",
+		"label": "Loading an MCP prompt",
+		"description": "Loads a prompt template from an installed MCP server, filled with its arguments.",
+		"category": "mcp",
+		"categoryLabel": "MCP servers",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "search_skills",
+		"label": "Searching skills",
+		"description": "Searches public skill catalogs (Skyll and skills.sh) for Agent Skills: step-by-step instructions for a kind of task. Returns what each does, its source, installs, and the install string for install_skill.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "list_skills",
+		"label": "Listing skills",
+		"description": "Installed skills: name, what each is for, where it came from and its bundled files.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "is_skill_installed",
+		"label": "Checking a skill",
+		"description": "Whether a skill is installed.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "preview_skill",
+		"label": "Previewing a skill",
+		"description": "Reads a skill from GitHub or a SKILL.md link without installing it: its instructions and bundled files.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "load_skill",
+		"label": "Using a skill",
+		"description": "Loads an installed skill's full instructions. Call it before doing a task a skill covers, then follow them.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "read_skill_file",
+		"label": "Reading a skill file",
+		"description": "Reads a reference file or script bundled with an installed skill.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "read",
+		"approval": false
+	},
+	{
+		"name": "install_skill",
+		"label": "Installing a skill",
+		"description": "Installs a skill from GitHub (owner/repo or owner/repo@skill-name) or an https link to a SKILL.md, so its instructions are available in every chat. Asks first.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "modify",
+		"approval": true
+	},
+	{
+		"name": "uninstall_skill",
+		"label": "Removing a skill",
+		"description": "Removes an installed skill and its bundled files from the app.",
+		"category": "skills",
+		"categoryLabel": "Skills",
+		"access": "destructive",
+		"approval": true
+	}
+]

@@ -21,7 +21,8 @@ The landing page is prerendered. The existing Vercel adapter is retained.
 
 ## Content and assets
 
-- `src/routes/+page.svelte`: page content, interactions, and metadata.
+- `src/routes/+page.svelte`: the home page.
+- `src/routes/tools/`: the tool catalogue, generated from the app (see DESIGN.md).
 - `src/routes/layout.css`: design tokens, layouts, motion, and breakpoints.
 - `src/lib/components/`: the hero plate, the pointer triangle, and small brand and phone components.
 - `static/screenshots/`: actual Flutter message and brief widgets with fictional sample data.
